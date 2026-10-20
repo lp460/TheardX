@@ -7,7 +7,7 @@ Pocket + mode lecture + gestionnaire de favoris, spécialisé pour X. Tout reste
 ## Fonctionnalités
 
 - **Détection automatique, enregistrement sur action.** Sur x.com et twitter.com, ThreadShelf reconnaît les publications affichées par X, dans la mise en page actuelle comme dans la mise en page « classique » `data-testid`. Rien n'est enregistré sans action de votre part.
-- **Interface discrète dans la page.** Sous la publication ouverte : `ThreadShelf · Enregistrer | Copier | Lire | •••`. Un petit bouton est ajouté à la fin de la barre d'actions de chaque publication. Les commandes natives de X ne sont jamais masquées.
+- **Un bouton ThreadShelf sur X.** Chaque publication reçoit un bouton ThreadShelf (violet) à la fin de sa barre d'actions. Un clic ouvre un menu avec **toutes les actions** : enregistrer le thread, la publication ou la publication avec ses références ; ajouter à une sélection ; copier (thread en Markdown, publication, texte brut) ; lire ; collection, tags et note ; bibliothèque ; supprimer la sauvegarde. Un **bouton flottant** « ThreadShelf », toujours visible en bas à droite, ouvre le même menu pour la publication en cours de lecture. Sous la publication ouverte, la barre `ThreadShelf · Enregistrer | Copier | Lire | •••` reste disponible. Les commandes natives de X ne sont jamais masquées.
 - **Quatre modes de capture :**
   - A, la publication seule ;
   - B, le thread de l'auteur ;
@@ -52,7 +52,8 @@ Pour Chrome, Brave et Edge, la procédure est la même via `chrome://extensions`
 
 ## Utilisation
 
-- **Enregistrer** : bouton _Enregistrer_ de la barre (thread de l'auteur), ou _•••_ pour choisir un autre mode, une collection, une catégorie, des tags ou une note. Vous pouvez aussi utiliser la popup, ⌥⇧S, ou le clic droit → « Enregistrer le thread dans ThreadShelf ».
+- **Toutes les actions** : cliquez sur le bouton ThreadShelf d'une publication, ou sur le bouton flottant en bas à droite.
+- **Enregistrer** : bouton _Enregistrer_ de la barre (thread de l'auteur), ou le menu _•••_ pour choisir un autre mode, une collection, une catégorie, des tags ou une note. Vous pouvez aussi utiliser la popup, ⌥⇧S, ou le clic droit → « Enregistrer le thread dans ThreadShelf ».
 - **Thread incomplet** : faites défiler la conversation. Les publications chargées sont ajoutées automatiquement à l'entrée et une notification indique le nouveau total.
 - **Copier** : _Copier_ dans la barre (Markdown par défaut, modifiable dans les paramètres), ⌥⇧C, ou depuis la bibliothèque ou le lecteur.
 - **Lire** : _Lire_ ouvre le lecteur dans un nouvel onglet. Raccourcis : `j`/`k` publication suivante/précédente, `+`/`−` taille, `[`/`]` largeur, `t` thème, `s` police, `c` copier, `f` favori, `p` imprimer, `?` aide.

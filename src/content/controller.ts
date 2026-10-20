@@ -17,7 +17,7 @@ import { copyText } from '@/utils/clipboard';
 import { segmentsToPlain, truncate } from '@/utils/text';
 import { parseStatusUrl } from '@/utils/url';
 import { CaptureSession } from './session';
-import { useContent, type PanelPreview } from './store';
+import { useContent, type MenuAction, type PanelPreview } from './store';
 import { CaptureBar, PostButton, type Tone } from './ui/inline';
 
 const SCAN_THROTTLE_MS = 250;
@@ -77,11 +77,14 @@ export class ContentController {
       this.disconnect();
       this.removeInjected();
       this.ui.destroy();
-      useContent.getState().set({ panelOpen: false });
+      useContent.getState().set({ panelOpen: false, menu: null, fabVisible: false });
       return;
     }
     if (!s.injectUi) this.removeInjected();
     else if (!s.perPostButtons) this.removeButtons();
+    const fab = s.injectUi && s.floatingButton;
+    if (fab) this.ui.ensure();
+    useContent.getState().set({ fabVisible: fab, ...(fab ? {} : { menu: null }) });
     if (s.autoDetect) this.connect();
     else this.disconnect();
     this.scheduleScan(0);
@@ -253,7 +256,7 @@ export class ContentController {
           if (!btn || !btn.host.isConnected || btn.host.parentElement !== row) {
             btn?.host.remove();
             row.querySelectorAll(':scope > threadshelf-action').forEach((x) => x.remove());
-            btn = new PostButton(t.id, (id) => this.onPostButton(id));
+            btn = new PostButton(t.id, (id, host) => this.onPostButton(id, host));
             row.appendChild(btn.host);
             this.buttons.set(t.id, btn);
           }
@@ -277,7 +280,7 @@ export class ContentController {
               save: () => void this.save('thread', t.id),
               copy: () => void this.copy('thread', t.id),
               read: () => void this.read('thread', t.id),
-              more: () => this.openPanel(t.id, 'thread'),
+              more: (anchor) => this.openMenu(t.id, anchor.getBoundingClientRect(), 'bar'),
             });
             anchor.insertAdjacentElement('afterend', this.bar.host);
           }
@@ -353,7 +356,7 @@ export class ContentController {
 
   /* ------------------------------------------------------------------ panel ------------------------------------------------------------------ */
 
-  private onPostButton(id: string): void {
+  private onPostButton(id: string, host: HTMLElement): void {
     const st = useContent.getState();
     if (st.panelOpen && st.mode === 'selection') {
       const selection = st.selection.includes(id)
@@ -363,7 +366,193 @@ export class ContentController {
       this.refreshButtons();
       return;
     }
-    this.openPanel(id, parseStatusUrl(location.href)?.id === id ? 'thread' : 'tweet');
+    this.openMenu(id, host.getBoundingClientRect(), 'post');
+  }
+
+  /* ------------------------------------------------------------------ action menu ------------------------------------------------------------------ */
+
+  /** Post closest to the top third of the viewport (the one the user is reading). */
+  private visiblePostId(): string | null {
+    const cells = this.session.lastScan?.cells ?? [];
+    const focal = cells.find((c) => c.isFocal && c.tweet);
+    if (focal?.element) {
+      const r = focal.element.getBoundingClientRect();
+      if (r.bottom > 0 && r.top < window.innerHeight) return focal.tweet!.id;
+    }
+    const target = window.innerHeight * 0.3;
+    let best: { id: string; d: number } | null = null;
+    for (const c of cells) {
+      if (!c.tweet || !c.element) continue;
+      const r = c.element.getBoundingClientRect();
+      if (r.height === 0 || r.bottom < 0 || r.top > window.innerHeight) continue;
+      const d =
+        r.top <= target && r.bottom >= target
+          ? 0
+          : Math.min(Math.abs(r.top - target), Math.abs(r.bottom - target));
+      if (!best || d < best.d) best = { id: c.tweet.id, d };
+    }
+    return best?.id ?? focal?.tweet?.id ?? null;
+  }
+
+  openMenu(
+    targetId: string | null,
+    anchor: { top: number; left: number; right: number; bottom: number },
+    source: 'post' | 'bar' | 'fab',
+  ): void {
+    this.ui.ensure();
+    this.scan();
+    const id = targetId ?? this.visiblePostId();
+    const t = id ? this.session.graph.tweets.get(id) : undefined;
+    const st = useContent.getState();
+    if (st.menu && st.menu.targetId === (t ? id : null) && st.menu.source === source) {
+      st.set({ menu: null });
+      return;
+    }
+    let info = null;
+    if (t && id) {
+      const plan = this.session.plan('thread', id);
+      info = {
+        handle: t.author.handle,
+        name: t.author.name,
+        preview: truncate(segmentsToPlain(t.text).replace(/\s+/g, ' '), 120),
+        threadCount: plan.tweetIds.length,
+        status: plan.completeness.status,
+        saved: this.saved.has(id),
+        isFocal: this.session.lastScan?.focalId === id,
+        onStatusPage: this.session.lastScan?.route.kind === 'status',
+      };
+    }
+    st.set({
+      panelOpen: false,
+      menu: {
+        targetId: t ? id : null,
+        anchor: { top: anchor.top, left: anchor.left, right: anchor.right, bottom: anchor.bottom },
+        source,
+        info,
+      },
+    });
+  }
+
+  closeMenu(): void {
+    useContent.getState().set({ menu: null });
+  }
+
+  async menuAction(action: MenuAction): Promise<void> {
+    const st = useContent.getState();
+    const id = st.menu?.targetId ?? null;
+    st.set({ menu: null });
+    switch (action) {
+      case 'save-thread':
+        await this.save('thread', id);
+        break;
+      case 'save-tweet':
+        await this.save('tweet', id);
+        break;
+      case 'save-references':
+        await this.save('references', id);
+        break;
+      case 'copy-thread':
+        await this.copy('thread', id, 'markdown');
+        break;
+      case 'copy-tweet':
+        await this.copy('tweet', id, 'markdown');
+        break;
+      case 'copy-text':
+        await this.copy('thread', id, 'text');
+        break;
+      case 'read':
+        await this.read('thread', id);
+        break;
+      case 'options':
+        this.openPanel(id, 'thread');
+        break;
+      case 'select':
+        this.openPanel(id, 'selection');
+        this.setMode('selection');
+        break;
+      case 'library':
+        await send({ type: 'open.library' }).catch((e) => this.handleError(e));
+        break;
+      case 'delete':
+        if (id) st.set({ savedEntryId: this.saved.get(id) ?? null });
+        await this.removeSaved();
+        break;
+      case 'diagnostics':
+        try {
+          await copyText(JSON.stringify(this.diagnostics(), null, 2));
+          this.notify(
+            'success',
+            'Diagnostic copié',
+            'Collez-le dans votre message : il ne contient aucun texte de publication.',
+          );
+        } catch (e) {
+          this.handleError(e);
+        }
+        break;
+    }
+  }
+
+  /** Structural description of the page for bug reports — no post text, no handles, no IDs. */
+  diagnostics() {
+    const doc = document;
+    const testids = new Map<string, number>();
+    doc.querySelectorAll('[data-testid]').forEach((el) => {
+      const k = el.getAttribute('data-testid')!;
+      testids.set(k, (testids.get(k) ?? 0) + 1);
+    });
+    const articles = Array.from(doc.querySelectorAll('article'));
+    const first = articles.find((a) => !a.parentElement?.closest('article'));
+    const shape = (el: Element | undefined, depth = 0): string => {
+      if (!el || depth > 6) return '';
+      const kids = Array.from(el.children)
+        .slice(0, 6)
+        .map((c) => shape(c, depth + 1))
+        .filter(Boolean);
+      const attrs = ['role', 'data-testid', 'data-engagement-action', 'aria-hidden', 'dir']
+        .filter((a) => el.hasAttribute(a))
+        .map(
+          (a) =>
+            `${a}=${a === 'data-testid' || a === 'role' || a === 'data-engagement-action' ? el.getAttribute(a) : ''}`,
+        );
+      const cls = (el.getAttribute('class') ?? '')
+        .split(/\s+/)
+        .filter((c) =>
+          /^(absolute|w-0\.5|w-px|self-stretch|whitespace-pre-wrap|top-|-top-|bottom-|-bottom-)/.test(
+            c,
+          ),
+        );
+      return `${el.tagName.toLowerCase()}${attrs.length ? `[${attrs.join(' ')}]` : ''}${cls.length ? `.${cls.join('.')}` : ''}${kids.length ? `(${kids.join(',')})` : ''}`;
+    };
+    const scan = this.session.lastScan;
+    return {
+      threadshelf: chrome.runtime.getManifest().version,
+      host: location.hostname,
+      route: scan?.route.kind ?? 'unknown',
+      layout: scan?.layout ?? 'unknown',
+      htmlAttributes: Array.from(doc.documentElement.attributes).map((a) => a.name),
+      counts: {
+        articles: articles.length,
+        topLevelArticles: articles.filter((a) => !a.parentElement?.closest('article')).length,
+        listItems: doc.querySelectorAll('main ul > li').length,
+        cellInnerDiv: doc.querySelectorAll('[data-testid="cellInnerDiv"]').length,
+        engagementActions: doc.querySelectorAll('[data-engagement-action]').length,
+        times: doc.querySelectorAll('time[datetime]').length,
+      },
+      testids: Object.fromEntries([...testids.entries()].slice(0, 40)),
+      scan: scan
+        ? {
+            cells: scan.cells
+              .map(
+                (c) =>
+                  `${c.kind}${c.isFocal ? '*' : ''}${c.connectorAbove ? '^' : ''}${c.connectorBelow ? 'v' : ''}`,
+              )
+              .join(' '),
+            connectorsSeen: scan.connectorsSeen,
+          }
+        : null,
+      firstArticleShape: shape(first),
+      stats: this.debugInfo(),
+    };
   }
 
   openPanel(targetId: string | null, mode?: CaptureMode): void {

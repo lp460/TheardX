@@ -115,7 +115,7 @@ test.describe('detection and capture on fixtures (X DOM, not the live site)', ()
     };
     h.serve(path(p), statusPage('xds', [p], p.id));
     const page = await h.openX(path(p));
-    await ui.barButton(page, /Plus d’options/).click();
+    await ui.openPanel(page);
     await page.locator('threadshelf-root [data-testid="ts-mode-references"]').click();
     await expect(ui.panel(page)).toContainText('Citation · capturée');
     await page.locator('threadshelf-root [data-testid="ts-save"]').click();
@@ -130,7 +130,7 @@ test.describe('detection and capture on fixtures (X DOM, not the live site)', ()
     const r = replies(2, 'ada_dev');
     h.serve(path(t[0]!), statusPage('xds', [...t, ...r], t[0]!.id));
     const page = await h.openX(path(t[0]!));
-    await ui.barButton(page, /Plus d’options/).click();
+    await ui.openPanel(page);
     await page.locator('threadshelf-root [data-testid="ts-mode-selection"]').click();
     await ui.postButton(page, r[1]!.id).click();
     await ui.postButton(page, t[3]!.id).click();

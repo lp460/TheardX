@@ -12,6 +12,8 @@ export const settingsSchema = z.object({
   injectUi: z.boolean().default(true),
   /** Small ThreadShelf button on every post (requires injectUi). */
   perPostButtons: z.boolean().default(true),
+  /** Floating ThreadShelf button on X pages (requires injectUi). */
+  floatingButton: z.boolean().default(true),
   notifications: z.boolean().default(true),
   disabledDomains: z.array(z.enum(SUPPORTED_DOMAINS)).default([]),
   theme: z.enum(['system', 'light', 'dark']).default('system'),

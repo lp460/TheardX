@@ -14,6 +14,9 @@ if (!w[FLAG] && window.top === window) {
   w[FLAG] = true;
   const ref: { controller?: ContentController } = {};
   const ui = createUiMount(() => ({
+    menuAction: (a) => void ref.controller!.menuAction(a),
+    closeMenu: () => ref.controller!.closeMenu(),
+    openFabMenu: (anchor) => ref.controller!.openMenu(null, anchor, 'fab'),
     save: () => {
       const s = useContent.getState();
       void ref.controller!.save(s.mode, s.targetId);

@@ -115,12 +115,22 @@ export const ui = {
     page.locator(`threadshelf-action[data-ts-id="${id}"] button`),
   panel: (page: Page) => page.locator('threadshelf-root [data-testid="ts-panel"]'),
   toast: (page: Page) => page.locator('threadshelf-root [data-testid="ts-toast"]'),
+  menu: (page: Page) => page.locator('threadshelf-root [data-testid="ts-menu"]'),
+  menuItem: (page: Page, action: string) =>
+    page.locator(`threadshelf-root [data-testid="ts-menu"] [data-action="${action}"]`),
+  fab: (page: Page) => page.locator('threadshelf-root [data-testid="ts-fab"]'),
+  /** Opens the full panel through the bar's "•••" menu. */
+  openPanel: async (page: Page) => {
+    await page
+      .locator('threadshelf-bar')
+      .getByRole('button', { name: /Toutes les actions/ })
+      .click();
+    await page.locator('threadshelf-root [data-testid="ts-menu"] [data-action="options"]').click();
+  },
 };
 
 /** Reads the library straight from the extension's IndexedDB via an extension page. */
-export async function libraryEntries(
-  h: Harness,
-): Promise<
+export async function libraryEntries(h: Harness): Promise<
   {
     id: string;
     kind: string;

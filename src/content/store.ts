@@ -19,7 +19,41 @@ export interface ContentToast {
   action?: { label: string; run: () => void };
 }
 
+export type MenuAction =
+  | 'save-thread'
+  | 'save-tweet'
+  | 'save-references'
+  | 'select'
+  | 'copy-thread'
+  | 'copy-tweet'
+  | 'copy-text'
+  | 'read'
+  | 'options'
+  | 'library'
+  | 'delete'
+  | 'diagnostics';
+
+export interface MenuState {
+  targetId: string | null;
+  /** Viewport rectangle of the element that opened the menu. */
+  anchor: { top: number; left: number; right: number; bottom: number };
+  source: 'post' | 'bar' | 'fab';
+  info: {
+    handle?: string;
+    name?: string;
+    preview?: string;
+    threadCount: number;
+    status?: string;
+    saved: boolean;
+    isFocal: boolean;
+    onStatusPage: boolean;
+  } | null;
+}
+
 interface ContentStore {
+  menu: MenuState | null;
+  /** Floating ThreadShelf button shown on X pages. */
+  fabVisible: boolean;
   tone: 'light' | 'dark';
   panelOpen: boolean;
   targetId: string | null;
@@ -41,6 +75,8 @@ interface ContentStore {
 let seq = 0;
 
 export const useContent = create<ContentStore>((set) => ({
+  menu: null,
+  fabVisible: false,
   tone: 'light',
   panelOpen: false,
   targetId: null,

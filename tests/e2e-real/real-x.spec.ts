@@ -37,6 +37,21 @@ test('live x.com: detection, inline UI and capture', async () => {
       .isVisible()
       .catch(() => false);
     const buttons = await page.locator('threadshelf-action').count();
+    const fab = await page
+      .locator('threadshelf-root [data-testid="ts-fab"]')
+      .isVisible()
+      .catch(() => false);
+    let menuItems = 0;
+    if (buttons) {
+      await page.locator('threadshelf-action button').first().click();
+      menuItems = await page
+        .locator('threadshelf-root [data-testid="ts-menu"] [role="menuitem"]')
+        .count();
+      await page.screenshot({
+        path: `artifacts/screenshots/live-x-menu-${new URL(url).pathname.split('/')[1]}.png`,
+      });
+      await page.keyboard.press('Escape');
+    }
     await page.screenshot({
       path: `artifacts/screenshots/live-x-${new URL(url).pathname.split('/')[1]}.png`,
     });
@@ -51,6 +66,8 @@ test('live x.com: detection, inline UI and capture', async () => {
       detected: state.detected,
       barVisible,
       buttons,
+      fab,
+      menuItems,
       run,
       errors,
     });
@@ -120,6 +137,10 @@ test('live x.com: detection, inline UI and capture', async () => {
       2,
     ),
   );
-  for (const r of report) expect((r.run as { ok: boolean }).ok, JSON.stringify(r)).toBe(true);
+  for (const r of report) {
+    expect((r.run as { ok: boolean }).ok, JSON.stringify(r)).toBe(true);
+    expect(r.fab).toBe(true);
+    expect(r.menuItems).toBeGreaterThan(8);
+  }
   await context.close();
 });

@@ -55,7 +55,12 @@ for (const scheme of ['light', 'dark'] as const) {
     await page.emulateMedia({ colorScheme: scheme });
     await expect(ui.bar(page)).toBeVisible();
     await page.screenshot({ path: `${SHOTS}/${scheme}-x-inline-bar.png` });
-    await ui.barButton(page, /Plus d’options/).click();
+    await ui.postButton(page, t[1]!.id).click();
+    await expect(ui.menu(page)).toBeVisible();
+    await page.waitForTimeout(250);
+    await page.screenshot({ path: `${SHOTS}/${scheme}-x-action-menu.png` });
+    await page.keyboard.press('Escape');
+    await ui.openPanel(page);
     await expect(ui.panel(page)).toBeVisible();
     await page.screenshot({ path: `${SHOTS}/${scheme}-x-panel.png` });
     await page.locator('threadshelf-root [data-testid="ts-save"]').click();

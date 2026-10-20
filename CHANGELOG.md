@@ -1,5 +1,12 @@
 # Changelog
 
+## Non publié
+
+- Menu d'actions complet sur chaque publication de X : enregistrer (thread, publication, références), sélection, copier (Markdown, publication, texte), lire, options, bibliothèque, supprimer.
+- Bouton flottant « ThreadShelf » toujours visible sur X. Il cible la publication en cours de lecture, fonctionne aussi sur les fils d'actualité et peut être désactivé dans les paramètres.
+- Bouton par publication plus visible (couleur ThreadShelf, pastille verte une fois enregistrée).
+- Action « Copier un diagnostic de la page » : structure seulement, sans contenu, pour signaler une page non reconnue.
+
 ## 1.0.0 — 2026-10-20
 
 Première version.

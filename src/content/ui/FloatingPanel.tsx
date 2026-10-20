@@ -20,9 +20,13 @@ import {
 import { useEffect, useRef, type ReactNode } from 'react';
 import { completenessLabel, issueLabel } from '@/thread-engine/labels';
 import type { CaptureMode } from '@/thread-engine';
-import { useContent, type ContentToast } from '../store';
+import { useContent, type ContentToast, type MenuAction } from '../store';
+import { ActionMenu, FloatingButton } from './ActionMenu';
 
 export interface PanelActions {
+  menuAction: (a: MenuAction) => void;
+  closeMenu: () => void;
+  openFabMenu: (anchor: DOMRect) => void;
   save: () => void;
   copy: (format: 'markdown' | 'text') => void;
   read: () => void;
@@ -477,6 +481,8 @@ export function ContentApp({ actions }: { actions: PanelActions }) {
       style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 2147483000 }}
     >
       <FloatingPanel actions={actions} />
+      <FloatingButton onOpen={actions.openFabMenu} />
+      <ActionMenu onAction={actions.menuAction} onClose={actions.closeMenu} />
       <div
         aria-live="polite"
         className="pointer-events-none fixed right-6 flex flex-col items-end gap-2"

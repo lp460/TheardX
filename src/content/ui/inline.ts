@@ -3,7 +3,7 @@
  * They never replace or hide native controls; they are appended after them.
  */
 
-const LOGO = `<svg viewBox="0 0 32 32" width="16" height="16" aria-hidden="true"><rect x="1" y="1" width="30" height="30" rx="8.5" fill="currentColor" opacity=".14"/><rect x="8" y="8" width="16" height="3.2" rx="1.6" fill="currentColor"/><rect x="8" y="13.6" width="12" height="3.2" rx="1.6" fill="currentColor" opacity=".8"/><rect x="8" y="19.2" width="8" height="3.2" rx="1.6" fill="currentColor" opacity=".6"/></svg>`;
+const LOGO = `<svg viewBox="0 0 32 32" width="18" height="18" aria-hidden="true"><rect x="1" y="1" width="30" height="30" rx="8.5" fill="currentColor" opacity=".14"/><rect x="8" y="8" width="16" height="3.2" rx="1.6" fill="currentColor"/><rect x="8" y="13.6" width="12" height="3.2" rx="1.6" fill="currentColor" opacity=".8"/><rect x="8" y="19.2" width="8" height="3.2" rx="1.6" fill="currentColor" opacity=".6"/></svg>`;
 const CHECK = `<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>`;
 
 const BASE_CSS = `
@@ -75,10 +75,10 @@ export class PostButton {
 
   update(s: PostButtonState): void {
     const p = palette(s.tone);
-    const active = s.selecting ? s.selected : s.saved;
     this.styleEl.textContent = `${BASE_CSS}
-button{width:34px;height:34px;border-radius:999px;color:${active ? p.accent : p.muted}}
+button{position:relative;width:34px;height:34px;border-radius:999px;color:${s.selecting ? p.muted : p.accent}}
 button:hover{background:${p.hover};color:${p.accent}}
+.saved{position:absolute;right:5px;bottom:6px;width:7px;height:7px;border-radius:99px;background:#10b981;box-shadow:0 0 0 2px ${s.tone === 'dark' ? '#000' : '#fff'}}
 .box{width:16px;height:16px;border-radius:5px;border:1.5px solid ${s.selected ? p.accent : p.muted};background:${s.selected ? p.accent : 'transparent'};color:#fff;display:inline-flex;align-items:center;justify-content:center}`;
     if (s.selecting) {
       this.btn.innerHTML = `<span class="box">${s.selected ? CHECK : ''}</span>`;
@@ -167,7 +167,7 @@ button.primary{color:${p.accent}}
 <button class="primary" data-act="save" aria-label="${label} le thread">${label}</button><span class="sep"></span>
 <button data-act="copy" aria-label="Copier le thread">Copier</button><span class="sep"></span>
 <button data-act="read" aria-label="Lire dans ThreadShelf">Lire</button><span class="sep"></span>
-<button data-act="more" aria-label="Plus d’options ThreadShelf" aria-haspopup="dialog">•••</button>
+<button data-act="more" aria-label="Toutes les actions ThreadShelf" aria-haspopup="menu">•••</button>
 ${meta ? `<span class="meta">${s.status !== 'busy' ? '<span class="dot"></span>' : ''}${meta}</span>` : ''}`;
     this.wrap.querySelectorAll<HTMLButtonElement>('button').forEach((b) => {
       b.type = 'button';

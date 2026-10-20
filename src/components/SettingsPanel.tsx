@@ -230,6 +230,14 @@ export function SettingsPanel() {
           description="Petit bouton discret dans la barre d’actions de chaque publication."
         />
         <Switch
+          id="set-fab"
+          checked={s.floatingButton}
+          onChange={(v) => update({ floatingButton: v })}
+          disabled={!s.enabled || !s.injectUi}
+          label="Bouton flottant ThreadShelf"
+          description="Bouton toujours visible en bas à droite de X, qui ouvre toutes les actions."
+        />
+        <Switch
           id="set-notif"
           checked={s.notifications}
           onChange={(v) => update({ notifications: v })}

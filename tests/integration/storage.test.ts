@@ -278,18 +278,16 @@ describe('schema migrations', () => {
     const v1 = new Dexie(name);
     v1.version(1).stores(SCHEMA_VERSIONS[0]!.stores);
     await v1.open();
-    await v1
-      .table('entries')
-      .put({
-        id: 'e1',
-        kind: 'tweet',
-        title: 'Old',
-        tweetIds: ['1'],
-        authorHandle: 'a',
-        savedAt: 1,
-        tags: [],
-        collectionIds: [],
-      });
+    await v1.table('entries').put({
+      id: 'e1',
+      kind: 'tweet',
+      title: 'Old',
+      tweetIds: ['1'],
+      authorHandle: 'a',
+      savedAt: 1,
+      tags: [],
+      collectionIds: [],
+    });
     v1.close();
     const current = new ThreadShelfDB(name);
     await current.open();

@@ -148,7 +148,7 @@ test.describe('library', () => {
     const t = threadPosts(3);
     h.serve(path(t[1]!), statusPage('xds', t, t[1]!.id));
     const page = await h.openX(path(t[1]!));
-    await ui.barButton(page, /Plus d’options/).click();
+    await ui.openPanel(page);
     await page.locator('threadshelf-root [data-testid="ts-mode-tweet"]').click();
     await page.locator('threadshelf-root [data-testid="ts-save"]').click();
     await waitForEntries(h, 1);
@@ -351,13 +351,11 @@ test.describe('exports', () => {
     await expect(lib.locator('[data-testid="import-report"]')).toContainText('3 conflit(s)');
     expect(await libraryEntries(h)).toHaveLength(3);
     // Malformed file is refused without changes.
-    await lib
-      .locator('[data-testid="backup-import-input"]')
-      .setInputFiles({
-        name: 'bad.json',
-        mimeType: 'application/json',
-        buffer: Buffer.from('{"format":"nope"}'),
-      });
+    await lib.locator('[data-testid="backup-import-input"]').setInputFiles({
+      name: 'bad.json',
+      mimeType: 'application/json',
+      buffer: Buffer.from('{"format":"nope"}'),
+    });
     await expect(lib.getByText('Import refusé')).toBeVisible();
     expect(await libraryEntries(h)).toHaveLength(3);
   });
