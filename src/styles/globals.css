@@ -1,0 +1,69 @@
+@import './tokens.css';
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    color-scheme: light;
+  }
+  html.dark {
+    color-scheme: dark;
+  }
+  body {
+    @apply bg-bg text-fg font-sans antialiased;
+    font-feature-settings: 'cv11', 'ss01';
+    text-rendering: optimizeLegibility;
+  }
+  ::selection {
+    background: hsl(var(--ts-accent) / 0.22);
+  }
+  :focus-visible {
+    outline: 2px solid hsl(var(--ts-accent));
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--ts-line)) transparent;
+  }
+}
+
+@layer components {
+  .ts-focus {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-1 focus-visible:ring-offset-bg;
+  }
+  .skeleton {
+    @apply relative overflow-hidden rounded-md bg-subtle;
+  }
+  .skeleton::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(90deg, transparent, hsl(var(--ts-fg) / 0.05), transparent);
+    animation: shimmer 1.4s infinite;
+  }
+  .prose-reader p {
+    margin: 0 0 0.9em;
+  }
+  .prose-reader a {
+    color: hsl(var(--ts-accent));
+    text-decoration: none;
+  }
+  .prose-reader a:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

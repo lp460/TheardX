@@ -1,0 +1,36 @@
+/* Design tokens shared by extension pages and the in-page Shadow DOM UI. HSL triplets. */
+:root,
+:host {
+  --ts-bg: 60 9% 98%;
+  --ts-surface: 0 0% 100%;
+  --ts-subtle: 60 5% 95.5%;
+  --ts-elevated: 0 0% 100%;
+  --ts-fg: 240 6% 10%;
+  --ts-muted: 240 4% 42%;
+  --ts-faint: 240 5% 62%;
+  --ts-line: 240 6% 90%;
+  --ts-accent: 248 76% 60%;
+  --ts-accent-fg: 0 0% 100%;
+  --ts-accent-soft: 248 90% 96%;
+  --ts-success: 152 62% 34%;
+  --ts-warning: 32 92% 42%;
+  --ts-danger: 0 72% 50%;
+  --ts-reader-bg: 48 33% 98%;
+}
+.dark {
+  --ts-bg: 240 6% 7%;
+  --ts-surface: 240 5% 9.5%;
+  --ts-subtle: 240 5% 12.5%;
+  --ts-elevated: 240 5% 13%;
+  --ts-fg: 0 0% 95%;
+  --ts-muted: 240 5% 66%;
+  --ts-faint: 240 4% 46%;
+  --ts-line: 240 4% 18%;
+  --ts-accent: 248 92% 74%;
+  --ts-accent-fg: 240 12% 8%;
+  --ts-accent-soft: 248 32% 18%;
+  --ts-success: 152 55% 52%;
+  --ts-warning: 38 92% 60%;
+  --ts-danger: 0 82% 67%;
+  --ts-reader-bg: 240 6% 8%;
+}

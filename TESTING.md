@@ -1,0 +1,56 @@
+# Tests
+
+```bash
+npm run check
+```
+
+`npm run check` enchaîne typecheck, lint, tests unitaires et d'intégration, build, validation du build et tests end-to-end. Le test sur le vrai site est séparé :
+
+```bash
+HEADED=1 npm run test:real
+```
+
+Il est facultatif, se fait sur le vrai x.com, sans connexion, en fenêtre visible.
+
+## Trois niveaux, clairement séparés
+
+| Niveau | Outil | Ce qui est vérifié | Ce que cela **ne** prouve **pas** |
+| --- | --- | --- | --- |
+| Unitaires et intégration | Vitest + jsdom + fake-indexeddb | Logique pure, DOM des fixtures, IndexedDB réel (simulé en mémoire), messages entre content script et service worker via une API `chrome` simulée | Le comportement d'un vrai navigateur |
+| End-to-end sur fixtures | Playwright + Chromium avec l'extension compilée (`dist/`) | L'extension réelle dans un vrai navigateur, sur des pages qui **reproduisent** le DOM de X, servies sous `https://x.com/...` par interception réseau | La compatibilité avec le X réel du jour |
+| Compatibilité réelle | Playwright, x.com en direct (non connecté) | Détection, interface et capture sur de vraies publications publiques | Les vues réservées aux utilisateurs connectés, Arc |
+
+Les fixtures (`tests/fixtures/x-dom.ts`) imitent deux mises en page. La première, « xds », est la mise en page actuelle, relevée sur x.com le 19 octobre 2026. La seconde, « classic », reprend `data-testid`. Tous les textes, comptes et identifiants des fixtures sont fictifs.
+
+## Unitaires et intégration (Vitest)
+
+| Fichier | Couverture |
+| --- | --- |
+| `unit/url.test.ts` | Normalisation des URL (x.com, twitter.com, mobile, `/i/web/status`, `statuses`, `/photo/1`, paramètres de suivi), refus des URL invalides ou dangereuses, routes, liens externes, hôtes média, dates snowflake |
+| `unit/extraction.test.ts` | Pour **les deux** mises en page : identité, métadonnées, texte structuré (liens, mentions, hashtags, cashtags, retours à la ligne, emoji), images et texte alternatif, citations séparées, cartes, vidéos, lignes de thread, « répondre à », publications supprimées, ordre `translateY`, texte tronqué, date snowflake de repli, absence d'invention |
+| `unit/thread-engine.test.ts` | Threads de 2, 10 et 30 publications (début, milieu), exclusion des autres comptes, suite non chargée, début non chargé, publication supprimée, contexte, publication seule, structure incertaine (jamais « complet »), chronologie sans preuve, pages hors statut, capture progressive avec virtualisation (30 publications, aucun doublon), fusion des rendus (complet contre citation, texte tronqué), cycles refusés, modes A à D |
+| `unit/settings.test.ts` | Valeurs par défaut, récupération des valeurs corrompues, domaines, fusion |
+| `unit/adapters.test.ts` | Contrat `ContentAdapter`, IA inaccessible sans consentement |
+| `integration/storage.test.ts` | Enregistrement (thread, publication, références, sélection), mises à jour sans doublon, conservation des données utilisateur, options de capture, atomicité, réouverture de la base, recherche, suppression avec nettoyage, doublons, collections et catégories, cache média (états, refus des types et tailles invalides), **migration v1 vers v2** |
+| `integration/backup-export.test.ts` | Formats Markdown, texte, HTML (échappement, absence de script, CSP, images intégrées) et JSON ; noms de fichiers ; sauvegarde complète aller-retour ; fusion et conflits ; fichiers malformés ; données dangereuses ignorées ; **import transactionnel** (panne simulée en cours d'écriture, rien d'écrit) ; médias |
+| `integration/content-background.test.ts` | Vrai `ContentController` et vrais gestionnaires du service worker reliés par une API `chrome` simulée : détection, injection unique, enregistrement par messages validés, état et commandes de la popup, expéditeurs étrangers ignorés, lecteur, activation et désactivation, interface désactivée, détection automatique désactivée, propagation des erreurs (quota), page sans publication, refus des messages malformés |
+
+## End-to-end sur fixtures (Playwright, Chromium)
+
+| Fichier | Scénarios |
+| --- | --- |
+| `e2e/smoke.spec.ts` | Chargement de l'extension, détection, enregistrement |
+| `e2e/capture.spec.ts` | Publication seule ; threads de **2, 10 et 30** publications ; mise en page classique ; **thread incomplet** ; **publication supprimée** ; **publication avec image** (mise en cache) ; **publication citée** (mode C) ; sélection manuelle (mode D) ; **chargement progressif avec virtualisation** jusqu'à 30 publications sans doublon ; **navigation SPA** (`pushState`) et **changement d'URL** (`replaceState`) ; **DOM modifié** sur place ; pas de double injection et nombre d'analyses borné sous 300 mutations ; actions de la popup et des raccourcis (messages) |
+| `e2e/library.spec.ts` | Bibliothèque (recherche, filtre par auteur, favoris, collections, catégories, tags, tri, liste) ; sélection multiple et suppression confirmée ; doublons ; **persistance après redémarrage du navigateur** ; lecteur (titre, compteur, image et texte alternatif, thème, copie Markdown dans le presse-papiers, note, passage en « lu », aide) ; copie d'une sélection ; entrée introuvable ; **exports TXT, Markdown, HTML, JSON** (contenu des fichiers téléchargés vérifié) et **PDF** (vue d'impression rendue en PDF) ; sauvegarde complète exportée, effacée puis réimportée, avec conflits et fichier malformé ; désactivation globale, de l'interface et par domaine ; **lecture hors ligne** (réseau coupé, images servies depuis le cache) |
+| `e2e/visual.spec.ts` | Captures en thèmes clair et sombre de toutes les surfaces dans `artifacts/screenshots/` |
+
+## Compatibilité réelle (x.com en direct)
+
+`tests/e2e-real/real-x.spec.ts` ouvre deux publications publiques sans connexion et vérifie la mise en page détectée, la publication ouverte, la barre visible, les boutons, l'enregistrement et le contenu stocké.
+
+En mode headless, X répond par une erreur HTTP (détection d'automatisation). Ce blocage n'est **pas** contourné : le test se lance en fenêtre visible (`HEADED=1`).
+
+## Limites connues des tests
+
+- Les vues réservées aux utilisateurs **connectés** de X n'ont pas pu être observées : aucune session X n'est disponible dans l'environnement de test, et aucun identifiant n'a été demandé. Les fixtures « classic » couvrent l'ancienne mise en page connectée ; la mise en page actuelle a été relevée en navigation non connectée.
+- Arc ne peut pas être piloté automatiquement : pas de port CDP, et un second profil partagerait des fichiers avec le profil personnel. Le test dans Arc est manuel et assisté (voir le rapport de validation).

@@ -1,0 +1,30 @@
+body {
+  background: hsl(var(--ts-reader-bg));
+}
+html {
+  scroll-behavior: smooth;
+}
+@media print {
+  @page {
+    margin: 18mm 16mm;
+  }
+  html,
+  body {
+    background: #fff !important;
+    color: #111 !important;
+  }
+  .print\:hidden {
+    display: none !important;
+  }
+  a {
+    color: #111 !important;
+    text-decoration: none !important;
+  }
+  img {
+    max-height: 120mm !important;
+    object-fit: contain !important;
+  }
+  [data-testid='reader-post'] {
+    break-inside: avoid;
+  }
+}
