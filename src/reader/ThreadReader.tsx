@@ -20,6 +20,7 @@ import {
   Sun,
   Type,
   WifiOff,
+  Languages,
 } from 'lucide-react';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CompletenessBadge } from '@/components/CompletenessBadge';
@@ -39,7 +40,20 @@ import { repository } from '@/storage/repository';
 import { issueLabel } from '@/thread-engine/labels';
 import type { EntryBundle, Tweet } from '@/types/model';
 import { formatDate, formatDateTime } from '@/utils/format';
-import { segmentsToPlain, truncate } from '@/utils/text';
+import { postPreviewText, truncate } from '@/utils/text';
+import { render } from '@/export';
+import {
+  applyTranslations,
+  googleTranslateUrl,
+  sourceLanguage,
+  translateBundle,
+  translationSupported,
+  type PostTranslation,
+  type TranslateProgress,
+} from '@/translate/engine';
+import { languageName, TARGET_LANGUAGES } from '@/translate/languages';
+import { copyText } from '@/utils/clipboard';
+import { toast } from '@/components/ToastNotification';
 
 const params = new URLSearchParams(location.search);
 const ENTRY_ID = params.get('id') ?? '';
@@ -166,6 +180,21 @@ function ReaderSettings() {
                 className="w-36 accent-[hsl(var(--ts-accent))]"
               />
             </div>
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-[13px] text-fg">Traduire en</span>
+              <select
+                value={s.translateTo}
+                onChange={(e) => update({ translateTo: e.target.value })}
+                aria-label="Langue de traduction"
+                className="h-7 rounded-md border border-line bg-surface px-1.5 text-[12.5px]"
+              >
+                {TARGET_LANGUAGES.map((l) => (
+                  <option key={l} value={l}>
+                    {languageName(l)}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </Popover.Content>
       </Popover.Portal>
@@ -183,6 +212,7 @@ const SHORTCUTS: [string, string][] = [
   ['f', 'Favori'],
   ['p', 'Imprimer / PDF'],
   ['Échap', 'Retour à la bibliothèque'],
+  ['l', 'Traduire / afficher l’original'],
   ['?', 'Afficher cette aide'],
 ];
 
@@ -217,7 +247,8 @@ function Toc({
             >
               <span className="w-5 shrink-0 tabular-nums text-faint">{i + 1}</span>
               <span className="line-clamp-2">
-                {truncate(segmentsToPlain(t.text).replace(/\s+/g, ' '), 70) || 'Média'}
+                {truncate((t.article?.title || postPreviewText(t)).replace(/\s+/g, ' '), 70) ||
+                  'Média'}
               </span>
             </button>
           </li>
@@ -279,33 +310,101 @@ export function ThreadReader() {
   const [selecting, setSelecting] = useState(false);
   const [selection, setSelection] = useState<Set<string>>(new Set());
   const [scrolled, setScrolled] = useState(false);
+  const [translations, setTranslations] = useState<Record<string, PostTranslation>>({});
+  const [showTranslation, setShowTranslation] = useState(false);
+  const [trProgress, setTrProgress] = useState<TranslateProgress | null>(null);
+  const [trError, setTrError] = useState<string | null>(null);
+  const target = settings.translateTo;
   const postRefs = useRef<(HTMLElement | null)[]>([]);
   const markedRead = useRef(false);
   const endRef = useRef<HTMLDivElement>(null);
 
+  // What is displayed: the saved posts, or their translation.
+  const view = useMemo(
+    () => (bundle && showTranslation ? applyTranslations(bundle, translations, target) : bundle),
+    [bundle, showTranslation, translations, target],
+  );
   const posts = useMemo(
     () =>
-      bundle
-        ? bundle.entry.tweetIds.map((id) => bundle.tweets[id]).filter((t): t is Tweet => !!t)
-        : [],
-    [bundle],
+      view ? view.entry.tweetIds.map((id) => view.tweets[id]).filter((t): t is Tweet => !!t) : [],
+    [view],
   );
   const context = useMemo(
     () =>
-      bundle
-        ? bundle.entry.contextTweetIds.map((id) => bundle.tweets[id]).filter((t): t is Tweet => !!t)
+      view
+        ? view.entry.contextTweetIds.map((id) => view.tweets[id]).filter((t): t is Tweet => !!t)
         : [],
-    [bundle],
+    [view],
   );
   const references = useMemo(
     () =>
+      view
+        ? view.entry.referenceTweetIds.map((id) => view.tweets[id]).filter((t): t is Tweet => !!t)
+        : [],
+    [view],
+  );
+  const allIds = useMemo(
+    () =>
       bundle
-        ? bundle.entry.referenceTweetIds
-            .map((id) => bundle.tweets[id])
-            .filter((t): t is Tweet => !!t)
+        ? [
+            ...bundle.entry.tweetIds,
+            ...bundle.entry.contextTweetIds,
+            ...bundle.entry.referenceTweetIds,
+          ]
         : [],
     [bundle],
   );
+  const sourceLangs = useMemo(
+    () => [
+      ...new Set(
+        allIds
+          .map((id) => bundle?.tweets[id])
+          .filter((t): t is Tweet => !!t)
+          .map(sourceLanguage),
+      ),
+    ],
+    [allIds, bundle],
+  );
+  const needsTranslation = sourceLangs.some((l) => l !== target);
+
+  // Cached translations for the chosen language (available offline).
+  useEffect(() => {
+    if (!allIds.length) return;
+    void repository.getTranslations(allIds, target).then(setTranslations);
+    setShowTranslation(false);
+    setTrError(null);
+  }, [allIds, target]);
+
+  const translate = useCallback(async () => {
+    if (!bundle) return;
+    if (showTranslation) {
+      setShowTranslation(false);
+      return;
+    }
+    setTrError(null);
+    try {
+      setTrProgress({ done: 0, total: 1 });
+      const fresh = await translateBundle(bundle, target, {
+        existing: translations,
+        onProgress: setTrProgress,
+      });
+      await repository.saveTranslations(fresh);
+      const next = { ...translations };
+      for (const r of fresh) next[r.key] = r;
+      setTranslations(next);
+      setShowTranslation(true);
+    } catch (e) {
+      setTrError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setTrProgress(null);
+    }
+  }, [bundle, showTranslation, target, translations]);
+
+  const copyTranslation = useCallback(async () => {
+    if (!view) return;
+    await copyText(render('markdown', view, { includeUrls: settings.copy.includeUrls }));
+    toast.success('Traduction copiée en Markdown');
+  }, [view, settings.copy.includeUrls]);
   const first = posts[0];
 
   useEffect(() => {
@@ -409,8 +508,9 @@ export function ThreadReader() {
         location.href = libraryUrl();
       },
       '?': () => setHelpOpen(true),
+      l: () => void translate(),
     },
-    [active, settings, bundle, helpOpen, exportOpen, jump, toggleFavorite, dark],
+    [active, settings, bundle, helpOpen, exportOpen, jump, toggleFavorite, dark, translate],
   );
 
   if (bundle === undefined) {
@@ -532,6 +632,11 @@ export function ThreadReader() {
                 <MenuItem icon={<Copy size={14} />} onSelect={() => copyEntry(entry.id, 'text')}>
                   Copier le thread (texte brut)
                 </MenuItem>
+                {showTranslation ? (
+                  <MenuItem icon={<Languages size={14} />} onSelect={() => void copyTranslation()}>
+                    Copier la traduction (Markdown)
+                  </MenuItem>
+                ) : null}
                 <MenuItem
                   icon={<CheckSquare size={14} />}
                   onSelect={() => {
@@ -563,6 +668,34 @@ export function ThreadReader() {
                 <Printer size={16} />
               </Button>
             </Tooltip>
+            {needsTranslation || showTranslation ? (
+              <Tooltip
+                label={
+                  showTranslation
+                    ? 'Afficher l’original (l)'
+                    : `Traduire en ${languageName(target)} (l)`
+                }
+              >
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  aria-pressed={showTranslation}
+                  onClick={() => void translate()}
+                  loading={!!trProgress}
+                  data-testid="reader-translate"
+                  className={showTranslation ? 'text-accent' : undefined}
+                >
+                  <Languages size={15} />
+                  {trProgress
+                    ? trProgress.download !== undefined && trProgress.download < 1
+                      ? `Modèle ${Math.round(trProgress.download * 100)} %`
+                      : `${trProgress.done}/${trProgress.total}`
+                    : showTranslation
+                      ? 'Original'
+                      : 'Traduire'}
+                </Button>
+              </Tooltip>
+            ) : null}
             <ReaderSettings />
             <Tooltip label="Raccourcis (?)">
               <Button
@@ -593,7 +726,7 @@ export function ThreadReader() {
                 )}
                 data-testid="reader-title"
               >
-                {entry.title}
+                {view?.entry.title ?? entry.title}
               </h1>
               <div className="mt-3 flex flex-wrap items-center gap-2 text-[12.5px] text-muted">
                 {entry.publishedAt ? (
@@ -647,6 +780,68 @@ export function ThreadReader() {
               ) : null}
             </header>
 
+            {showTranslation ? (
+              <div
+                role="note"
+                data-testid="reader-translation-note"
+                className="mb-8 flex flex-wrap items-center gap-2 rounded-xl bg-accent-soft/60 px-4 py-2.5 font-sans text-[12.5px] text-fg"
+              >
+                <Languages size={14} className="text-accent" />
+                Traduit depuis le{' '}
+                {sourceLangs
+                  .filter((l) => l !== target)
+                  .map(languageName)
+                  .join(', ')}{' '}
+                en {languageName(target)} · sur votre appareil, rien n’est envoyé.
+                <button
+                  type="button"
+                  className="ml-auto font-medium text-accent hover:underline"
+                  onClick={() => setShowTranslation(false)}
+                >
+                  Afficher l’original
+                </button>
+              </div>
+            ) : null}
+            {trError ? (
+              <div
+                role="alert"
+                data-testid="reader-translation-error"
+                className="mb-8 rounded-xl border border-warning/30 bg-warning/[0.07] px-4 py-3 font-sans text-[13px] text-fg"
+              >
+                <p>{trError}</p>
+                <p className="mt-1 text-muted">
+                  {translationSupported()
+                    ? 'Vous pouvez réessayer, ou utiliser Google Traduction (le texte est alors envoyé à Google).'
+                    : 'La traduction intégrée nécessite Google Chrome 138 ou plus récent. Vous pouvez utiliser Google Traduction (le texte est alors envoyé à Google).'}
+                </p>
+                <div className="mt-2 flex gap-2">
+                  <Button
+                    size="sm"
+                    onClick={() =>
+                      window.open(
+                        googleTranslateUrl(
+                          posts
+                            .map((t) =>
+                              [t.article?.title ?? '', postPreviewText(t)]
+                                .filter(Boolean)
+                                .join('\n\n'),
+                            )
+                            .join('\n\n—\n\n'),
+                          target,
+                        ),
+                        '_blank',
+                        'noopener',
+                      )
+                    }
+                  >
+                    Ouvrir dans Google Traduction
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setTrError(null)}>
+                    Fermer
+                  </Button>
+                </div>
+              </div>
+            ) : null}
             {context.length ? (
               <aside className="mb-10 font-sans" aria-label="Contexte">
                 <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-faint">
@@ -724,6 +919,7 @@ export function ThreadReader() {
                   <TweetCard
                     tweet={t}
                     showAuthor={false}
+                    hideArticleTitle={!!t.article?.title && t.article.title === entry.title}
                     textClassName={cn('text-fg', fontClass)}
                     textStyle={{ fontSize: settings.reader.fontSize, lineHeight: 1.7 }}
                   />

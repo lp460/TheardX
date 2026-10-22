@@ -67,11 +67,17 @@ function classifyAnchor(a: Element): Segment | null {
  * Converts a post text container into structured segments: text, links, mentions, hashtags,
  * cashtags. Emoji images become their alt text. Scripts, buttons ("Show more") and SVGs are ignored.
  */
-export function extractRichText(container: Element): Segment[] {
+export function extractRichText(container: Element, opts: { marks?: boolean } = {}): Segment[] {
   const out: Segment[] = [];
-  const walk = (node: Node) => {
+  const text = (v: string, b: boolean, i: boolean): Segment => {
+    const seg: Segment = { t: 'text', v };
+    if (opts.marks && b) seg.b = true;
+    if (opts.marks && i) seg.i = true;
+    return seg;
+  };
+  const walk = (node: Node, b: boolean, i: boolean) => {
     if (node.nodeType === 3 /* TEXT_NODE */) {
-      out.push({ t: 'text', v: node.nodeValue ?? '' });
+      out.push(text(node.nodeValue ?? '', b, i));
       return;
     }
     if (node.nodeType !== 1 /* ELEMENT_NODE */) return;
@@ -84,7 +90,7 @@ export function extractRichText(container: Element): Segment[] {
     }
     if (el.tagName === 'IMG') {
       const alt = el.getAttribute('alt');
-      if (alt) out.push({ t: 'text', v: alt });
+      if (alt) out.push(text(alt, b, i));
       return;
     }
     if (el.tagName === 'A') {
@@ -93,9 +99,11 @@ export function extractRichText(container: Element): Segment[] {
       return;
     }
     if (el.getAttribute('data-testid') === 'tweet-text-show-more-link') return;
-    el.childNodes.forEach(walk);
+    const bold = b || el.tagName === 'B' || el.tagName === 'STRONG';
+    const italic = i || el.tagName === 'I' || el.tagName === 'EM';
+    el.childNodes.forEach((n) => walk(n, bold, italic));
   };
-  container.childNodes.forEach(walk);
+  container.childNodes.forEach((n) => walk(n, false, false));
   return compactSegments(out);
 }
 

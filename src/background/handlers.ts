@@ -11,6 +11,8 @@ export interface BackgroundDeps {
   extensionId: string;
   version: string;
   cacheMedia?: (entryId: string) => Promise<unknown>;
+  /** Injected in tests; defaults to the real GitHub sync service. */
+  sync?: { now: () => Promise<unknown>; status: () => Promise<unknown> };
 }
 
 export interface SenderInfo {
@@ -78,6 +80,19 @@ async function dispatch(req: Request, deps: BackgroundDeps): Promise<unknown> {
     case 'open.library':
       await deps.openTab(deps.extensionUrl(`library/index.html${req.view ? `#${req.view}` : ''}`));
       return { ok: true };
+    case 'sync.now':
+      return (deps.sync?.now ?? (await import('./sync-service')).syncNow)();
+    case 'sync.status':
+      return (deps.sync?.status ?? (await import('./sync-service')).loadSyncStatus)();
+    case 'sync.deviceStart':
+      return (await import('./sync-service')).syncDeviceStart();
+    case 'sync.devicePoll':
+      return (await import('./sync-service')).syncDevicePoll({
+        encrypt: req.encrypt,
+        passphrase: req.passphrase,
+      });
+    case 'sync.disconnect':
+      return (await import('./sync-service')).syncDisconnect();
     case 'media.cache': {
       const settings = await loadSettings();
       return (

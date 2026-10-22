@@ -24,7 +24,12 @@ const isoDate = z
 const ts = z.number().int().nonnegative().max(8.64e15);
 
 export const segmentSchema = z.discriminatedUnion('t', [
-  z.object({ t: z.literal('text'), v: str(MAX_TEXT) }),
+  z.object({
+    t: z.literal('text'),
+    v: str(MAX_TEXT),
+    b: z.boolean().optional(),
+    i: z.boolean().optional(),
+  }),
   z.object({ t: z.literal('link'), v: str(), href: httpUrl }),
   z.object({ t: z.literal('mention'), v: str(64), handle }),
   z.object({ t: z.literal('hashtag'), v: str(280), tag: str(280) }),
@@ -70,6 +75,31 @@ export const factsSchema = z.object({
   observedAt: ts.optional(),
 });
 
+const blockText = z.array(segmentSchema).max(2_000);
+
+export const articleBlockSchema = z.discriminatedUnion('t', [
+  z.object({
+    t: z.literal('heading'),
+    level: z.union([z.literal(2), z.literal(3), z.literal(4)]),
+    text: blockText,
+  }),
+  z.object({ t: z.literal('paragraph'), text: blockText }),
+  z.object({ t: z.literal('list'), ordered: z.boolean(), items: z.array(blockText).max(500) }),
+  z.object({ t: z.literal('quote'), text: blockText }),
+  z.object({ t: z.literal('code'), code: str(200_000), lang: str(30).optional() }),
+  z.object({ t: z.literal('image'), media: mediaItemSchema }),
+  z.object({ t: z.literal('divider') }),
+]);
+
+export const articleSchema = z.object({
+  url: httpUrl,
+  title: str(1_000).optional(),
+  coverUrl: mediaUrl.optional(),
+  readingTime: str(80).optional(),
+  blocks: z.array(articleBlockSchema).max(2_000),
+  partial: z.boolean().optional(),
+});
+
 export const tweetSchema = z.object({
   id: tweetId,
   url: httpUrl,
@@ -83,6 +113,7 @@ export const tweetSchema = z.object({
   card: linkCardSchema.optional(),
   quoted: quotedSchema.optional(),
   replyingTo: z.array(handle).max(50).optional(),
+  article: articleSchema.optional(),
   linkedTweetIds: z.array(tweetId).max(100),
   availability: z.enum(['available', 'deleted', 'unavailable']),
   context: z.enum(['full', 'quote']),
@@ -186,4 +217,5 @@ export const categorySchema = z.object({
   name: str(80).min(1),
   color,
   createdAt: ts,
+  updatedAt: ts.optional(),
 });

@@ -4,6 +4,7 @@ import type { LinkCard, QuotedRef, Tweet } from '@/types/model';
 import { formatDateTime, formatDate } from '@/utils/format';
 import { hostnameOf, safeHref } from '@/utils/url';
 import { Avatar, MediaView, useMediaSrc } from './media';
+import { ArticleView } from './ArticleView';
 import { RichText } from './RichText';
 import { cn } from './ui/cn';
 
@@ -151,6 +152,11 @@ export function MediaGrid({ tweet, compact }: { tweet: Tweet; compact?: boolean 
 }
 
 /** A single post with author, text, media, link card and quote. */
+/** The post text is only the link to its Article (X shows the Article instead). */
+function isOnlyLink(tweet: Tweet): boolean {
+  return tweet.text.every((s) => s.t === 'link' || (s.t === 'text' && !s.v.trim()));
+}
+
 export function TweetCard({
   tweet,
   showAuthor = true,
@@ -158,8 +164,10 @@ export function TweetCard({
   textClassName,
   textStyle,
   compact,
+  hideArticleTitle,
 }: {
   tweet: Tweet;
+  hideArticleTitle?: boolean;
   showAuthor?: boolean;
   className?: string;
   textClassName?: string;
@@ -173,11 +181,21 @@ export function TweetCard({
           <AuthorLine tweet={tweet} size={compact ? 32 : 40} />
         </div>
       ) : null}
-      {tweet.text.length ? (
+      {tweet.text.length && !(tweet.article && isOnlyLink(tweet)) ? (
         <RichText
           segments={tweet.text}
           className={cn('text-[15px] leading-relaxed text-fg', textClassName)}
           style={textStyle}
+        />
+      ) : null}
+      {tweet.article ? (
+        <ArticleView
+          article={tweet.article}
+          postUrl={tweet.url}
+          textStyle={textStyle}
+          compact={compact}
+          hideTitle={hideArticleTitle}
+          className={cn(tweet.text.length && !isOnlyLink(tweet) ? 'mt-4' : '', textClassName)}
         />
       ) : null}
       {tweet.textTruncated ? (
@@ -186,7 +204,7 @@ export function TweetCard({
         </p>
       ) : null}
       <MediaGrid tweet={tweet} compact={compact} />
-      {tweet.card ? <LinkCardView card={tweet.card} /> : null}
+      {tweet.card && !tweet.article ? <LinkCardView card={tweet.card} /> : null}
       {tweet.quoted ? <QuotedCard quoted={tweet.quoted} /> : null}
     </div>
   );

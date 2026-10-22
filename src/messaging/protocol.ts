@@ -66,6 +66,15 @@ export const requestSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('open.library'), view: z.string().max(100).optional() }),
   z.object({ type: z.literal('media.cache'), entryId: entityId }),
   z.object({ type: z.literal('ping') }),
+  z.object({ type: z.literal('sync.now') }),
+  z.object({ type: z.literal('sync.status') }),
+  z.object({ type: z.literal('sync.disconnect') }),
+  z.object({ type: z.literal('sync.deviceStart') }),
+  z.object({
+    type: z.literal('sync.devicePoll'),
+    encrypt: z.boolean().optional(),
+    passphrase: z.string().max(500).optional(),
+  }),
 ]);
 
 export type Request = z.infer<typeof requestSchema>;

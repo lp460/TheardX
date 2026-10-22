@@ -1,0 +1,43 @@
+# Publishes ThreadShelf to the Chrome Web Store when a tag "v*" is pushed (optional).
+# Setup once — see docs/DISTRIBUTION.md, « Publication automatique ».
+# Required repository secrets: CWS_EXTENSION_ID, CWS_PUBLISHER_ID, CWS_CLIENT_ID, CWS_CLIENT_SECRET, CWS_REFRESH_TOKEN.
+name: Publish to Chrome Web Store
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Check version matches tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: test "v$(node -p "require('./package.json').version")" = "${GITHUB_REF_NAME}"
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run test
+      - run: npm run build
+      - run: npm run validate
+      - run: xvfb-run -a npm run test:e2e
+      - run: npm run zip
+      - name: Upload and publish
+        env:
+          EXTENSION_ID: ${{ secrets.CWS_EXTENSION_ID }}
+          PUBLISHER_ID: ${{ secrets.CWS_PUBLISHER_ID }}
+          CLIENT_ID: ${{ secrets.CWS_CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.CWS_CLIENT_SECRET }}
+          REFRESH_TOKEN: ${{ secrets.CWS_REFRESH_TOKEN }}
+        run: npx --yes chrome-webstore-upload-cli@4 --source "artifacts/threadshelf-$(node -p "require('./package.json').version").zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: threadshelf-zip
+          path: artifacts/*.zip

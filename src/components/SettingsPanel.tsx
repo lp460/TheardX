@@ -19,6 +19,7 @@ import { detectCapabilities, shortcutsUrl } from '@/utils/browser';
 import { downloadFile } from '@/utils/download';
 import { formatBytes, isoDay } from '@/utils/format';
 import { useSettings } from './hooks';
+import { SyncSettings } from './SyncSettings';
 import { toast } from './ToastNotification';
 import { Button } from './ui/Button';
 import { cn } from './ui/cn';
@@ -355,6 +356,8 @@ export function SettingsPanel() {
         </Row>
         <StorageMeter />
       </Section>
+
+      <SyncSettings />
 
       <Section title="Données" icon={<Database size={15} />} id="data">
         <Row

@@ -9,6 +9,7 @@ import { detectConnectors } from './connectors';
 import { attr, intAttr, isShowMoreControl, ownAll, ownFirst, REPLYING_TO_RE, textOf } from './dom';
 import { buildTweet, cleanAlt, quoteToTweet, type RawTweet } from './build';
 import { extractRichText } from './rich-text';
+import { extractArticle } from './article';
 import type { LayoutStrategy } from './types';
 import type { ArticleExtraction } from './xds';
 
@@ -228,6 +229,8 @@ export function extractClassicArticle(
   if (replyingTo) raw.replyingTo = replyingTo;
   const card = cardOf(article, exclude);
   if (card) raw.card = card;
+  const xArticle = extractArticle(article, exclude, author.handle, id);
+  if (xArticle) raw.article = xArticle;
 
   const quoted: Tweet[] = [];
   const box = exclude.find((b) => b.tagName !== 'ARTICLE') ?? exclude[0];

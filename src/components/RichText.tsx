@@ -34,6 +34,14 @@ export function RichText({
       {segments.map((s, i) => {
         switch (s.t) {
           case 'text':
+            if (s.b && s.i)
+              return (
+                <strong key={i}>
+                  <em>{s.v}</em>
+                </strong>
+              );
+            if (s.b) return <strong key={i}>{s.v}</strong>;
+            if (s.i) return <em key={i}>{s.v}</em>;
             return <Fragment key={i}>{s.v}</Fragment>;
           case 'link':
             return (

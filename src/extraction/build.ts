@@ -6,6 +6,7 @@ import type {
   QuotedRef,
   Segment,
   Tweet,
+  XArticle,
 } from '@/types/model';
 import { snowflakeToDate } from '@/utils/snowflake';
 import {
@@ -29,6 +30,7 @@ export interface RawTweet {
   card?: LinkCard;
   quoted?: QuotedRef;
   replyingTo?: string[];
+  article?: XArticle;
   context: CaptureContext;
   source: 'xds' | 'classic';
 }
@@ -113,6 +115,7 @@ export function buildTweet(raw: RawTweet, now = Date.now()): Tweet | null {
   if (raw.card) tweet.card = raw.card;
   if (raw.quoted) tweet.quoted = { ...raw.quoted, media: dedupeMedia(raw.quoted.media ?? []) };
   if (raw.replyingTo?.length) tweet.replyingTo = raw.replyingTo;
+  if (raw.article) tweet.article = raw.article;
   return tweet;
 }
 

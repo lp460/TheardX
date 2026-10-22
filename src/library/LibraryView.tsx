@@ -408,6 +408,7 @@ export function LibraryView({
         .flatMap((t) => [
           t.media[0]?.url,
           t.quoted?.media?.[0]?.url,
+          t.article?.coverUrl,
           t.author.avatarUrl?.replace(/_(normal|mini)(\.[a-z]+)$/i, '_bigger$2'),
         ])
         .filter((u): u is string => !!u);

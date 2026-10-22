@@ -1,5 +1,6 @@
 import type { EntryBundle, Segment, Tweet } from '@/types/model';
 import { cashtagUrl, hashtagUrl, linkLabel, profileUrl, safeHref } from '@/utils/url';
+import { articleToHtml, textIsOnlyArticleLink } from './article';
 import { dayString, mediaLabel, toView, type ExportOptions } from './model';
 
 export function escapeHtml(input: string): string {
@@ -20,8 +21,13 @@ export function segmentsToHtml(segments: Segment[]): string {
   const html = segments
     .map((s) => {
       switch (s.t) {
-        case 'text':
-          return escapeHtml(s.v);
+        case 'text': {
+          const v = escapeHtml(s.v);
+          if (s.b && s.i) return `<strong><em>${v}</em></strong>`;
+          if (s.b) return `<strong>${v}</strong>`;
+          if (s.i) return `<em>${v}</em>`;
+          return v;
+        }
         case 'link':
           return a(safeHref(s.href), linkLabel(s.v, s.href));
         case 'mention':
@@ -47,7 +53,11 @@ function img(url: string, alt: string | undefined, opts: ExportOptions): string 
 function post(t: Tweet, opts: ExportOptions, index?: string): string {
   const parts: string[] = [];
   if (index) parts.push(`<div class="num">${escapeHtml(index)}</div>`);
-  parts.push(`<div class="text">${segmentsToHtml(t.text)}</div>`);
+  if (!textIsOnlyArticleLink(t)) parts.push(`<div class="text">${segmentsToHtml(t.text)}</div>`);
+  if (t.article)
+    parts.push(
+      articleToHtml(t.article, segmentsToHtml, escapeHtml, (url, alt) => img(url, alt, opts)),
+    );
   if (t.textTruncated)
     parts.push('<p class="muted">Texte tronqué sur la page au moment de la capture.</p>');
   for (const m of t.media) {
@@ -57,7 +67,7 @@ function post(t: Tweet, opts: ExportOptions, index?: string): string {
         `<p class="media-ref">${a(safeHref(m.playbackUrl ?? t.url), `${mediaLabel(m.kind)} — voir sur X`)}</p>`,
       );
   }
-  if (t.card) {
+  if (t.card && !t.article) {
     parts.push(
       `<p class="card">${a(safeHref(t.card.url), t.card.title ?? t.card.domain ?? t.card.url)}${t.card.domain ? ` <span class="muted">${escapeHtml(t.card.domain)}</span>` : ''}</p>`,
     );
@@ -92,7 +102,7 @@ h1{font:600 1.7em/1.25 -apple-system,system-ui,sans-serif;letter-spacing:-.02em;
 article{padding:20px 0;border-bottom:1px solid var(--line)}.num{font:600 12px -apple-system,system-ui,sans-serif;color:var(--muted);letter-spacing:.06em;margin-bottom:8px}
 p{margin:0 0 .8em}a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
 figure{margin:16px 0}img{max-width:100%;height:auto;border-radius:12px;display:block}figcaption{font:14px/1.5 -apple-system,system-ui,sans-serif;color:var(--muted);margin-top:6px}
-blockquote{margin:16px 0;padding:14px 16px;border-radius:12px;background:var(--quote);font-size:.92em}.q-head{font:600 14px -apple-system,system-ui,sans-serif;margin-bottom:6px}
+pre{overflow-x:auto;padding:12px 14px;border-radius:10px;background:var(--quote);font:13px/1.55 ui-monospace,Menlo,monospace}code{font-family:ui-monospace,Menlo,monospace}.article h2{font:600 1.35em/1.3 -apple-system,system-ui,sans-serif;margin:18px 0 6px}.article h3,.article h4,.article h5{font:600 1.1em/1.35 -apple-system,system-ui,sans-serif;margin:22px 0 6px}hr{border:none;border-top:1px solid var(--line);margin:24px auto;width:80px}blockquote{margin:16px 0;padding:14px 16px;border-radius:12px;background:var(--quote);font-size:.92em}.q-head{font:600 14px -apple-system,system-ui,sans-serif;margin-bottom:6px}
 .muted{color:var(--muted)}.link,.media-ref,.card{font:14px -apple-system,system-ui,sans-serif}.context{opacity:.8}
 footer{margin-top:40px;font:13px -apple-system,system-ui,sans-serif;color:var(--muted)}
 @media print{body{background:#fff;color:#000;font-size:12pt}main{max-width:none;padding:0}article{break-inside:avoid}a{color:#000}}

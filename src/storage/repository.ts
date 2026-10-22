@@ -15,10 +15,12 @@ import type {
   Tweet,
 } from '@/types/model';
 import { uid } from '@/utils/id';
-import { deriveTitle, segmentsToPlain } from '@/utils/text';
+import { deriveTitle, postPreviewText } from '@/utils/text';
 import { canonicalTweetUrl } from '@/utils/url';
 import { fromStoredTweet, getDb, toStoredTweet, type ThreadShelfDB } from './db';
 import { buildSearchText } from './search';
+import { addTombstones } from './tombstones';
+import type { PostTranslation } from '@/translate/engine';
 
 export interface CaptureOptions {
   entryId?: string;
@@ -213,7 +215,9 @@ export class Repository {
           searchText: '',
         };
         const autoTitle =
-          deriveTitle(segmentsToPlain(first.text)) || `Publication de @${first.author.handle}`;
+          first.article?.title?.trim() ||
+          deriveTitle(postPreviewText(first)) ||
+          `Publication de @${first.author.handle}`;
         const entry: Entry = {
           ...base,
           kind: plan.kind,
@@ -389,33 +393,43 @@ export class Repository {
   /** Deletes entries and garbage-collects posts, relations and media no longer referenced. */
   async deleteEntries(ids: string[]): Promise<number> {
     const db = this.db;
-    return db.transaction('rw', [db.entries, db.tweets, db.relations, db.media], async () => {
-      const removed = (await db.entries.bulkGet(ids)).filter((e): e is Entry => !!e);
-      if (!removed.length) return 0;
-      await db.entries.bulkDelete(removed.map((e) => e.id));
-      const candidates = new Set(
-        removed.flatMap((e) => [...e.tweetIds, ...e.contextTweetIds, ...e.referenceTweetIds]),
-      );
-      const stillUsed = new Set<string>();
-      await db.entries.each((e) => {
-        for (const id of [...e.tweetIds, ...e.contextTweetIds, ...e.referenceTweetIds])
-          if (candidates.has(id)) stillUsed.add(id);
-      });
-      const orphan = [...candidates].filter((id) => !stillUsed.has(id));
-      if (orphan.length) {
-        await db.tweets.bulkDelete(orphan);
-        await db.relations.where('childId').anyOf(orphan).delete();
-        await db.relations.where('parentId').anyOf(orphan).delete();
-        const orphanSet = new Set(orphan);
-        const media = await db.media.where('tweetIds').anyOf(orphan).toArray();
-        for (const m of media) {
-          const rest = m.tweetIds.filter((t) => !orphanSet.has(t));
-          if (rest.length) await db.media.put({ ...m, tweetIds: rest });
-          else await db.media.delete(m.url);
+    return db.transaction(
+      'rw',
+      [db.entries, db.tweets, db.relations, db.media, db.meta, db.translations],
+      async () => {
+        const removed = (await db.entries.bulkGet(ids)).filter((e): e is Entry => !!e);
+        if (!removed.length) return 0;
+        await db.entries.bulkDelete(removed.map((e) => e.id));
+        await addTombstones(
+          db,
+          'entry',
+          removed.map((e) => e.id),
+        );
+        const candidates = new Set(
+          removed.flatMap((e) => [...e.tweetIds, ...e.contextTweetIds, ...e.referenceTweetIds]),
+        );
+        const stillUsed = new Set<string>();
+        await db.entries.each((e) => {
+          for (const id of [...e.tweetIds, ...e.contextTweetIds, ...e.referenceTweetIds])
+            if (candidates.has(id)) stillUsed.add(id);
+        });
+        const orphan = [...candidates].filter((id) => !stillUsed.has(id));
+        if (orphan.length) {
+          await db.tweets.bulkDelete(orphan);
+          await db.translations.where('tweetId').anyOf(orphan).delete();
+          await db.relations.where('childId').anyOf(orphan).delete();
+          await db.relations.where('parentId').anyOf(orphan).delete();
+          const orphanSet = new Set(orphan);
+          const media = await db.media.where('tweetIds').anyOf(orphan).toArray();
+          for (const m of media) {
+            const rest = m.tweetIds.filter((t) => !orphanSet.has(t));
+            if (rest.length) await db.media.put({ ...m, tweetIds: rest });
+            else await db.media.delete(m.url);
+          }
         }
-      }
-      return removed.length;
-    });
+        return removed.length;
+      },
+    );
   }
 
   /* ------------------------------------------------------------------ collections & categories ------------------------------------------------------------------ */
@@ -454,11 +468,17 @@ export class Repository {
 
   async deleteCollection(id: string): Promise<void> {
     const db = this.db;
-    await db.transaction('rw', [db.collections, db.entries], async () => {
+    await db.transaction('rw', [db.collections, db.entries, db.meta], async () => {
       await db.collections.delete(id);
+      await addTombstones(db, 'collection', [id]);
       const affected = await db.entries.where('collectionIds').equals(id).toArray();
+      const now = Date.now();
       await db.entries.bulkPut(
-        affected.map((e) => ({ ...e, collectionIds: e.collectionIds.filter((c) => c !== id) })),
+        affected.map((e) => ({
+          ...e,
+          collectionIds: e.collectionIds.filter((c) => c !== id),
+          updatedAt: now,
+        })),
       );
     });
   }
@@ -479,6 +499,7 @@ export class Repository {
       name: clean,
       color: color ?? pickColor(clean),
       createdAt: Date.now(),
+      updatedAt: Date.now(),
     };
     await this.db.categories.add(c);
     return c;
@@ -486,11 +507,19 @@ export class Repository {
 
   async deleteCategory(id: string): Promise<void> {
     const db = this.db;
-    await db.transaction('rw', [db.categories, db.entries], async () => {
+    await db.transaction('rw', [db.categories, db.entries, db.meta], async () => {
       await db.categories.delete(id);
+      await addTombstones(db, 'category', [id]);
       const affected = await db.entries.where('categoryId').equals(id).toArray();
-      await db.entries.bulkPut(affected.map((e) => ({ ...e, categoryId: null })));
+      const now = Date.now();
+      await db.entries.bulkPut(affected.map((e) => ({ ...e, categoryId: null, updatedAt: now })));
     });
+  }
+
+  async renameCategory(id: string, name: string): Promise<void> {
+    const clean = name.trim().slice(0, 80);
+    if (!clean) throw new Error('Name required.');
+    await this.db.categories.update(id, { name: clean, updatedAt: Date.now() });
   }
 
   async listTags(): Promise<{ tag: string; count: number }[]> {
@@ -565,12 +594,86 @@ export class Repository {
     };
   }
 
+  /* ------------------------------------------------------------------ translations ------------------------------------------------------------------ */
+
+  async getTranslations(
+    tweetIds: string[],
+    target: string,
+  ): Promise<Record<string, PostTranslation>> {
+    const rows = await this.db.translations.bulkGet(tweetIds.map((id) => `${id}:${target}`));
+    const out: Record<string, PostTranslation> = {};
+    for (const r of rows) if (r) out[r.key] = r;
+    return out;
+  }
+
+  async saveTranslations(records: PostTranslation[]): Promise<void> {
+    if (records.length) await this.db.translations.bulkPut(records);
+  }
+
+  async deleteTranslations(tweetIds: string[], target: string): Promise<void> {
+    await this.db.translations.bulkDelete(tweetIds.map((id) => `${id}:${target}`));
+  }
+
+  /** Removes posts, relations and media that no entry references any more. */
+  async collectOrphans(): Promise<number> {
+    const db = this.db;
+    return db.transaction(
+      'rw',
+      [db.entries, db.tweets, db.relations, db.media, db.translations],
+      async () => {
+        const used = new Set<string>();
+        await db.entries.each((e) => {
+          for (const id of [...e.tweetIds, ...e.contextTweetIds, ...e.referenceTweetIds])
+            used.add(id);
+        });
+        const orphan = (await db.tweets.toCollection().primaryKeys()).filter((id) => !used.has(id));
+        if (!orphan.length) return 0;
+        await db.tweets.bulkDelete(orphan);
+        await db.translations.where('tweetId').anyOf(orphan).delete();
+        await db.relations.where('childId').anyOf(orphan).delete();
+        await db.relations.where('parentId').anyOf(orphan).delete();
+        const orphanSet = new Set(orphan);
+        for (const m of await db.media.where('tweetIds').anyOf(orphan).toArray()) {
+          const rest = m.tweetIds.filter((t) => !orphanSet.has(t));
+          if (rest.length) await db.media.put({ ...m, tweetIds: rest });
+          else await db.media.delete(m.url);
+        }
+        return orphan.length;
+      },
+    );
+  }
+
+  /** Erases the library. Deletion markers are kept so a synchronised library is erased everywhere. */
   async clearAll(): Promise<void> {
     const db = this.db;
     await db.transaction(
       'rw',
-      [db.entries, db.tweets, db.relations, db.media, db.collections, db.categories],
+      [
+        db.entries,
+        db.tweets,
+        db.relations,
+        db.media,
+        db.collections,
+        db.categories,
+        db.meta,
+        db.translations,
+      ],
       async () => {
+        await addTombstones(
+          db,
+          'entry',
+          (await db.entries.toCollection().primaryKeys()) as string[],
+        );
+        await addTombstones(
+          db,
+          'collection',
+          (await db.collections.toCollection().primaryKeys()) as string[],
+        );
+        await addTombstones(
+          db,
+          'category',
+          (await db.categories.toCollection().primaryKeys()) as string[],
+        );
         await Promise.all([
           db.entries.clear(),
           db.tweets.clear(),
@@ -578,6 +681,7 @@ export class Repository {
           db.media.clear(),
           db.collections.clear(),
           db.categories.clear(),
+          db.translations.clear(),
         ]);
       },
     );

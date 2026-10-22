@@ -7,6 +7,7 @@ import type { Category, Collection, Entry, MediaRecord, Relation, Tweet } from '
 import { parseSettings, type Settings } from '@/settings/schema';
 import { fromStoredTweet, getDb, SCHEMA_VERSION, toStoredTweet, type ThreadShelfDB } from './db';
 import { buildSearchText } from './search';
+import { Repository } from './repository';
 import {
   categorySchema,
   collectionSchema,
@@ -15,6 +16,14 @@ import {
   tweetSchema,
 } from './validation';
 import { isAllowedMediaUrl } from '@/utils/url';
+import {
+  tombstoneKey,
+  isDeleted,
+  mergeTombstones,
+  readTombstones,
+  TOMBSTONES_KEY,
+  type Tombstones,
+} from './tombstones';
 
 export const BACKUP_FORMAT = 'threadshelf.backup';
 export const BACKUP_VERSION = 1;
@@ -42,6 +51,8 @@ export interface Backup {
     categories: Category[];
     settings?: Settings;
     media?: BackupMedia[];
+    /** Deletion markers (`entry:<id>` → time), so deletions propagate between devices. */
+    tombstones?: Tombstones;
   };
 }
 
@@ -99,6 +110,10 @@ export async function exportLibrary(
       categories: await db.categories.toArray(),
     },
   };
+  if (!opts.entryIds) {
+    const tombstones = await readTombstones(db);
+    if (Object.keys(tombstones).length) backup.data.tombstones = tombstones;
+  }
   if (opts.settings) backup.data.settings = opts.settings;
   if (opts.includeMedia) {
     const media: BackupMedia[] = [];
@@ -128,8 +143,12 @@ export interface ImportReport {
   media: number;
   invalid: number;
   conflicts: number;
+  /** Local items removed because another device deleted them. */
+  deleted: number;
   warnings: string[];
   settings?: Settings;
+  /** IDs of entries added or updated (e.g. to cache their images). */
+  changedEntryIds: string[];
 }
 
 export class ImportError extends Error {}
@@ -148,6 +167,12 @@ const envelopeSchema = z.object({
     categories: z.array(z.unknown()).max(10_000).default([]),
     settings: z.unknown().optional(),
     media: z.array(z.unknown()).max(200_000).optional(),
+    tombstones: z
+      .record(
+        z.string().regex(/^(entry|collection|category):[\w-]{1,100}$/),
+        z.number().nonnegative(),
+      )
+      .optional(),
   }),
 });
 
@@ -206,10 +231,13 @@ export function parseBackup(text: string): {
  * Imports a backup in a single IndexedDB transaction: either everything valid is written or nothing.
  * - merge (default): keeps existing data; for the same entry, the most recently updated version wins.
  * - replace: clears the library first (inside the same transaction).
+ * - sync: like merge, but the most recent version wins entirely (tags removed elsewhere stay removed),
+ *   renames of collections/categories propagate, and entry IDs converge between devices.
+ * Deletion markers are applied in every mode.
  */
 export async function importLibrary(
   text: string,
-  opts: { strategy?: 'merge' | 'replace'; db?: ThreadShelfDB } = {},
+  opts: { strategy?: 'merge' | 'replace' | 'sync'; db?: ThreadShelfDB } = {},
 ): Promise<ImportReport> {
   const db = opts.db ?? getDb();
   const { backup } = parseBackup(text);
@@ -221,7 +249,9 @@ export async function importLibrary(
     media: 0,
     invalid: 0,
     conflicts: 0,
+    deleted: 0,
     warnings: [],
+    changedEntryIds: [],
   };
 
   const tweets = validItems(backup.data.tweets, tweetSchema, report, 'publication(s)') as Tweet[];
@@ -250,10 +280,50 @@ export async function importLibrary(
   if (backup.data.settings !== undefined) report.settings = parseSettings(backup.data.settings);
 
   const strategy = opts.strategy ?? 'merge';
+  const sync = strategy === 'sync';
   await db.transaction(
     'rw',
-    [db.entries, db.tweets, db.relations, db.collections, db.categories, db.media],
+    [db.entries, db.tweets, db.relations, db.collections, db.categories, db.media, db.meta],
     async () => {
+      // Deletion markers.
+      // - sync: union of both sides, then remove locally what another device deleted;
+      // - manual import / restore: the restored items win over earlier deletions — they are revived
+      //   with a fresh update time so the restore also reaches the other devices.
+      const localTombstones = await readTombstones(db);
+      const tombstones: Tombstones = sync
+        ? mergeTombstones(localTombstones, backup.data.tombstones ?? {})
+        : {};
+      const revive: Tombstones | null = sync ? null : { ...localTombstones };
+      let revived = false;
+      const reviveTime = Date.now();
+      const reviveKey = (key: string): boolean => {
+        if (!revive || revive[key] === undefined) return false;
+        delete revive[key];
+        revived = true;
+        return true;
+      };
+      if (sync && Object.keys(tombstones).length)
+        await db.meta.put({ key: TOMBSTONES_KEY, value: tombstones });
+      if (sync && backup.data.tombstones) {
+        for (const e of await db.entries.toArray()) {
+          if (isDeleted(tombstones, 'entry', e.id, e.updatedAt)) {
+            await db.entries.delete(e.id);
+            report.deleted += 1;
+          }
+        }
+        for (const c of await db.collections.toArray()) {
+          if (isDeleted(tombstones, 'collection', c.id, c.updatedAt)) {
+            await db.collections.delete(c.id);
+            report.deleted += 1;
+          }
+        }
+        for (const c of await db.categories.toArray()) {
+          if (isDeleted(tombstones, 'category', c.id, c.updatedAt ?? c.createdAt)) {
+            await db.categories.delete(c.id);
+            report.deleted += 1;
+          }
+        }
+      }
       if (strategy === 'replace') {
         await Promise.all([
           db.entries.clear(),
@@ -268,12 +338,21 @@ export async function importLibrary(
       // Collections / categories: match by id, then by name (avoid duplicates), remap ids.
       const colMap = new Map<string, string>();
       const existingCols = await db.collections.toArray();
-      for (const c of collections) {
+      for (const original of collections) {
+        if (isDeleted(tombstones, 'collection', original.id, original.updatedAt)) continue;
+        const c = reviveKey(tombstoneKey('collection', original.id))
+          ? { ...original, updatedAt: reviveTime }
+          : original;
         const same =
           existingCols.find((e) => e.id === c.id) ??
           existingCols.find((e) => e.name.toLowerCase() === c.name.toLowerCase());
-        if (same) colMap.set(c.id, same.id);
-        else {
+        if (same) {
+          colMap.set(c.id, same.id);
+          if (sync && same.id === c.id && c.updatedAt > same.updatedAt) {
+            await db.collections.put(c);
+            Object.assign(same, c);
+          }
+        } else {
           await db.collections.put(c);
           existingCols.push(c);
           colMap.set(c.id, c.id);
@@ -282,12 +361,28 @@ export async function importLibrary(
       }
       const catMap = new Map<string, string>();
       const existingCats = await db.categories.toArray();
-      for (const c of categories) {
+      for (const original of categories) {
+        if (
+          isDeleted(tombstones, 'category', original.id, original.updatedAt ?? original.createdAt)
+        )
+          continue;
+        const c = reviveKey(tombstoneKey('category', original.id))
+          ? { ...original, updatedAt: reviveTime }
+          : original;
         const same =
           existingCats.find((e) => e.id === c.id) ??
           existingCats.find((e) => e.name.toLowerCase() === c.name.toLowerCase());
-        if (same) catMap.set(c.id, same.id);
-        else {
+        if (same) {
+          catMap.set(c.id, same.id);
+          if (
+            sync &&
+            same.id === c.id &&
+            (c.updatedAt ?? c.createdAt) > (same.updatedAt ?? same.createdAt)
+          ) {
+            await db.categories.put(c);
+            Object.assign(same, c);
+          }
+        } else {
           await db.categories.put(c);
           existingCats.push(c);
           catMap.set(c.id, c.id);
@@ -316,7 +411,14 @@ export async function importLibrary(
         return ok;
       };
       const finalEntries: Entry[] = [];
-      for (const raw of entries) {
+      for (const original of entries) {
+        if (isDeleted(tombstones, 'entry', original.id, original.updatedAt)) {
+          report.entries.skipped += 1;
+          continue;
+        }
+        const raw = reviveKey(tombstoneKey('entry', original.id))
+          ? { ...original, updatedAt: reviveTime }
+          : original;
         const ok = await available([
           ...raw.tweetIds,
           ...raw.contextTweetIds,
@@ -363,17 +465,28 @@ export async function importLibrary(
           if (t) tweetsForSearch[id] = t;
         }
         if (sameContent) {
+          // The same content saved on two devices under two IDs converges to the smaller ID.
+          const canonicalId =
+            sync && sameContent.id !== e.id && e.id < sameContent.id ? e.id : sameContent.id;
+          const remoteWins = e.updatedAt > sameContent.updatedAt;
           report.conflicts += 1;
-          if (e.updatedAt > sameContent.updatedAt) {
+          if (remoteWins || canonicalId !== sameContent.id) {
+            const base = remoteWins ? e : sameContent;
             const merged: Entry = {
-              ...e,
-              id: sameContent.id,
-              tags: [...new Set([...sameContent.tags, ...e.tags])],
-              collectionIds: [...new Set([...sameContent.collectionIds, ...e.collectionIds])],
+              ...base,
+              id: canonicalId,
+              tags:
+                sync || !remoteWins ? base.tags : [...new Set([...sameContent.tags, ...e.tags])],
+              collectionIds:
+                sync || !remoteWins
+                  ? base.collectionIds
+                  : [...new Set([...sameContent.collectionIds, ...e.collectionIds])],
             };
             merged.searchText = buildSearchText(merged, tweetsForSearch);
+            if (canonicalId !== sameContent.id) await db.entries.delete(sameContent.id);
             await db.entries.put(merged);
             report.entries.updated += 1;
+            report.changedEntryIds.push(merged.id);
           } else {
             report.entries.skipped += 1;
           }
@@ -381,7 +494,10 @@ export async function importLibrary(
         }
         await db.entries.put({ ...e, searchText: buildSearchText(e, tweetsForSearch) });
         report.entries.added += 1;
+        report.changedEntryIds.push(e.id);
       }
+
+      if (revive && revived) await db.meta.put({ key: TOMBSTONES_KEY, value: revive });
 
       const knownTweets = new Set([...tweetMap.keys()]);
       const rels = relations.filter(
@@ -406,6 +522,7 @@ export async function importLibrary(
       }
     },
   );
+  if (report.deleted || report.entries.updated) await new Repository(() => db).collectOrphans();
   return report;
 }
 

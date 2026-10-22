@@ -34,6 +34,7 @@ export function useSettings(): [
           copy: { ...prev.copy, ...patch.copy },
           ai: { ...prev.ai, ...patch.ai },
           library: { ...prev.library, ...patch.library },
+          sync: { ...prev.sync, ...patch.sync },
         }) as Settings,
     );
     setSettings(await updateSettings(patch));

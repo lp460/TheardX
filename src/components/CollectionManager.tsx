@@ -169,9 +169,7 @@ export function CollectionManager({
                 name={c.name}
                 color={c.color}
                 icon={<Tag size={14} />}
-                onRename={async (n) => {
-                  await repository.db.categories.update(c.id, { name: n.trim().slice(0, 80) });
-                }}
+                onRename={(n) => repository.renameCategory(c.id, n)}
                 onDelete={() => setPending({ kind: 'category', item: c })}
               />
             ))}

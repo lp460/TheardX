@@ -2,14 +2,16 @@
 
 ## Permissions (minimales)
 
-| Permission                                            | Usage                                                                   |
-| ----------------------------------------------------- | ----------------------------------------------------------------------- |
-| `storage`                                             | Préférences (`chrome.storage.local`)                                    |
-| `unlimitedStorage`                                    | Bibliothèque et images hors ligne dans IndexedDB, sans quota arbitraire |
-| `contextMenus`                                        | « Enregistrer cette publication / ce thread dans ThreadShelf »          |
-| `clipboardWrite`                                      | Copie depuis la page X déclenchée par un raccourci                      |
-| hôte `https://pbs.twimg.com/*`                        | Télécharger les images des publications **que vous avez enregistrées**  |
-| content script sur `x.com`, `twitter.com`, `mobile.*` | Lecture du DOM affiché                                                  |
+| Permission                                                                 | Usage                                                                   |
+| -------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `storage`                                                                  | Préférences (`chrome.storage.local`)                                    |
+| `unlimitedStorage`                                                         | Bibliothèque et images hors ligne dans IndexedDB, sans quota arbitraire |
+| `contextMenus`                                                             | « Enregistrer cette publication / ce thread dans ThreadShelf »          |
+| `clipboardWrite`                                                           | Copie depuis la page X déclenchée par un raccourci                      |
+| hôte `https://pbs.twimg.com/*`                                             | Télécharger les images des publications **que vous avez enregistrées**  |
+| content script sur `x.com`, `twitter.com`, `mobile.*`                      | Lecture du DOM affiché                                                  |
+| `alarms`                                                                   | Synchronisation GitHub périodique (si activée)                          |
+| hôtes **facultatifs** `https://github.com/*` et `https://api.github.com/*` | Demandés seulement au clic « Se connecter avec GitHub »                 |
 
 ThreadShelf ne demande pas les permissions `tabs`, `cookies`, `webRequest`, `scripting`, `downloads` ou `<all_urls>`. `npm run validate` échoue si l'une d'elles apparaît.
 
@@ -29,6 +31,13 @@ ThreadShelf ne demande pas les permissions `tabs`, `cookies`, `webRequest`, `scr
 - Tout est stocké localement : IndexedDB et `chrome.storage.local` de l'extension.
 - **Aucune télémétrie, aucun analytics, aucun service tiers.**
 - Requêtes réseau émises par l'extension : uniquement les images des publications enregistrées, depuis `pbs.twimg.com` avec `credentials: 'omit'` et `referrerPolicy: 'no-referrer'`. Désactivable : Paramètres → Hors ligne.
+- **Synchronisation GitHub (désactivée par défaut).** Une fois activée, la bibliothèque est envoyée uniquement au dépôt privé `threadshelf-data` de votre compte, via l'API officielle (Contents API).
+  - Connexion par **OAuth Device Flow** : pas de jeton à copier, pas de _client secret_ dans l'extension, pas de page de redirection. Le scope demandé est `repo`, nécessaire pour créer et écrire un dépôt privé ; il donne accès à vos dépôts privés. Préférez au besoin un compte GitHub dédié.
+  - Le jeton d'accès est stocké dans `chrome.storage.local`, sous une clé séparée des préférences. Il n'est **jamais** exporté ni synchronisé. « Se déconnecter » l'efface ; l'autorisation se révoque aussi depuis GitHub.
+  - Le dépôt est créé **privé**. Un dépôt existant public est refusé, sauf si la bibliothèque est chiffrée.
+  - Chiffrement facultatif de bout en bout : AES-GCM 256, clé dérivée de la phrase secrète par PBKDF2-SHA-256 (310 000 itérations), sel et IV aléatoires à chaque envoi.
+  - Le contenu distant est validé comme un import : schémas zod, éléments invalides ignorés, transaction unique.
+- **Traduction** : traducteur intégré au navigateur, exécuté sur l’appareil ; aucun texte n’est envoyé. Le repli Google Traduction ouvre un onglet uniquement sur clic explicite, et le texte est alors transmis à Google.
 - IA : non livrée. L'architecture (`src/ai/provider.ts`) exige activation **et** consentement explicite avant qu'un contenu quitte le navigateur.
 
 ## Signaler un problème

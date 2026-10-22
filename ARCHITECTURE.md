@@ -19,22 +19,23 @@ Un content script ne peut pas ouvrir l'IndexedDB de l'extension (il s'exécute d
 
 ## Modules (`src/`)
 
-| Dossier                                     | Rôle                                                                                                                                                                            |
-| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `types/`                                    | Modèle de domaine (`Tweet`, `Entry`, `Relation`, `Completeness`…), indépendant du DOM de X                                                                                      |
-| `utils/`                                    | URL (normalisation, routes, liens sûrs), snowflake (date d'un ID), texte, formats, presse-papiers, téléchargement, détection des capacités                                      |
-| `extraction/`                               | Lecture du DOM : stratégies `xds` (mise en page actuelle de X) et `classic` (`data-testid`), texte structuré, médias, cartes, citations, **lignes de thread** (`connectors.ts`) |
-| `thread-engine/`                            | `observe` (scan → preuves), `ThreadGraph` (fusion, déduplication, refus des cycles), `reconstruct` (modes A–D, états de complétude), libellés                                   |
-| `storage/`                                  | Schéma Dexie versionné + migrations, `Repository` (transactions), recherche, cache média, sauvegarde/import, validation zod                                                     |
-| `export/`                                   | Markdown, texte, HTML autonome, JSON — fonctions pures sur un `EntryBundle`                                                                                                     |
-| `messaging/`                                | Protocole typé et validé (zod) entre contextes                                                                                                                                  |
-| `background/`                               | Service worker : routage des messages, contrôle de l'expéditeur, raccourcis, menus contextuels                                                                                  |
-| `content/`                                  | Contrôleur (observer, session, actions), UI injectée (Shadow DOM)                                                                                                               |
-| `components/`                               | Composants partagés : `TweetCard`, `ThreadCard`, `ExportDialog`, `SettingsPanel`, `CollectionManager`, `SearchCommand`, `ToastNotification`, primitives (Radix)                 |
-| `library/`, `reader/`, `popup/`, `options/` | Pages de l'extension                                                                                                                                                            |
-| `settings/`                                 | Schéma des préférences (zod, valeurs par défaut, récupération des valeurs corrompues) et stockage                                                                               |
-| `adapters/`                                 | Contrat `ContentAdapter` et adaptateur X (prévu pour d'autres sites)                                                                                                            |
-| `ai/`, `sync/`                              | Interfaces pour l'IA et la synchronisation facultatives — aucun fournisseur livré                                                                                               |
+| Dossier                                     | Rôle                                                                                                                                                                                                                                                               |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `types/`                                    | Modèle de domaine (`Tweet`, `Entry`, `Relation`, `Completeness`…), indépendant du DOM de X                                                                                                                                                                         |
+| `utils/`                                    | URL (normalisation, routes, liens sûrs), snowflake (date d'un ID), texte, formats, presse-papiers, téléchargement, détection des capacités                                                                                                                         |
+| `extraction/`                               | Lecture du DOM : stratégies `xds` (mise en page actuelle de X) et `classic` (`data-testid`), texte structuré, médias, cartes, citations, **lignes de thread** (`connectors.ts`)                                                                                    |
+| `thread-engine/`                            | `observe` (scan → preuves), `ThreadGraph` (fusion, déduplication, refus des cycles), `reconstruct` (modes A–D, états de complétude), libellés                                                                                                                      |
+| `storage/`                                  | Schéma Dexie versionné + migrations, `Repository` (transactions), recherche, cache média, sauvegarde/import, validation zod                                                                                                                                        |
+| `export/`                                   | Markdown, texte, HTML autonome, JSON — fonctions pures sur un `EntryBundle`                                                                                                                                                                                        |
+| `messaging/`                                | Protocole typé et validé (zod) entre contextes                                                                                                                                                                                                                     |
+| `background/`                               | Service worker : routage des messages, contrôle de l'expéditeur, raccourcis, menus contextuels                                                                                                                                                                     |
+| `content/`                                  | Contrôleur (observer, session, actions), UI injectée (Shadow DOM)                                                                                                                                                                                                  |
+| `components/`                               | Composants partagés : `TweetCard`, `ThreadCard`, `ExportDialog`, `SettingsPanel`, `CollectionManager`, `SearchCommand`, `ToastNotification`, primitives (Radix)                                                                                                    |
+| `library/`, `reader/`, `popup/`, `options/` | Pages de l'extension                                                                                                                                                                                                                                               |
+| `settings/`                                 | Schéma des préférences (zod, valeurs par défaut, récupération des valeurs corrompues) et stockage                                                                                                                                                                  |
+| `adapters/`                                 | Contrat `ContentAdapter` et adaptateur X (prévu pour d'autres sites)                                                                                                                                                                                               |
+| `ai/`                                       | Interface pour l'IA facultative — aucun fournisseur livré, consentement obligatoire                                                                                                                                                                                |
+| `sync/`                                     | Synchronisation GitHub : client REST et création du dépôt (`github.ts`), connexion Device Flow (`device-flow.ts`, `github-app.ts`), chiffrement (`crypto.ts`), moteur de fusion (`engine.ts`), secrets locaux ; côté service worker : `background/sync-service.ts` |
 
 Composants demandés et leur emplacement : `CaptureAction` correspond à `CaptureBar` dans `content/ui/inline.ts` (vanilla, Shadow DOM). `FloatingPanel` se trouve dans `content/ui/FloatingPanel.tsx`, `LibraryView` dans `library/LibraryView.tsx`, `ThreadReader` dans `reader/ThreadReader.tsx`.
 
@@ -103,6 +104,30 @@ Les **préférences** sont dans `chrome.storage.local`, pas dans IndexedDB : le 
 - **Observer** : un seul `MutationObserver` (`childList`, `subtree`) dont le traitement est limité à une analyse toutes les 250 ms (`requestIdleCallback`). Il ignore les mutations causées par ThreadShelf, se met en pause quand l'onglet est caché et se déconnecte à la désactivation. Le cache d'extraction est indexé par élément avec une signature. La double injection est empêchée par un drapeau global et la vérification des hôtes existants.
 - **Navigation SPA** : détectée par les mutations, `popstate` et la Navigation API (`currententrychange`).
 - **Pages** : React 19, Tailwind 3, Radix (Dialog, AlertDialog, DropdownMenu, Popover, Tooltip), cmdk pour la palette ⌘K, lucide-react. Le thème passe par des variables CSS HSL et la classe `.dark`. `prefers-reduced-motion` est respecté et des limites d'erreur sont en place sur chaque page.
+
+## Synchronisation entre PC (GitHub)
+
+```
+PC A ──┐  lire library.json ─► fusion (mode « sync ») ─► export déterministe ─► écrire si différent  ┌── PC B
+       └────────────────────────── dépôt GitHub privé (1 fichier, 1 commit par envoi) ──────────────┘
+```
+
+- **Connexion** : OAuth **Device Flow**.
+  - `POST github.com/login/device/code` renvoie un code utilisateur, affiché et copié ; la page github.com/login/device s'ouvre.
+  - La page des paramètres interroge le service worker toutes les `interval` secondes. Le service worker appelle `POST github.com/login/oauth/access_token` et respecte `authorization_pending` et `slow_down`. L'état en attente est gardé dans `chrome.storage.session`, ce qui survit à l'arrêt du service worker.
+  - Pas de _client secret_, pas d'URI de redirection, pas de permission `identity`.
+  - Ensuite, `GET /user` puis recherche ou création (`POST /user/repos`, `private: true`, `auto_init: true`) du dépôt `<login>/threadshelf-data`.
+- **Stockage distant** : `threadshelf/library.json`, lu et écrit avec l'API Contents (`Authorization: Bearer`). Au-delà de 1 Mo, le contenu est relu via le type `application/vnd.github.raw+json`.
+- **Fusion** : `importLibrary(…, { strategy: 'sync' })`.
+  - Par entrée, la version dont `updatedAt` est le plus récent gagne entièrement (un tag retiré reste retiré).
+  - Les collections et catégories suivent la même règle.
+  - Le même contenu enregistré sur deux PC converge vers un seul identifiant (le plus petit).
+- **Suppressions** : marqueurs `entry:<id>`, `collection:<id>`, `category:<id>` avec date, stockés dans la table `meta` et transportés dans le fichier. Un élément est supprimé si un marqueur est au moins aussi récent que sa dernière modification. Une restauration manuelle (import JSON) ravive les éléments avec une date neuve.
+- **Envoi** : JSON à clés triées, sans `searchText` ni médias. Le hash SHA-256 de la partie données est comparé au fichier distant ; si rien n'a changé, rien n'est envoyé (pas d'aller-retour entre PC).
+- **Concurrence** : `PUT` avec le `sha` lu. Si un autre PC a écrit entre-temps (409, ou 422 sur `sha`), le cycle lecture-fusion-écriture recommence, jusqu'à 3 fois.
+- **Chiffrement facultatif** : enveloppe `threadshelf.encrypted` (AES-GCM 256, PBKDF2-SHA-256 à 310 000 itérations, sel et IV aléatoires).
+- **Déclencheurs** : `chrome.alarms` (périodique, 15 min par défaut), `Dexie.on('storagemutated')` (environ 1 min après une modification), démarrage du navigateur, bouton « Synchroniser maintenant ». Une seule synchronisation à la fois. L'état est conservé dans `chrome.storage.local`.
+- **Permissions** : `https://github.com/*` et `https://api.github.com/*` sont des permissions d'hôte **facultatives**, demandées au clic de connexion.
 
 ## Compilation
 

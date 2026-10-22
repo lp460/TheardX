@@ -25,6 +25,25 @@ export interface PostSpec {
   replyingTo?: string[];
   truncated?: boolean;
   verified?: boolean;
+  /** Long-form X Article: body HTML reproduces X's markup (p/span, h3, hr, figure, code blocks). */
+  article?: { title: string; body: string; cover?: boolean; full?: boolean };
+}
+
+/** A code block as X renders it inside an Article. */
+export function articleCode(lang: string, lines: string[]): string {
+  return `<div><div class="flex"><span>${esc(lang)}</span><button data-slot="xds-button" aria-label="Copier le code" type="button"><span><svg></svg></span></button></div><div><pre tabindex="0"><code>${lines.map((l) => `<span><span>${esc(l)}</span></span>`).join('\n')}</code></pre></div></div>`;
+}
+
+function xdsArticleBlock(p: PostSpec): string {
+  const a = p.article!;
+  if (a.full === false) {
+    return `<div><a href="/${p.handle}/article/${p.id}"><div><img alt="" src="https://pbs.twimg.com/media/Cover${p.id}?format=jpg&amp;name=small"></div><div>${esc(a.title)}</div></a></div>`;
+  }
+  const cover =
+    a.cover === false
+      ? ''
+      : `<div data-article-part="cover"><img alt="Image de couverture de l'Article " src="https://pbs.twimg.com/media/Cover${p.id}?format=webp&amp;name=medium"></div>`;
+  return `<!--$--><div><div>${cover}<h1 data-article-part="title" dir="auto">${esc(a.title)}</h1><div data-article-part="byline"><span><span>7 min de lecture</span></span></div><div data-article-part="body"><style>.x{color:red}</style><div><div>${a.body}</div></div></div></div></div>`;
 }
 
 export type CellSpec = PostSpec | { tombstone: string } | { gap: string };
@@ -94,10 +113,14 @@ function xdsArticle(p: PostSpec, nested = false): string {
     : '';
   const text = p.text
     ? `<div class="max-w-full text-body font-normal text-primary whitespace-pre-wrap wrap-break-word" dir="auto" lang="fr">${richText(p.text, 'xds')}</div>`
-    : '';
+    : p.article
+      ? // X renders an empty text container above an Article.
+        '<div class="max-w-full text-lead font-normal text-primary whitespace-pre-wrap wrap-break-word" dir="auto"></div>'
+      : '';
   const showMore = p.truncated
     ? '<button class="cursor-pointer text-brand" type="button">Afficher plus</button>'
     : '';
+  const articleHtml = p.article ? xdsArticleBlock(p) : '';
   const photos = (p.photos ?? [])
     .map(
       (ph, i) =>
@@ -118,7 +141,7 @@ function xdsArticle(p: PostSpec, nested = false): string {
   const engagement = nested
     ? ''
     : `<div class="border-normal my-2 border-t"></div><div class="-mx-2 flex h-5 min-h-5 items-center justify-between"><div class="min-w-0 flex-1" data-engagement-action="reply"><a class="x-link group x-engagement-button" aria-label="Répondre" href="/compose/post?in_reply_to=${p.id}"><span class="x-engagement-pill"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-reply-stroke"></use></svg><span>3</span></span></a></div><div class="min-w-0 flex-1" data-engagement-action="retweet"><button type="button" aria-label="Repost" class="x-engagement-button"><span>1</span></button></div><div class="min-w-0 flex-1" data-engagement-action="like"><button aria-label="Aimer" class="x-engagement-button" type="button"><span>12</span></button></div><div class="flex shrink-0 items-center"><div class=""><div class="min-w-0 flex-1" data-engagement-action="bookmark"><button aria-label="Ajouter aux signets" class="x-engagement-button" type="button"></button></div></div><button data-engagement-action="share" type="button" aria-label="Partager" class="x-engagement-button"></button></div></div>`;
-  return `<article class="flex flex-col gap-1"><div class="flex flex-col gap-2"><div class="flex flex-col gap-3"><div class="flex gap-2"><div class="relative flex w-10 shrink-0 justify-center self-stretch">${conAbove}${conBelow}<div class="relative z-10"><a class="x-link rounded-none" href="/${p.handle}"><div class="x-avatar rounded-full size-10"><img draggable="false" alt="@${p.handle}" class="size-full object-cover" decoding="async" loading="lazy" src="${avatar(p.handle)}"></div></a></div></div><div class="flex min-w-0 flex-1 flex-col"><div class="flex items-start justify-between gap-2"><div class="flex flex-col items-start min-w-0"><span class="flex max-w-full min-w-0 shrink-0 items-center gap-1"><a class="rounded-xs x-link hover:underline" href="/${p.handle}"><div class="max-w-full text-body font-bold text-primary line-clamp-1">${esc(name)}</div></a>${verified}</span><span class="flex max-w-full min-w-0 items-center gap-2"><a class="rounded-xs x-link" href="/${p.handle}"><span class="text-secondary">@${p.handle}</span></a></span></div><span class="inline-flex w-fit"><a class="rounded-xs x-link text-secondary" data-base-ui-tooltip-trigger="" href="/${p.handle}/status/${p.id}">21 juil.</a><script nonce="">window.__xClientTextFormatters?.run("_R_${p.id}_", "formatRelativePastTimestamp", {"timestamp":${ts},"lang":"fr","nowLabel":"Maintenant","precision":"Hours"});</script></span><div class="flex shrink-0 items-center gap-1 whitespace-nowrap"><button data-slot="xds-menu-trigger" aria-label="Plus" type="button" class="x-button"><span class="x-button-slot"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-more"></use></svg></span></button></div></div></div></div>${replying}${text}${showMore}</div>${photos}${video}${cardFixed}${quote}${engagement}</div></article>`;
+  return `<article class="flex flex-col gap-1"><div class="flex flex-col gap-2"><div class="flex flex-col gap-3"><div class="flex gap-2"><div class="relative flex w-10 shrink-0 justify-center self-stretch">${conAbove}${conBelow}<div class="relative z-10"><a class="x-link rounded-none" href="/${p.handle}"><div class="x-avatar rounded-full size-10"><img draggable="false" alt="@${p.handle}" class="size-full object-cover" decoding="async" loading="lazy" src="${avatar(p.handle)}"></div></a></div></div><div class="flex min-w-0 flex-1 flex-col"><div class="flex items-start justify-between gap-2"><div class="flex flex-col items-start min-w-0"><span class="flex max-w-full min-w-0 shrink-0 items-center gap-1"><a class="rounded-xs x-link hover:underline" href="/${p.handle}"><div class="max-w-full text-body font-bold text-primary line-clamp-1">${esc(name)}</div></a>${verified}</span><span class="flex max-w-full min-w-0 items-center gap-2"><a class="rounded-xs x-link" href="/${p.handle}"><span class="text-secondary">@${p.handle}</span></a></span></div><span class="inline-flex w-fit"><a class="rounded-xs x-link text-secondary" data-base-ui-tooltip-trigger="" href="/${p.handle}/status/${p.id}">21 juil.</a><script nonce="">window.__xClientTextFormatters?.run("_R_${p.id}_", "formatRelativePastTimestamp", {"timestamp":${ts},"lang":"fr","nowLabel":"Maintenant","precision":"Hours"});</script></span><div class="flex shrink-0 items-center gap-1 whitespace-nowrap"><button data-slot="xds-menu-trigger" aria-label="Plus" type="button" class="x-button"><span class="x-button-slot"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-more"></use></svg></span></button></div></div></div></div>${replying}${text}${showMore}</div>${articleHtml}${photos}${video}${cardFixed}${quote}${engagement}</div></article>`;
 }
 
 function xdsCell(c: CellSpec, focalId?: string): string {

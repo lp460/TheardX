@@ -13,7 +13,7 @@ import {
 } from '@/thread-engine';
 import type { Entry, EntryBundle, Relation, ThreadFacts, Tweet } from '@/types/model';
 import { canonicalTweetUrl } from '@/utils/url';
-import { deriveTitle, segmentsToPlain } from '@/utils/text';
+import { deriveTitle, postPreviewText } from '@/utils/text';
 
 const MAX_TWEETS = 3_000;
 
@@ -106,7 +106,10 @@ export class CaptureSession {
     const entry: Entry = {
       id: 'ephemeral',
       kind: plan.kind,
-      title: deriveTitle(segmentsToPlain(first.text)) || `Publication de @${first.author.handle}`,
+      title:
+        first.article?.title?.trim() ||
+        deriveTitle(postPreviewText(first)) ||
+        `Publication de @${first.author.handle}`,
       authorHandle: first.author.handle,
       focalTweetId: focalId,
       tweetIds: plan.tweetIds,

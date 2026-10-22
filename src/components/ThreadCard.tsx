@@ -18,7 +18,7 @@ import {
 import type { MouseEvent } from 'react';
 import type { Category, Collection, Entry, Tweet } from '@/types/model';
 import { formatDate, formatRelative } from '@/utils/format';
-import { segmentsToPlain, truncate } from '@/utils/text';
+import { postPreviewText, truncate } from '@/utils/text';
 import { CompletenessBadge } from './CompletenessBadge';
 import { Avatar, useMediaSrc } from './media';
 import { Button } from './ui/Button';
@@ -47,7 +47,12 @@ export interface EntryActions {
 }
 
 function Thumb({ tweet }: { tweet?: Tweet }) {
-  const media = tweet?.media[0] ?? tweet?.quoted?.media?.[0];
+  const media =
+    tweet?.media[0] ??
+    tweet?.quoted?.media?.[0] ??
+    (tweet?.article?.coverUrl
+      ? { kind: 'photo' as const, url: tweet.article.coverUrl }
+      : undefined);
   const { src } = useMediaSrc(media?.url);
   if (!media || !src) return null;
   return (
@@ -232,7 +237,7 @@ export function ThreadCard({
   layout: 'cards' | 'list';
 }) {
   const category = categories.find((c) => c.id === entry.categoryId);
-  const preview = first ? truncate(segmentsToPlain(first.text).replace(/\s+/g, ' '), 280) : '';
+  const preview = first ? truncate(postPreviewText(first).replace(/\s+/g, ' '), 280) : '';
   const onClick = (e: MouseEvent) => {
     if (selectMode || e.shiftKey) {
       e.preventDefault();
@@ -383,7 +388,7 @@ export function ThreadCard({
           <p className="mt-1.5 line-clamp-3 text-[13px] leading-relaxed text-muted">{preview}</p>
         ) : null}
       </div>
-      {first?.media.length || first?.quoted?.media?.length ? (
+      {first?.media.length || first?.quoted?.media?.length || first?.article?.coverUrl ? (
         <div className="mx-4 mb-3 h-36 overflow-hidden rounded-xl bg-subtle">
           <Thumb tweet={first} />
         </div>

@@ -15,13 +15,36 @@ export interface Author {
 
 /** Structured text. We never store raw HTML coming from a page. */
 export type Segment =
-  | { t: 'text'; v: string }
+  /** `b` / `i`: bold / italic (used by long-form X Articles). */
+  | { t: 'text'; v: string; b?: boolean; i?: boolean }
   | { t: 'link'; v: string; href: string }
   | { t: 'mention'; v: string; handle: string }
   | { t: 'hashtag'; v: string; tag: string }
   | { t: 'cashtag'; v: string; tag: string };
 
 export type MediaKind = 'photo' | 'video' | 'gif';
+
+/** One block of a long-form X Article. */
+export type ArticleBlock =
+  | { t: 'heading'; level: 2 | 3 | 4; text: Segment[] }
+  | { t: 'paragraph'; text: Segment[] }
+  | { t: 'list'; ordered: boolean; items: Segment[][] }
+  | { t: 'quote'; text: Segment[] }
+  | { t: 'code'; code: string; lang?: string }
+  | { t: 'image'; media: MediaItem }
+  | { t: 'divider' };
+
+/** Long-form X Article attached to a post (x.com/<handle>/article/<id>). */
+export interface XArticle {
+  url: string;
+  title?: string;
+  coverUrl?: string;
+  /** e.g. « 7 min de lecture », as shown by X. */
+  readingTime?: string;
+  blocks: ArticleBlock[];
+  /** Only a preview was rendered (timeline card): open the post to capture the full Article. */
+  partial?: boolean;
+}
 
 export interface MediaItem {
   kind: MediaKind;
@@ -88,6 +111,8 @@ export interface Tweet {
   quoted?: QuotedRef;
   /** Handles from the "Replying to …" line, when shown. */
   replyingTo?: string[];
+  /** Long-form X Article published with this post. */
+  article?: XArticle;
   /** IDs of x.com posts linked from the text or card. */
   linkedTweetIds: TweetId[];
   availability: Availability;
@@ -198,6 +223,7 @@ export interface Category {
   name: string;
   color: string;
   createdAt: number;
+  updatedAt?: number;
 }
 
 export type MediaStatus = 'cached' | 'remote' | 'failed' | 'too-large';

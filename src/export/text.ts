@@ -1,12 +1,16 @@
 import type { EntryBundle, Tweet } from '@/types/model';
 import { segmentsToPlain } from '@/utils/text';
+import { articleToText, textIsOnlyArticleLink } from './article';
 import { dayString, mediaLabel, toView, type ExportOptions } from './model';
 
 function postText(t: Tweet, opts: ExportOptions): string {
   const parts: string[] = [];
   // Links are written as their full destination URL (the page shows a shortened form).
-  const text = t.text.map((s) => (s.t === 'link' ? s.href : s.v)).join('');
+  const text = textIsOnlyArticleLink(t)
+    ? ''
+    : t.text.map((s) => (s.t === 'link' ? s.href : s.v)).join('');
   if (text) parts.push(text);
+  if (t.article) parts.push(articleToText(t.article, opts.includeUrls !== false));
   for (const m of t.media) {
     if (m.kind === 'photo')
       parts.push(
@@ -14,7 +18,8 @@ function postText(t: Tweet, opts: ExportOptions): string {
       );
     else parts.push(`[${mediaLabel(m.kind)}] ${m.playbackUrl ?? t.url}`);
   }
-  if (t.card) parts.push(`[Lien] ${t.card.title ? `${t.card.title} — ` : ''}${t.card.url}`);
+  if (t.card && !t.article)
+    parts.push(`[Lien] ${t.card.title ? `${t.card.title} — ` : ''}${t.card.url}`);
   if (t.quoted) {
     const who = t.quoted.author ? `@${t.quoted.author.handle}` : 'publication citée';
     parts.push(

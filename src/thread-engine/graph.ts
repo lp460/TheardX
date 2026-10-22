@@ -78,6 +78,12 @@ export function mergeTweet(old: Tweet | undefined, next: Tweet): Tweet {
     merged.text = secondary.text;
     delete merged.textTruncated;
   }
+  // Keep the most complete rendering of an attached Article (full body over a timeline preview).
+  const articles = [primary.article, secondary.article].filter(
+    (a): a is NonNullable<typeof a> => !!a,
+  );
+  if (articles.length)
+    merged.article = articles.sort((a, b) => b.blocks.length - a.blocks.length)[0];
   const facts = mergeFacts(old.facts, next.facts);
   if (facts) merged.facts = facts;
   else delete merged.facts;

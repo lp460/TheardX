@@ -2,6 +2,7 @@
 import { repository } from '@/storage/repository';
 import { handleMessage, type BackgroundDeps } from './handlers';
 import type { ContentMessage } from '@/messaging/protocol';
+import { installSyncService } from './sync-service';
 
 const deps: BackgroundDeps = {
   repo: repository,
@@ -102,3 +103,5 @@ chrome.runtime.onInstalled.addListener((details) => {
   }
 });
 chrome.runtime.onStartup?.addListener(setupContextMenus);
+
+installSyncService();

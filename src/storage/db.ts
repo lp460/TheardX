@@ -1,9 +1,10 @@
 import Dexie, { type Table } from 'dexie';
 import type { Category, Collection, Entry, MediaRecord, Relation, Tweet } from '@/types/model';
+import type { PostTranslation } from '@/translate/engine';
 
 export const DB_NAME = 'threadshelf';
 /** Current schema version. Bump together with a new entry in SCHEMA_VERSIONS. */
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 export interface MetaRecord {
   key: string;
@@ -51,6 +52,13 @@ export const SCHEMA_VERSIONS: {
         });
     },
   },
+  {
+    // v3 — cached translations of posts / X Articles (on-device translation).
+    version: 3,
+    stores: {
+      translations: 'key, tweetId, target',
+    },
+  },
 ];
 
 export class ThreadShelfDB extends Dexie {
@@ -60,6 +68,7 @@ export class ThreadShelfDB extends Dexie {
   collections!: Table<Collection, string>;
   categories!: Table<Category, string>;
   media!: Table<MediaRecord, string>;
+  translations!: Table<PostTranslation, string>;
   meta!: Table<MetaRecord, string>;
 
   constructor(name = DB_NAME) {

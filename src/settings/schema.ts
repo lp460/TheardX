@@ -30,6 +30,11 @@ export const settingsSchema = z.object({
       includeUrls: z.boolean().default(true),
     })
     .default({ format: 'markdown', includeUrls: true }),
+  /** Target language of the reader's « Traduire » button. */
+  translateTo: z
+    .string()
+    .regex(/^[a-z]{2,3}$/)
+    .default('fr'),
   /** Download images of saved posts into IndexedDB for offline reading. */
   cacheMedia: z.boolean().default(true),
   maxMediaMB: z.number().min(1).max(50).default(8),
@@ -37,6 +42,26 @@ export const settingsSchema = z.object({
   ai: z
     .object({ enabled: z.boolean().default(false), consentAt: z.number().nullable().default(null) })
     .default({ enabled: false, consentAt: null }),
+  /** Library synchronisation through a private GitHub repository (credentials live in a separate store). */
+  sync: z
+    .object({
+      enabled: z.boolean().default(false),
+      /** owner/name of the private repository, set automatically when signing in. */
+      repo: z.string().max(200).default(''),
+      filePath: z.string().max(200).default('threadshelf/library.json'),
+      encrypt: z.boolean().default(false),
+      intervalMin: z.number().int().min(5).max(1440).default(15),
+      /** Override of the built-in GitHub OAuth App client ID (public identifier, not a secret). */
+      oauthClientId: z.string().max(200).default(''),
+    })
+    .default({
+      enabled: false,
+      repo: '',
+      filePath: 'threadshelf/library.json',
+      encrypt: false,
+      intervalMin: 15,
+      oauthClientId: '',
+    }),
   library: z
     .object({
       view: z.enum(['cards', 'list']).default('cards'),

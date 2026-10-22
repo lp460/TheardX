@@ -291,7 +291,8 @@ describe('schema migrations', () => {
     v1.close();
     const current = new ThreadShelfDB(name);
     await current.open();
-    expect(current.verno).toBe(2);
+    expect(current.verno).toBe(3);
+    expect(current.tables.map((t) => t.name)).toContain('translations');
     const e = await current.entries.get('e1');
     expect(e).toMatchObject({
       title: 'Old',

@@ -8,7 +8,10 @@ import {
   FileType2,
   Printer,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { loadSettings } from '@/settings/store';
+import { applyTranslations, type PostTranslation } from '@/translate/engine';
+import { languageName } from '@/translate/languages';
 import { exportFileName, FORMAT_META, render, type ExportFormat } from '@/export';
 import { exportEntries } from '@/storage/backup';
 import { repository } from '@/storage/repository';
@@ -63,6 +66,22 @@ export function ExportDialog({
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
   const multi = entryIds.length > 1;
+  // Saved translations of this entry (single-entry export only).
+  const [translation, setTranslation] = useState<{
+    target: string;
+    records: Record<string, PostTranslation>;
+  } | null>(null);
+  const [useTranslation, setUseTranslation] = useState(false);
+  useEffect(() => {
+    if (!open || entryIds.length !== 1) return;
+    void (async () => {
+      const { translateTo } = await loadSettings();
+      const b = await repository.getBundle(entryIds[0]!);
+      if (!b) return;
+      const records = await repository.getTranslations(Object.keys(b.tweets), translateTo);
+      setTranslation(Object.keys(records).length ? { target: translateTo, records } : null);
+    })();
+  }, [open, entryIds]);
 
   const build = async (): Promise<{ content: string; name: string; mime: string } | null> => {
     const bundles = await loadBundles(entryIds);
@@ -77,7 +96,11 @@ export function ExportDialog({
       };
     }
     const parts: string[] = [];
-    for (const b of bundles) {
+    for (const original of bundles) {
+      const b =
+        useTranslation && translation && !multi
+          ? applyTranslations(original, translation.records, translation.target)
+          : original;
       const dataUris = format === 'html' && embedImages ? await dataUrisFor(b) : undefined;
       parts.push(render(format, b, { includeUrls, embedImages, dataUris }));
     }
@@ -211,6 +234,18 @@ export function ExportDialog({
               className="accent-[hsl(var(--ts-accent))]"
             />
             Intégrer les images enregistrées (fichier lisible hors ligne)
+          </label>
+        ) : null}
+        {translation && !multi && format !== 'json' && format !== 'pdf' ? (
+          <label className="flex items-center gap-2 text-fg">
+            <input
+              type="checkbox"
+              checked={useTranslation}
+              onChange={(e) => setUseTranslation(e.target.checked)}
+              className="accent-[hsl(var(--ts-accent))]"
+              data-testid="export-translation"
+            />
+            Exporter la traduction ({languageName(translation.target)})
           </label>
         ) : null}
         {format === 'pdf' ? (

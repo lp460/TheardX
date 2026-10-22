@@ -44,7 +44,13 @@ const referenced = [
 for (const f of referenced) if (!existsSync(join(dist, f))) fail(`referenced file missing: ${f}`);
 ok(`${referenced.length} referenced files present`);
 
-const ALLOWED_PERMS = new Set(['storage', 'unlimitedStorage', 'contextMenus', 'clipboardWrite']);
+const ALLOWED_PERMS = new Set([
+  'storage',
+  'unlimitedStorage',
+  'contextMenus',
+  'clipboardWrite',
+  'alarms',
+]);
 for (const p of m.permissions ?? []) if (!ALLOWED_PERMS.has(p)) fail(`unexpected permission: ${p}`);
 for (const p of [
   'tabs',
@@ -58,6 +64,9 @@ for (const p of [
   if ((m.permissions ?? []).includes(p) || (m.host_permissions ?? []).includes(p))
     fail(`forbidden permission: ${p}`);
 }
+const OPTIONAL_HOSTS = new Set(['https://github.com/*', 'https://api.github.com/*']);
+if ((m.optional_host_permissions ?? []).some((h) => !OPTIONAL_HOSTS.has(h)))
+  fail(`optional_host_permissions too broad: ${m.optional_host_permissions}`);
 if ((m.host_permissions ?? []).some((h) => !/^https:\/\/pbs\.twimg\.com\/\*$/.test(h)))
   fail(`host_permissions too broad: ${m.host_permissions}`);
 ok(

@@ -32,6 +32,7 @@ export async function updateSettings(patch: DeepPartial<Settings>): Promise<Sett
     copy: { ...current.copy, ...patch.copy },
     ai: { ...current.ai, ...patch.ai },
     library: { ...current.library, ...patch.library },
+    sync: { ...current.sync, ...patch.sync },
   });
   const a = area();
   if (a) await a.set({ [KEY]: next });

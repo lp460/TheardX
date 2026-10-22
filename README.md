@@ -8,6 +8,8 @@ Pocket + mode lecture + gestionnaire de favoris, spécialisé pour X. Tout reste
 
 - **Détection automatique, enregistrement sur action.** Sur x.com et twitter.com, ThreadShelf reconnaît les publications affichées par X, dans la mise en page actuelle comme dans la mise en page « classique » `data-testid`. Rien n'est enregistré sans action de votre part.
 - **Un bouton ThreadShelf sur X.** Chaque publication reçoit un bouton ThreadShelf (violet) à la fin de sa barre d'actions. Un clic ouvre un menu avec **toutes les actions** : enregistrer le thread, la publication ou la publication avec ses références ; ajouter à une sélection ; copier (thread en Markdown, publication, texte brut) ; lire ; collection, tags et note ; bibliothèque ; supprimer la sauvegarde. Un **bouton flottant** « ThreadShelf », toujours visible en bas à droite, ouvre le même menu pour la publication en cours de lecture. Sous la publication ouverte, la barre `ThreadShelf · Enregistrer | Copier | Lire | •••` reste disponible. Les commandes natives de X ne sont jamais masquées.
+- **Articles X.** Les publications longues (Articles) sont enregistrées en entier : titre, couverture, intertitres, paragraphes, listes, citations, blocs de code, images.
+- **Traduction.** Dans le lecteur, « Traduire » traduit le thread ou l’Article avec le traducteur intégré au navigateur (Google Chrome 138+), sur l’appareil et sans envoi de données. Les traductions sont gardées hors ligne, copiables et exportables. Si le navigateur ne le propose pas, un bouton ouvre Google Traduction, uniquement sur votre clic.
 - **Quatre modes de capture :**
   - A, la publication seule ;
   - B, le thread de l'auteur ;
@@ -97,9 +99,53 @@ npm run zip
 
 Prérequis : Node 20+ et npm. Le Chromium de Playwright s'installe avec `npx playwright install chromium`.
 
+## Synchronisation entre PC (GitHub)
+
+La bibliothèque (entrées, publications, notes, tags, collections, catégories, suppressions) se synchronise entre vos PC via un dépôt **privé** de votre compte GitHub, **créé automatiquement**. Aucun jeton à copier.
+
+**Sur chaque PC** : Paramètres → **Synchronisation entre PC (GitHub)** → **Se connecter avec GitHub**.
+
+1. Le navigateur demande l'accès à GitHub : cliquez **Autoriser**.
+2. ThreadShelf affiche un code de 8 caractères, déjà copié, et ouvre github.com/login/device.
+3. Collez le code, puis cliquez **Continue** et **Authorize**.
+
+Le dépôt `threadshelf-data` est créé (privé) au premier PC, retrouvé sur les suivants, et la première synchronisation démarre.
+
+**Application GitHub (déjà faite)** : l'application OAuth « ThreadShelf » est déclarée sur GitHub et son Client ID (`Ov23liLkMRkSELNiYB2U`, public) est intégré dans `src/sync/github-app.ts`. Il n'y a donc aucune étape de configuration sur les PC. Pour information, ou pour recréer l'application sur un autre compte (<https://github.com/settings/applications/new>), voici les réglages utilisés :
+
+| Champ                     | Valeur                                              |
+| ------------------------- | --------------------------------------------------- |
+| Application name          | `ThreadShelf`                                       |
+| Homepage URL              | `https://github.com`                                |
+| Redirect URI              | `https://github.com` (obligatoire, non utilisé)     |
+| Allow wildcard matching   | décoché                                             |
+| Enable Device Flow        | **coché**                                           |
+| Expire user access tokens | **décoché** (sinon reconnexion toutes les 8 heures) |
+
+Si vous recréez l'application, remplacez le Client ID dans `src/sync/github-app.ts` (ou dans Paramètres → Synchronisation → Options avancées), puis recompilez. Aucun _client secret_ n'est utilisé.
+
+Fonctionnement :
+
+- La synchronisation a lieu environ une minute après chaque modification, à intervalle régulier (15 min par défaut), au démarrage du navigateur, ou à la demande avec **Synchroniser maintenant**.
+- Le fichier `threadshelf/library.json` du dépôt est lu, fusionné, puis renvoyé s'il a changé. La version la plus récente d'une entrée l'emporte, sans doublon ; le même thread enregistré sur deux PC ne fait qu'une entrée.
+- Les **suppressions se propagent** et ne reviennent pas. Une restauration manuelle depuis une sauvegarde JSON l'emporte sur une suppression antérieure.
+- Deux PC qui envoient en même temps : le conflit est détecté (`sha` du fichier) et la fusion recommence, rien n'est perdu.
+- Chaque envoi crée un **commit** : l'historique du dépôt sert aussi de sauvegarde versionnée.
+- Facultatif (Options avancées) : **chiffrement de bout en bout** avec une phrase secrète identique sur chaque PC.
+- Les images et les préférences restent propres à chaque PC.
+- **Se déconnecter** efface l'accès GitHub de ce navigateur ; la bibliothèque locale est conservée. L'autorisation peut aussi être révoquée sur GitHub (_Settings → Applications → Authorized OAuth Apps_).
+
 ## Confidentialité
 
 ThreadShelf lit uniquement ce que X affiche dans votre onglet pendant votre navigation normale. Aucun appel aux API de X, aucune lecture de cookies ou de jetons, aucune collecte de profils. Les seules requêtes réseau sont les téléchargements d'images des publications que vous avez enregistrées (`pbs.twimg.com`), pour la lecture hors ligne ; c'est désactivable dans les paramètres. Voir [SECURITY.md](SECURITY.md).
+
+## Distribution aux clients et mises à jour
+
+Via le Chrome Web Store (Arc, Chrome, Brave, Edge), avec mises à jour automatiques : voir [docs/DISTRIBUTION.md](docs/DISTRIBUTION.md). Pour préparer une version :
+
+```bash
+npm run release -- minor
+```
 
 ## Documentation
 
@@ -107,5 +153,7 @@ ThreadShelf lit uniquement ce que X affiche dans votre onglet pendant votre navi
 - [TESTING.md](TESTING.md) : stratégie de test, couverture, distinction entre fixtures et site réel
 - [SECURITY.md](SECURITY.md) : permissions, modèle de menace, traitement des données
 - [CHANGELOG.md](CHANGELOG.md)
+- [PRIVACY.md](PRIVACY.md) : politique de confidentialité (à publier pour le Store)
+- [docs/DISTRIBUTION.md](docs/DISTRIBUTION.md) et [docs/store-listing.md](docs/store-listing.md) : publication et mises à jour
 
 Aucune licence n'est incluse : les droits d'utilisation n'ont pas été définis par le propriétaire du projet.

@@ -1,5 +1,5 @@
 import type { Category, Entry, Tweet } from '@/types/model';
-import { fold, segmentsToPlain } from '@/utils/text';
+import { articlePlainText, fold, segmentsToPlain } from '@/utils/text';
 
 /** Text indexed for an entry: author, title, every post text, quotes, card titles, note, tags. */
 export function buildSearchText(
@@ -35,6 +35,7 @@ export function buildSearchText(
       );
     if (t.card?.title) parts.push(t.card.title, t.card.domain ?? '');
     for (const m of t.media) if (m.alt) parts.push(m.alt);
+    if (t.article) parts.push(articlePlainText(t.article));
   }
   return fold(parts.filter(Boolean).join('\n'));
 }

@@ -31,6 +31,11 @@ export function mediaRefsFor(tweets: Tweet[]): MediaRef[] {
   for (const t of tweets) {
     for (const m of t.media) push(m.url, t.id, m.kind, true);
     for (const m of t.quoted?.media ?? []) push(m.url, t.id, m.kind, true);
+    if (t.article) {
+      push(t.article.coverUrl, t.id, 'photo', true);
+      for (const b of t.article.blocks)
+        if (b.t === 'image') push(b.media.url, t.id, b.media.kind, true);
+    }
     push(t.card?.imageUrl, t.id, 'card', false);
     if (t.author.avatarUrl) push(largerAvatarUrl(t.author.avatarUrl), t.id, 'avatar', false);
   }

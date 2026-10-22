@@ -1,5 +1,6 @@
 import type { EntryBundle, Segment, Tweet } from '@/types/model';
 import { cashtagUrl, hashtagUrl, linkLabel, profileUrl, safeHref } from '@/utils/url';
+import { articleToMarkdown, textIsOnlyArticleLink } from './article';
 import { dayString, mediaLabel, toView, type ExportOptions } from './model';
 
 /** Escapes characters that would change Markdown rendering. */
@@ -22,8 +23,14 @@ export function segmentsToMarkdown(segments: Segment[]): string {
   const raw = segments
     .map((s) => {
       switch (s.t) {
-        case 'text':
-          return escapeMarkdown(s.v);
+        case 'text': {
+          const v = escapeMarkdown(s.v);
+          if (!s.b && !s.i) return v;
+          // Keep surrounding spaces outside the markers: "**bold** text", not "**bold **text".
+          const mark = s.b && s.i ? '***' : s.b ? '**' : '*';
+          const m = /^(\s*)([\s\S]*?)(\s*)$/.exec(v)!;
+          return m[2] ? `${m[1]}${mark}${m[2]}${mark}${m[3]}` : v;
+        }
         case 'link': {
           const href = safeHref(s.href);
           return href
@@ -48,8 +55,10 @@ export function segmentsToMarkdown(segments: Segment[]): string {
 
 function postBody(t: Tweet, opts: ExportOptions): string {
   const parts: string[] = [];
-  const text = segmentsToMarkdown(t.text);
+  const text = textIsOnlyArticleLink(t) ? '' : segmentsToMarkdown(t.text);
   if (text) parts.push(text);
+  if (t.article)
+    parts.push(articleToMarkdown(t.article, segmentsToMarkdown, escapeMarkdown, mdUrl));
   if (t.textTruncated) parts.push('_(texte tronqué sur la page au moment de la capture)_');
   for (const m of t.media) {
     if (m.kind === 'photo')
@@ -58,7 +67,7 @@ function postBody(t: Tweet, opts: ExportOptions): string {
       );
     else parts.push(`[${mediaLabel(m.kind)} — voir sur X](${mdUrl(m.playbackUrl ?? t.url)})`);
   }
-  if (t.card)
+  if (t.card && !t.article)
     parts.push(
       `> 🔗 [${escapeLinkText(t.card.title ?? t.card.domain ?? t.card.url)}](${mdUrl(t.card.url)})${t.card.domain ? ` — ${escapeMarkdown(t.card.domain)}` : ''}`,
     );

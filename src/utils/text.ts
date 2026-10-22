@@ -18,23 +18,46 @@ export function tweetPlainText(tweet: Pick<Tweet, 'text'>): string {
   return segmentsToPlain(tweet.text);
 }
 
+/** Plain text of an X Article (title + blocks), for search and previews. */
+export function articlePlainText(article: NonNullable<Tweet['article']>): string {
+  const parts: string[] = article.title ? [article.title] : [];
+  for (const b of article.blocks) {
+    if (b.t === 'heading' || b.t === 'paragraph' || b.t === 'quote')
+      parts.push(segmentsToPlain(b.text));
+    else if (b.t === 'list') parts.push(...b.items.map(segmentsToPlain));
+    else if (b.t === 'code') parts.push(b.code);
+    else if (b.t === 'image' && b.media.alt) parts.push(b.media.alt);
+  }
+  return parts.join('\n');
+}
+
+/** Text that best represents a post: its own text, or its Article when the text is only a link. */
+export function postPreviewText(tweet: Pick<Tweet, 'text' | 'article'>): string {
+  const own = segmentsToPlain(tweet.text).trim();
+  const onlyLink =
+    tweet.text.length > 0 &&
+    tweet.text.every((s) => s.t === 'link' || (s.t === 'text' && !s.v.trim()));
+  if (tweet.article && (!own || onlyLink)) return articlePlainText(tweet.article);
+  return own;
+}
+
 /** Merges adjacent text segments and trims trailing whitespace at the very end. */
 export function compactSegments(segments: Segment[]): Segment[] {
   const out: Segment[] = [];
   for (const seg of segments) {
     if (seg.t === 'text' && seg.v === '') continue;
     const prev = out[out.length - 1];
-    if (seg.t === 'text' && prev?.t === 'text') {
-      out[out.length - 1] = { t: 'text', v: prev.v + seg.v };
+    if (seg.t === 'text' && prev?.t === 'text' && !!prev.b === !!seg.b && !!prev.i === !!seg.i) {
+      out[out.length - 1] = { ...prev, v: prev.v + seg.v };
     } else {
       out.push(seg);
     }
   }
   // Trim leading/trailing whitespace of the whole text.
   const first = out[0];
-  if (first?.t === 'text') out[0] = { t: 'text', v: first.v.replace(/^\s+/, '') };
+  if (first?.t === 'text') out[0] = { ...first, v: first.v.replace(/^\s+/, '') };
   const last = out[out.length - 1];
-  if (last?.t === 'text') out[out.length - 1] = { t: 'text', v: last.v.replace(/\s+$/, '') };
+  if (last?.t === 'text') out[out.length - 1] = { ...last, v: last.v.replace(/\s+$/, '') };
   return out.filter((s) => !(s.t === 'text' && s.v === ''));
 }
 

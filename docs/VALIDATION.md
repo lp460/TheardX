@@ -6,16 +6,16 @@ macOS 27.0.1 (arm64) · Arc 1.167.1 (Chromium 154) · Google Chrome 155 · Node 
 
 ## Résultats
 
-| Étape | Commande | Résultat |
-| --- | --- | --- |
-| Types | `npm run typecheck` | ✅ 0 erreur (strict, `noUncheckedIndexedAccess`) |
-| Lint | `npm run lint` | ✅ 0 erreur, 0 avertissement |
-| Unitaires et intégration | `npm run test` | ✅ **131 / 131** (8 fichiers) |
-| Build | `npm run build` | ✅ `dist/` |
-| Validation du build | `npm run validate` | ✅ MV3, permissions minimales, CSP stricte, ni eval ni code distant |
-| End-to-end (Chromium, fixtures) | `npm run test:e2e` | ✅ **30 / 30** |
-| x.com en direct (Chromium, non connecté) | `HEADED=1 npm run test:real` | ✅ 1 / 1 — 2 publications réelles |
-| Arc | manuel | ⚠️ **non vérifié par l'agent** (voir plus bas) |
+| Étape                                    | Commande                     | Résultat                                                            |
+| ---------------------------------------- | ---------------------------- | ------------------------------------------------------------------- |
+| Types                                    | `npm run typecheck`          | ✅ 0 erreur (strict, `noUncheckedIndexedAccess`)                    |
+| Lint                                     | `npm run lint`               | ✅ 0 erreur, 0 avertissement                                        |
+| Unitaires et intégration                 | `npm run test`               | ✅ **131 / 131** (8 fichiers)                                       |
+| Build                                    | `npm run build`              | ✅ `dist/`                                                          |
+| Validation du build                      | `npm run validate`           | ✅ MV3, permissions minimales, CSP stricte, ni eval ni code distant |
+| End-to-end (Chromium, fixtures)          | `npm run test:e2e`           | ✅ **30 / 30**                                                      |
+| x.com en direct (Chromium, non connecté) | `HEADED=1 npm run test:real` | ✅ 1 / 1 — 2 publications réelles                                   |
+| Arc                                      | manuel                       | ⚠️ **non vérifié par l'agent** (voir plus bas)                      |
 
 Total exécuté : 162 tests, 162 réussis, 0 échec.
 
@@ -38,13 +38,13 @@ Total exécuté : 162 tests, 162 réussis, 0 échec.
 
 ## Performances (page fixture : 30 publications du thread + 20 réponses)
 
-| Mesure | Valeur |
-| --- | --- |
+| Mesure                                               | Valeur                                          |
+| ---------------------------------------------------- | ----------------------------------------------- |
 | Tas JS supplémentaire dû à l'extension sur la page X | ≈ 2,3 Mo (3,8 Mo contre 1,48 Mo sans extension) |
-| Ré-analyse complète + aller-retour de message | ≈ 3 ms |
-| Analyses déclenchées par 300 mutations DOM en rafale | < 15 (limitées à 250 ms) |
-| `content.js` | 405 Ko minifié (React, zod, moteur) |
-| Paquet `artifacts/threadshelf-1.0.0.zip` | 450 Ko |
+| Ré-analyse complète + aller-retour de message        | ≈ 3 ms                                          |
+| Analyses déclenchées par 300 mutations DOM en rafale | < 15 (limitées à 250 ms)                        |
+| `content.js`                                         | 405 Ko minifié (React, zod, moteur)             |
+| Paquet `artifacts/threadshelf-1.0.0.zip`             | 450 Ko                                          |
 
 ## Captures d'écran
 

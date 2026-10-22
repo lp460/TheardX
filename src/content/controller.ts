@@ -14,7 +14,7 @@ import { isActiveOn, type Settings } from '@/settings/schema';
 import { loadSettings, onSettingsChanged } from '@/settings/store';
 import type { CaptureMode } from '@/thread-engine';
 import { copyText } from '@/utils/clipboard';
-import { segmentsToPlain, truncate } from '@/utils/text';
+import { postPreviewText, truncate } from '@/utils/text';
 import { parseStatusUrl } from '@/utils/url';
 import { CaptureSession } from './session';
 import { useContent, type MenuAction, type PanelPreview } from './store';
@@ -414,7 +414,7 @@ export class ContentController {
       info = {
         handle: t.author.handle,
         name: t.author.name,
-        preview: truncate(segmentsToPlain(t.text).replace(/\s+/g, ' '), 120),
+        preview: truncate(postPreviewText(t).replace(/\s+/g, ' '), 120),
         threadCount: plan.tweetIds.length,
         status: plan.completeness.status,
         saved: this.saved.has(id),
@@ -615,7 +615,7 @@ export class ContentController {
         return {
           id,
           handle: p.author.handle,
-          text: truncate(segmentsToPlain(p.text).replace(/\s+/g, ' '), 140),
+          text: truncate(postPreviewText(p).replace(/\s+/g, ' '), 140),
           media: p.media.length,
         };
       }),
@@ -854,7 +854,7 @@ export class ContentController {
           id: focalId,
           handle: t.author.handle,
           name: t.author.name,
-          preview: truncate(segmentsToPlain(t.text).replace(/\s+/g, ' '), 160),
+          preview: truncate(postPreviewText(t).replace(/\s+/g, ' '), 160),
           threadCount: plan.tweetIds.length,
           status: plan.completeness.status,
           savedEntryId: this.saved.get(focalId),

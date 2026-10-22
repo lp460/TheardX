@@ -2,6 +2,21 @@
 
 ## Non publié
 
+- **Traduction** dans le lecteur : traducteur intégré au navigateur, sur l’appareil, sans envoi de données ; détection de la langue ; blocs de code non traduits ; traductions mises en cache (hors ligne) ; copie et export de la traduction ; repli Google Traduction sur clic explicite. Raccourci `l`. Langue cible réglable.
+- **Distribution** : script `npm run release`, images du Store (`npm run store:assets`), fiche et justifications des permissions, politique de confidentialité, publication automatique facultative sur le Chrome Web Store.
+- Base de données v3 (table des traductions, migration automatique).
+
+- **Articles X (publications longues)** : capture complète du titre, de la couverture, des intertitres, paragraphes (gras, italique, liens), listes, citations, blocs de code (avec langage), images et séparateurs. Rendu dans le lecteur, la copie, les exports, la recherche et le cache hors ligne. Un aperçu d’Article vu dans un fil est signalé comme partiel.
+
+- **Synchronisation de la bibliothèque entre PC via un dépôt GitHub privé.**
+  - « Se connecter avec GitHub » (OAuth Device Flow) : un code à coller sur GitHub, sans jeton ni secret. Le dépôt privé `threadshelf-data` est créé automatiquement puis retrouvé sur les autres PC.
+  - Fusion la plus récente gagnante, suppressions propagées, détection des envois concurrents.
+  - Chiffrement de bout en bout facultatif.
+  - Synchronisation automatique (après modification, périodique, au démarrage) ou manuelle.
+  - Historique versionné par les commits.
+- Marqueurs de suppression (entrées, collections, catégories) dans le stockage et les sauvegardes ; une restauration manuelle l'emporte sur une suppression antérieure.
+- Les renommages de catégories et de collections portent une date de modification.
+
 - Menu d'actions complet sur chaque publication de X : enregistrer (thread, publication, références), sélection, copier (Markdown, publication, texte), lire, options, bibliothèque, supprimer.
 - Bouton flottant « ThreadShelf » toujours visible sur X. Il cible la publication en cours de lecture, fonctionne aussi sur les fils d'actualité et peut être désactivé dans les paramètres.
 - Bouton par publication plus visible (couleur ThreadShelf, pastille verte une fois enregistrée).

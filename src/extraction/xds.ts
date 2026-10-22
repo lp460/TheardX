@@ -10,6 +10,7 @@ import { attr, intAttr, isShowMoreControl, ownAll, ownFirst, REPLYING_TO_RE, tex
 import { buildTweet, cleanAlt, type RawTweet } from './build';
 import type { Tweet } from '@/types/model';
 import { extractRichText } from './rich-text';
+import { extractArticle } from './article';
 import type { LayoutStrategy } from './types';
 
 function nestedArticles(article: Element): Element[] {
@@ -123,10 +124,12 @@ function timestampOf(article: Element, exclude: Element[]): number | undefined {
 }
 
 function textContainerOf(article: Element, exclude: Element[]): Element | null {
+  // Never take the text of an attached X Article (title, body) for the post's own text.
+  const outsideArticle = (el: Element) => !el.closest('[data-article-part]');
   return (
-    ownFirst(article, 'div[dir="auto"].whitespace-pre-wrap', exclude) ??
+    ownAll(article, 'div[dir="auto"].whitespace-pre-wrap', exclude).find(outsideArticle) ??
     ownAll(article, '[dir="auto"]', exclude).find(
-      (el) => !el.closest('a') && !REPLYING_TO_RE.test(textOf(el)),
+      (el) => outsideArticle(el) && !el.closest('a') && !REPLYING_TO_RE.test(textOf(el)),
     ) ??
     null
   );
@@ -289,6 +292,8 @@ export function extractXdsArticle(
   if (replyingTo) raw.replyingTo = replyingTo;
   const card = cardOf(article, exclude, textEl);
   if (card) raw.card = card;
+  const xArticle = extractArticle(article, exclude, author.handle, id);
+  if (xArticle) raw.article = xArticle;
 
   const quoted: Tweet[] = [];
   if (opts.context !== 'quote') {
