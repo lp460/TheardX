@@ -1,6 +1,6 @@
 {
   "name": "threadshelf",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "description": "ThreadShelf — save, read, copy and organise X.com posts and threads. Manifest V3 extension for Arc and Chromium browsers.",
   "type": "module",

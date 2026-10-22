@@ -1,6 +1,6 @@
 # Changelog
 
-## Non publié
+## 1.1.0 — 2026-10-22
 
 - **Traduction** dans le lecteur : traducteur intégré au navigateur, sur l’appareil, sans envoi de données ; détection de la langue ; blocs de code non traduits ; traductions mises en cache (hors ligne) ; copie et export de la traduction ; repli Google Traduction sur clic explicite. Raccourci `l`. Langue cible réglable.
 - **Distribution** : script `npm run release`, images du Store (`npm run store:assets`), fiche et justifications des permissions, politique de confidentialité, publication automatique facultative sur le Chrome Web Store.
