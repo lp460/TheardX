@@ -1,6 +1,6 @@
 # Changelog
 
-## Non publié
+## 1.2.0 — 2026-10-23
 
 - **Reddit** (facultatif) : enregistrez des posts Reddit et leurs discussions.
   - Activation dans Paramètres → Général → « Activer ThreadShelf sur Reddit ». Le navigateur demande alors l’accès à reddit.com et aux images de Reddit. Rien ne change pour ceux qui n’utilisent que X, et la mise à jour ne demande aucune nouvelle autorisation.
