@@ -20,6 +20,8 @@ import {
 import { useEffect, useRef, type ReactNode } from 'react';
 import { completenessLabel, issueLabel } from '@/thread-engine/labels';
 import type { CaptureMode } from '@/thread-engine';
+import type { Platform } from '@/types/model';
+import { vocab } from '@/utils/vocab';
 import { useContent, type ContentToast, type MenuAction } from '../store';
 import { ActionMenu, FloatingButton } from './ActionMenu';
 
@@ -38,7 +40,34 @@ export interface PanelActions {
   createCategory: (name: string) => void;
 }
 
-const MODES: { id: CaptureMode; label: string; hint: string; icon: ReactNode }[] = [
+type ModeDef = { id: CaptureMode; label: string; hint: string; icon: ReactNode };
+
+/** Capture modes offered on Reddit: a message, the discussion, or a selection of comments. */
+function modesFor(platform: Platform): ModeDef[] {
+  if (platform !== 'reddit') return MODES;
+  return [
+    {
+      id: 'tweet',
+      label: 'Message',
+      hint: 'Uniquement ce post ou ce commentaire',
+      icon: <Save size={14} />,
+    },
+    {
+      id: 'thread',
+      label: 'Discussion',
+      hint: 'Le post et tous ses commentaires chargés',
+      icon: <Layers3 size={14} />,
+    },
+    {
+      id: 'selection',
+      label: 'Sélection',
+      hint: 'Cochez les commentaires à garder avec le post',
+      icon: <MousePointerClick size={14} />,
+    },
+  ];
+}
+
+const MODES: ModeDef[] = [
   {
     id: 'tweet',
     label: 'Publication',
@@ -72,6 +101,8 @@ function cls(...parts: (string | false | null | undefined)[]) {
 function StatusLine() {
   const preview = useContent((s) => s.preview);
   const mode = useContent((s) => s.mode);
+  const platform = useContent((s) => s.platform);
+  const v = vocab(platform);
   if (!preview || mode === 'tweet') return null;
   const c = preview.completeness;
   if (mode === 'selection' || mode === 'references') return null;
@@ -94,22 +125,22 @@ function StatusLine() {
   return (
     <div className="mt-3 rounded-xl bg-subtle px-3 py-2.5" data-testid="ts-status">
       <div className={cls('flex items-center gap-2 text-[12.5px] font-medium', color)}>
-        <Icon size={14} /> {completenessLabel(c.status)} · {preview.posts.length} publication
-        {preview.posts.length > 1 ? 's' : ''}
+        <Icon size={14} /> {completenessLabel(c.status)} · {v.posts(preview.posts.length)}
       </div>
       {c.issues.length ? (
         <ul className="mt-1 space-y-0.5 pl-6 text-[12px] leading-snug text-muted">
           {c.issues.map((i) => (
             <li key={i} className="list-disc">
-              {issueLabel(i)}
+              {issueLabel(i, platform)}
             </li>
           ))}
         </ul>
       ) : null}
       {c.status !== 'complete' ? (
         <p className="mt-1.5 pl-6 text-[12px] leading-snug text-muted">
-          Faites défiler la conversation : les publications chargées sont ajoutées automatiquement.
-          Si la structure reste incertaine, utilisez le mode Sélection.
+          {platform === 'reddit'
+            ? v.loadMoreHint
+            : 'Faites défiler la conversation : les publications chargées sont ajoutées automatiquement. Si la structure reste incertaine, utilisez le mode Sélection.'}
         </p>
       ) : null}
     </div>
@@ -294,7 +325,11 @@ export function FloatingPanel({ actions }: { actions: PanelActions }) {
             <rect x="8" y="19.2" width="8" height="3.2" rx="1.6" fill="#fff" opacity=".7" />
           </svg>
           ThreadShelf
-          {s.preview ? <span className="font-normal text-muted">· @{s.preview.handle}</span> : null}
+          {s.preview ? (
+            <span className="font-normal text-muted">
+              · {vocab(s.platform).at(s.preview.handle)}
+            </span>
+          ) : null}
         </div>
         <div className="flex items-center gap-1">
           <button
@@ -320,9 +355,12 @@ export function FloatingPanel({ actions }: { actions: PanelActions }) {
       <div
         role="radiogroup"
         aria-label="Mode de capture"
-        className="mt-3 grid grid-cols-4 gap-1 rounded-xl bg-subtle p-1"
+        className={cls(
+          'mt-3 grid gap-1 rounded-xl bg-subtle p-1',
+          s.platform === 'reddit' ? 'grid-cols-3' : 'grid-cols-4',
+        )}
       >
-        {MODES.map((m) => (
+        {modesFor(s.platform).map((m) => (
           <button
             key={m.id}
             type="button"

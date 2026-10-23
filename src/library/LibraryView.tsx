@@ -32,6 +32,7 @@ import type { Settings } from '@/settings/schema';
 import { applyFilters } from './filters';
 import { useLibrary, type View } from './store';
 import { copyEntry, openReader, safely } from './actions';
+import { entryAuthorLabel } from '@/utils/text';
 
 function viewTitle(view: View, collections: Collection[], categories: Category[]): string {
   switch (view.kind) {
@@ -372,6 +373,7 @@ export function LibraryView({
               readFilter: s.readFilter,
               favoritesOnly: s.favoritesOnly,
               categoryFilter: s.categoryFilter,
+              platformFilter: s.platformFilter,
               sort: settings.library.sort,
             },
             catMap,
@@ -385,15 +387,17 @@ export function LibraryView({
       s.readFilter,
       s.favoritesOnly,
       s.categoryFilter,
+      s.platformFilter,
       settings.library.sort,
       catMap,
     ],
   );
-  const authors = useMemo(
-    () =>
-      [...new Set((entries ?? []).map((e) => e.authorHandle))].sort((a, b) => a.localeCompare(b)),
-    [entries],
-  );
+  const authors = useMemo(() => {
+    const labels = new Map<string, string>();
+    for (const e of entries ?? []) labels.set(e.authorHandle, entryAuthorLabel(e));
+    return [...labels.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  }, [entries]);
+  const hasReddit = useMemo(() => (entries ?? []).some((e) => e.platform === 'reddit'), [entries]);
 
   const firstIds = useMemo(
     () => [...new Set((entries ?? []).map((e) => e.tweetIds[0]!).filter(Boolean))],
@@ -521,12 +525,25 @@ export function LibraryView({
             data-testid="filter-author"
           >
             <option value="">Tous les auteurs</option>
-            {authors.map((a) => (
+            {authors.map(([a, label]) => (
               <option key={a} value={a}>
-                @{a}
+                {label}
               </option>
             ))}
           </Select>
+          {hasReddit ? (
+            <Select
+              value={s.platformFilter}
+              onChange={(e) => s.setPlatformFilter(e.target.value as '' | 'x' | 'reddit')}
+              aria-label="Filtrer par source"
+              className="h-7 text-[12.5px]"
+              data-testid="filter-platform"
+            >
+              <option value="">X et Reddit</option>
+              <option value="x">X</option>
+              <option value="reddit">Reddit</option>
+            </Select>
+          ) : null}
           <Select
             value={s.categoryFilter}
             onChange={(e) => s.setCategoryFilter(e.target.value)}
@@ -619,7 +636,12 @@ export function LibraryView({
     );
   } else if (!filtered.length) {
     const searching =
-      s.query || s.author || s.readFilter !== 'all' || s.favoritesOnly || s.categoryFilter;
+      s.query ||
+      s.author ||
+      s.readFilter !== 'all' ||
+      s.favoritesOnly ||
+      s.categoryFilter ||
+      s.platformFilter;
     body = searching ? (
       <EmptyState
         icon={<Search size={20} />}
@@ -633,6 +655,7 @@ export function LibraryView({
               s.setReadFilter('all');
               s.setFavoritesOnly(false);
               s.setCategoryFilter('');
+              s.setPlatformFilter('');
             }}
           >
             Effacer les filtres
@@ -650,8 +673,9 @@ export function LibraryView({
           'Les entrées apparaîtront ici dès qu’elles correspondront à cette vue.'
         ) : (
           <>
-            Ouvrez une publication sur X puis cliquez sur <strong>Enregistrer</strong> dans la barre
-            ThreadShelf, ou utilisez <Kbd>⌥</Kbd> <Kbd>⇧</Kbd> <Kbd>S</Kbd>.
+            Ouvrez une publication sur X (ou un post Reddit) puis cliquez sur{' '}
+            <strong>Enregistrer</strong> dans la barre ThreadShelf, ou utilisez <Kbd>⌥</Kbd>{' '}
+            <Kbd>⇧</Kbd> <Kbd>S</Kbd>.
           </>
         )}
       </EmptyState>

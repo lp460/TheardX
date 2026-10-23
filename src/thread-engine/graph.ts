@@ -84,6 +84,8 @@ export function mergeTweet(old: Tweet | undefined, next: Tweet): Tweet {
   );
   if (articles.length)
     merged.article = articles.sort((a, b) => b.blocks.length - a.blocks.length)[0];
+  // Reddit facts: the latest observation wins field by field (score changes, depth is stable).
+  if (old.reddit && next.reddit) merged.reddit = { ...old.reddit, ...next.reddit };
   const facts = mergeFacts(old.facts, next.facts);
   if (facts) merged.facts = facts;
   else delete merged.facts;
@@ -108,6 +110,8 @@ const SOURCE_STRENGTH: Record<RelationSource, number> = {
   import: 2,
   'quote-card': 1,
   'text-link': 1,
+  'reddit-tree': 3,
+  'author-reply': 2,
 };
 
 /** In-memory evidence graph: posts, typed relations and per-post thread facts. */

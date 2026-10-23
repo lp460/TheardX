@@ -10,6 +10,8 @@ export interface FilterState {
   readFilter: ReadFilter;
   favoritesOnly: boolean;
   categoryFilter: string;
+  /** '' = every source. */
+  platformFilter?: '' | 'x' | 'reddit';
   sort: Settings['library']['sort'];
 }
 
@@ -51,6 +53,7 @@ export function applyFilters(
   if (f.readFilter !== 'all') out = out.filter((e) => e.readState === f.readFilter);
   if (f.favoritesOnly) out = out.filter((e) => e.favorite);
   if (f.categoryFilter) out = out.filter((e) => e.categoryId === f.categoryFilter);
+  if (f.platformFilter) out = out.filter((e) => (e.platform ?? 'x') === f.platformFilter);
   if (f.query.trim()) out = searchEntries(out, f.query, categories);
   return sortEntries(out, f.sort);
 }

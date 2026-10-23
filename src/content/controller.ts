@@ -1,12 +1,15 @@
 /**
- * Content-script controller for x.com / twitter.com.
+ * Content-script controller for x.com / twitter.com and reddit.com (site specifics live in the
+ * adapters of `@/adapters`).
  *
  * Lifecycle: one instance per page. A single, throttled MutationObserver (childList only) follows X's
  * SPA rendering; scans are cheap DOM reads with a per-element extraction cache. Nothing is saved
  * without a user action (button, popup, shortcut, context menu).
  */
-import { scanPage, strategyFor, type ExtractionCache, type PageScan } from '@/extraction';
-import type { XLayout } from '@/extraction/types';
+import type { ContentAdapter } from '@/adapters/content-adapter';
+import { adapterFor } from '@/adapters/registry';
+import { xAdapter } from '@/adapters/x-adapter';
+import type { PageScan } from '@/extraction';
 import { render } from '@/export';
 import { send, MessagingError } from '@/messaging/client';
 import { contentMessageSchema, type ContentMessage, type ContentState } from '@/messaging/protocol';
@@ -15,7 +18,7 @@ import { loadSettings, onSettingsChanged } from '@/settings/store';
 import type { CaptureMode } from '@/thread-engine';
 import { copyText } from '@/utils/clipboard';
 import { postPreviewText, truncate } from '@/utils/text';
-import { parseStatusUrl } from '@/utils/url';
+import { vocab } from '@/utils/vocab';
 import { CaptureSession } from './session';
 import { useContent, type MenuAction, type PanelPreview } from './store';
 import { CaptureBar, PostButton, type Tone } from './ui/inline';
@@ -34,7 +37,8 @@ export interface UiMount {
 export class ContentController {
   private settings: Settings | null = null;
   private observer: MutationObserver | null = null;
-  private cache: ExtractionCache = new WeakMap();
+  private readonly adapter: ContentAdapter = adapterFor(location.href) ?? xAdapter;
+  private readonly words = vocab(this.adapter.id);
   private session = new CaptureSession();
   private scanTimer: ReturnType<typeof setTimeout> | null = null;
   private lastScanAt = 0;
@@ -57,6 +61,7 @@ export class ContentController {
 
   async start(): Promise<void> {
     this.settings = await loadSettings();
+    useContent.getState().set({ platform: this.adapter.id });
     this.offSettings = onSettingsChanged((s) => this.applySettings(s));
     chrome.runtime.onMessage.addListener(this.onMessage);
     document.addEventListener('visibilitychange', this.onVisibility);
@@ -180,13 +185,17 @@ export class ContentController {
   /* ------------------------------------------------------------------ scanning ------------------------------------------------------------------ */
 
   private detectTone(): Tone {
-    const theme = document.documentElement.getAttribute('data-theme');
-    if (theme) return /dark|dim|lights-out/i.test(theme) ? 'dark' : 'light';
-    const bg = getComputedStyle(document.body).backgroundColor;
-    const m = /rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(bg);
-    if (!m) return 'light';
-    const lum = 0.2126 * Number(m[1]) + 0.7152 * Number(m[2]) + 0.0722 * Number(m[3]);
-    return lum < 128 ? 'dark' : 'light';
+    const site = this.adapter.tone?.(document);
+    if (site) return site;
+    for (const el of [document.body, document.documentElement]) {
+      const m = /rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?/.exec(
+        getComputedStyle(el).backgroundColor,
+      );
+      if (!m || m[4] === '0') continue; // transparent: look at the parent
+      const lum = 0.2126 * Number(m[1]) + 0.7152 * Number(m[2]) + 0.0722 * Number(m[3]);
+      return lum < 128 ? 'dark' : 'light';
+    }
+    return 'light';
   }
 
   scan(): PageScan | null {
@@ -198,7 +207,7 @@ export class ContentController {
     this.lastScanAt = Date.now();
     this.stats.scans += 1;
     if (location.href !== this.lastUrl) this.onRouteChange();
-    const scan = scanPage(document, location.href, this.cache);
+    const scan = this.adapter.scan(document, location.href);
     this.session.ingest(scan);
     const tone = this.detectTone();
     if (useContent.getState().tone !== tone) useContent.getState().set({ tone });
@@ -214,10 +223,11 @@ export class ContentController {
   private onRouteChange(): void {
     this.lastUrl = location.href;
     const st = useContent.getState();
-    const route = parseStatusUrl(location.href);
+    const routeId = this.adapter.routeId(location.href);
     // Keep the live session only while we stay inside the same thread.
     const live = st.live;
-    if (live && (!route || !this.session.plan('thread', route.id).tweetIds.length)) this.stopLive();
+    if (live && (!routeId || !this.session.plan('thread', routeId).tweetIds.length))
+      this.stopLive();
     if (st.panelOpen && st.mode !== 'selection') st.set({ panelOpen: false, targetId: null });
     this.bar?.host.remove();
     this.bar = null;
@@ -239,8 +249,6 @@ export class ContentController {
 
   private syncInjected(scan: PageScan, tone: Tone): void {
     if (!this.settings?.injectUi) return;
-    const layout = scan.layout as XLayout;
-    const strategy = strategyFor(layout);
     const st = useContent.getState();
     const live = new Set<string>();
     for (const cell of scan.cells) {
@@ -250,13 +258,15 @@ export class ContentController {
       live.add(t.id);
       // Per-post button.
       if (this.settings.perPostButtons) {
-        const row = strategy.actionRow(el);
+        const slot = this.adapter.actionSlot(el);
+        const row = slot?.container;
         if (row) {
           let btn = this.buttons.get(t.id);
           if (!btn || !btn.host.isConnected || btn.host.parentElement !== row) {
             btn?.host.remove();
             row.querySelectorAll(':scope > threadshelf-action').forEach((x) => x.remove());
             btn = new PostButton(t.id, (id, host) => this.onPostButton(id, host));
+            if (slot.slot) btn.host.slot = slot.slot;
             row.appendChild(btn.host);
             this.buttons.set(t.id, btn);
           }
@@ -270,8 +280,7 @@ export class ContentController {
       }
       // Focal bar.
       if (cell.isFocal) {
-        const row = strategy.actionRow(el);
-        const anchor = row ?? el.lastElementChild;
+        const anchor = this.adapter.barAnchor(el);
         if (anchor) {
           if (!this.bar || this.bar.tweetId !== t.id || !this.bar.host.isConnected) {
             this.bar?.host.remove();
@@ -287,6 +296,7 @@ export class ContentController {
           const plan = this.session.plan('thread', t.id);
           const status = plan.completeness.status;
           this.bar.update({
+            platform: this.adapter.id,
             tone,
             saved: this.saved.has(t.id),
             count: plan.tweetIds.length,
@@ -419,6 +429,7 @@ export class ContentController {
         status: plan.completeness.status,
         saved: this.saved.has(id),
         isFocal: this.session.lastScan?.focalId === id,
+        platform: this.adapter.id,
         onStatusPage: this.session.lastScan?.route.kind === 'status',
       };
     }
@@ -479,7 +490,10 @@ export class ContentController {
         break;
       case 'diagnostics':
         try {
-          await copyText(JSON.stringify(this.diagnostics(), null, 2));
+          const diag = this.diagnostics();
+          // Also kept locally (last one only) so it can be read back without pasting.
+          void chrome.storage.local.set({ lastDiagnostic: diag }).catch(() => undefined);
+          await copyText(JSON.stringify(diag, null, 2));
           this.notify(
             'success',
             'Diagnostic copié',
@@ -494,6 +508,49 @@ export class ContentController {
 
   /** Structural description of the page for bug reports — no post text, no handles, no IDs. */
   diagnostics() {
+    const describe = (el: Element) => {
+      const attrs = Array.from(el.attributes)
+        .filter(
+          (a) =>
+            ![
+              'src',
+              'href',
+              'alt',
+              'aria-label',
+              'title',
+              'style',
+              'srcset',
+              'id',
+              'aria-labelledby',
+            ].includes(a.name),
+        )
+        .map((a) =>
+          [
+            'class',
+            'data-testid',
+            'role',
+            'data-block',
+            'dir',
+            'lang',
+            'data-text',
+            'contenteditable',
+          ].includes(a.name)
+            ? `${a.name}="${a.value.slice(0, 120)}"`
+            : a.name,
+        );
+      const style = (el as HTMLElement).style;
+      if (style?.fontWeight) attrs.push(`fontWeight=${style.fontWeight}`);
+      if (style?.fontStyle) attrs.push(`fontStyle=${style.fontStyle}`);
+      return `${el.tagName.toLowerCase()}[${attrs.join(' ')}]`;
+    };
+    const ancestry = (el: Element, stop: Element) => {
+      const out: string[] = [];
+      for (let e: Element | null = el; e && out.length < 25; e = e.parentElement) {
+        out.push(describe(e));
+        if (e === stop) break;
+      }
+      return out;
+    };
     const doc = document;
     const testids = new Map<string, number>();
     doc.querySelectorAll('[data-testid]').forEach((el) => {
@@ -502,22 +559,31 @@ export class ContentController {
     });
     const articles = Array.from(doc.querySelectorAll('article'));
     const first = articles.find((a) => !a.parentElement?.closest('article'));
-    const shape = (el: Element | undefined, depth = 0): string => {
-      if (!el || depth > 6) return '';
+    const shape = (el: Element | undefined, depth = 0, maxDepth = 6, maxKids = 6): string => {
+      if (!el || depth > maxDepth) return '';
       const kids = Array.from(el.children)
-        .slice(0, 6)
-        .map((c) => shape(c, depth + 1))
+        .filter((c) => c.tagName !== 'STYLE' && c.tagName !== 'SCRIPT')
+        .slice(0, maxKids)
+        .map((c) => shape(c, depth + 1, maxDepth, maxKids))
         .filter(Boolean);
-      const attrs = ['role', 'data-testid', 'data-engagement-action', 'aria-hidden', 'dir']
+      const attrs = [
+        'role',
+        'data-testid',
+        'data-engagement-action',
+        'data-article-part',
+        'data-block',
+        'aria-hidden',
+        'dir',
+      ]
         .filter((a) => el.hasAttribute(a))
         .map(
           (a) =>
-            `${a}=${a === 'data-testid' || a === 'role' || a === 'data-engagement-action' ? el.getAttribute(a) : ''}`,
+            `${a}=${['data-testid', 'role', 'data-engagement-action', 'data-article-part', 'data-block'].includes(a) ? el.getAttribute(a) : ''}`,
         );
       const cls = (el.getAttribute('class') ?? '')
         .split(/\s+/)
         .filter((c) =>
-          /^(absolute|w-0\.5|w-px|self-stretch|whitespace-pre-wrap|top-|-top-|bottom-|-bottom-)/.test(
+          /^(absolute|w-0\.5|w-px|self-stretch|whitespace-pre-wrap|top-|-top-|bottom-|-bottom-|longform|public-Draft|DraftEditor)/.test(
             c,
           ),
         );
@@ -551,6 +617,103 @@ export class ContentController {
           }
         : null,
       firstArticleShape: shape(first),
+      // Long-form X Articles: structure only (tags, test IDs, classes) — never any text.
+      xArticle: (() => {
+        const focalEl = scan?.cells.find((c) => c.isFocal)?.element ?? first;
+        const count = (root: ParentNode | null | undefined, sel: string) =>
+          root?.querySelectorAll(sel).length ?? 0;
+        const tags = [
+          'p',
+          'h1',
+          'h2',
+          'h3',
+          'h4',
+          'pre',
+          'code',
+          'figure',
+          'img',
+          'ul',
+          'ol',
+          'blockquote',
+          'hr',
+          'section',
+        ];
+        const richRoots = Array.from(
+          doc.querySelectorAll(
+            '[data-article-part="body"], [data-testid*="rticle"], [data-testid*="ongform"], [data-testid*="RichText"], .public-DraftEditor-content, [data-contents="true"]',
+          ),
+        ).slice(0, 4);
+        return {
+          parts: Array.from(doc.querySelectorAll('[data-article-part]')).map((e) =>
+            e.getAttribute('data-article-part'),
+          ),
+          articleTestids: [...testids.entries()].filter(([k]) =>
+            /rticle|ongform|richtext|readview|card|draft/i.test(k),
+          ),
+          articleLinks: Array.from(doc.querySelectorAll('a[href*="/article/"]'))
+            .map((a) =>
+              (a.getAttribute('href') ?? '')
+                .replace(/^https?:\/\/[^/]+/, '')
+                .replace(/\/\d+/g, '/<id>')
+                .replace(/^\/[A-Za-z0-9_]+\//, '/<handle>/'),
+            )
+            .slice(0, 8),
+          draftBlocks: count(doc, '[data-block="true"]'),
+          longformClasses: [
+            ...new Set(
+              Array.from(doc.querySelectorAll('[class*="longform"]')).flatMap((e) =>
+                (e.getAttribute('class') ?? '')
+                  .split(/\s+/)
+                  .filter((c) => c.startsWith('longform')),
+              ),
+            ),
+          ].slice(0, 20),
+          focalTagCounts: Object.fromEntries(tags.map((t) => [t, count(focalEl, t)])),
+          pageTagCounts: Object.fromEntries(
+            tags.map((t) => [t, count(doc.querySelector('main') ?? doc, t)]),
+          ),
+          richRoots: richRoots.map((r) => shape(r, 0, 5, 4)),
+          focalShape: shape(focalEl, 0, 9, 8),
+          focalTestids: [
+            ...new Set(
+              Array.from(focalEl?.querySelectorAll('[data-testid]') ?? []).map((e) =>
+                e.getAttribute('data-testid'),
+              ),
+            ),
+          ],
+          // Where the text lives: ancestry of the elements holding the most text (lengths only).
+          textHosts: (() => {
+            const own = (el: Element) =>
+              Array.from(el.childNodes)
+                .filter((n) => n.nodeType === Node.TEXT_NODE)
+                .reduce((n, t) => n + (t.textContent?.trim().length ?? 0), 0);
+            const all = Array.from((focalEl ?? doc.body).querySelectorAll('*'))
+              .map((el) => ({ el, n: own(el) }))
+              .filter((x) => x.n > 40)
+              .sort((a, b) => b.n - a.n)
+              .slice(0, 5);
+            return all.map(({ el, n }) => ({ chars: n, path: ancestry(el, focalEl ?? doc.body) }));
+          })(),
+          firstImagePath: (() => {
+            const img = (focalEl ?? doc).querySelector('img[src*="/media/"]');
+            return img ? ancestry(img, focalEl ?? doc.body) : null;
+          })(),
+          textBlocksNearImage: (() => {
+            // Siblings of the image's block container: their tag / attributes / class names.
+            const img = (focalEl ?? doc).querySelector('img[src*="/media/"]');
+            let el: Element | null | undefined = img;
+            for (let i = 0; el && i < 12; i++) {
+              const sibs = el.parentElement ? Array.from(el.parentElement.children) : [];
+              if (sibs.length >= 4)
+                return sibs
+                  .slice(0, 12)
+                  .map((c) => describe(c) + `{text:${(c.textContent ?? '').trim().length}}`);
+              el = el.parentElement;
+            }
+            return null;
+          })(),
+        };
+      })(),
       stats: this.debugInfo(),
     };
   }
@@ -596,7 +759,7 @@ export class ContentController {
   }
 
   private focalId(): string | null {
-    return this.session.lastScan?.focalId ?? parseStatusUrl(location.href)?.id ?? null;
+    return this.session.lastScan?.focalId ?? this.adapter.routeId(location.href) ?? null;
   }
 
   private refreshPreview(): void {
@@ -662,7 +825,10 @@ export class ContentController {
   ): Promise<RunResult> {
     const id = this.ensureFresh(targetId);
     if (!id || !this.session.graph.tweets.has(id)) {
-      const error = 'Aucune publication détectée. Ouvrez une publication sur X.';
+      const error =
+        this.adapter.id === 'reddit'
+          ? 'Aucun post détecté. Ouvrez un post Reddit.'
+          : 'Aucune publication détectée. Ouvrez une publication sur X.';
       if (!opts.silent) this.notify('warning', error);
       return { ok: false, error };
     }
@@ -687,6 +853,7 @@ export class ContentController {
           selection: orderedSelection,
           pageUrl: location.href,
           pageKind: this.session.lastScan?.route.kind,
+          reddit: this.session.lastScan?.reddit,
           options: {
             entryId: opts.live ? st.live?.entryId : undefined,
             collectionId: usePanel && form.collectionId ? form.collectionId : undefined,
@@ -704,9 +871,7 @@ export class ContentController {
         this.notify(
           incomplete ? 'warning' : 'success',
           result.message,
-          incomplete
-            ? 'Faites défiler : la suite chargée sera ajoutée automatiquement.'
-            : undefined,
+          incomplete ? this.words.loadMoreHint : undefined,
           {
             label: 'Ouvrir dans le lecteur',
             run: () => void send({ type: 'open.reader', entryId: result.entry.id }),
@@ -715,9 +880,11 @@ export class ContentController {
       } else if (opts.live) {
         this.notify(
           'info',
-          `Thread mis à jour — ${result.count} publications`,
+          this.words.updated(result.count),
           result.entry.completeness.status === 'complete'
-            ? 'Thread complet et vérifié.'
+            ? this.adapter.id === 'reddit'
+              ? 'Tous les commentaires sont chargés.'
+              : 'Thread complet et vérifié.'
             : undefined,
         );
       }
@@ -785,12 +952,12 @@ export class ContentController {
     try {
       await copyText(render(f, bundle, { includeUrls: this.settings?.copy.includeUrls ?? true }));
       const n = plan.tweetIds.length;
-      const message = `${n} publication${n > 1 ? 's' : ''} copiée${n > 1 ? 's' : ''} (${f === 'markdown' ? 'Markdown' : 'texte'})`;
+      const message = this.words.copied(n, f === 'markdown' ? 'Markdown' : 'texte');
       const incomplete = plan.kind === 'thread' && plan.completeness.status !== 'complete';
       this.notify(
         incomplete ? 'warning' : 'success',
         message,
-        incomplete ? 'Thread potentiellement incomplet.' : undefined,
+        incomplete ? this.words.loadMoreHint : undefined,
       );
       return { ok: true, message };
     } catch (e) {
@@ -840,6 +1007,7 @@ export class ContentController {
     const focalId = scan?.focalId;
     const state: ContentState = {
       active: this.active,
+      platform: this.adapter.id,
       supported: !!scan && scan.layout !== 'unknown',
       layout: scan?.layout ?? 'unknown',
       route: scan?.route.kind ?? 'other',
@@ -888,8 +1056,9 @@ export class ContentController {
 
   async run(msg: ContentMessage): Promise<RunResult> {
     if (msg.type === 'content.save-link') {
-      const ref = parseStatusUrl(msg.url);
-      if (!ref) return { ok: false, error: 'Lien non reconnu.' };
+      const refId = this.adapter.routeId(msg.url);
+      if (!refId) return { ok: false, error: 'Lien non reconnu.' };
+      const ref = { id: refId };
       this.scan();
       if (!this.session.graph.tweets.has(ref.id)) {
         this.notify(

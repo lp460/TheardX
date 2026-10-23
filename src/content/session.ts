@@ -13,7 +13,7 @@ import {
 } from '@/thread-engine';
 import type { Entry, EntryBundle, Relation, ThreadFacts, Tweet } from '@/types/model';
 import { canonicalTweetUrl } from '@/utils/url';
-import { deriveTitle, postPreviewText } from '@/utils/text';
+import { autoEntryTitle } from '@/utils/text';
 
 const MAX_TWEETS = 3_000;
 
@@ -55,6 +55,7 @@ export class CaptureSession {
     return planCapture(this.graph, mode, focalId, {
       selection,
       pageKind: this.lastScan?.route.kind,
+      reddit: this.lastScan?.reddit,
     });
   }
 
@@ -106,10 +107,7 @@ export class CaptureSession {
     const entry: Entry = {
       id: 'ephemeral',
       kind: plan.kind,
-      title:
-        first.article?.title?.trim() ||
-        deriveTitle(postPreviewText(first)) ||
-        `Publication de @${first.author.handle}`,
+      title: autoEntryTitle(first),
       authorHandle: first.author.handle,
       focalTweetId: focalId,
       tweetIds: plan.tweetIds,
@@ -117,7 +115,8 @@ export class CaptureSession {
       referenceTweetIds: plan.referenceTweetIds,
       externalRefs: plan.externalRefs,
       completeness: plan.completeness,
-      sourceUrl: canonicalTweetUrl(first.id, first.author.handle),
+      sourceUrl:
+        first.platform === 'reddit' ? first.url : canonicalTweetUrl(first.id, first.author.handle),
       savedAt: now,
       updatedAt: now,
       readState: 'unread',
@@ -133,6 +132,7 @@ export class CaptureSession {
     };
     if (first.author.name) entry.authorName = first.author.name;
     if (first.createdAt) entry.publishedAt = first.createdAt;
+    if (first.platform === 'reddit') entry.platform = 'reddit';
     return { entry, tweets, relations: [], media: {} };
   }
 }

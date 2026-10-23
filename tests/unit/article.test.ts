@@ -6,7 +6,7 @@ import type { EntryBundle, Tweet } from '@/types/model';
 import { postPreviewText } from '@/utils/text';
 import { parseDoc } from '../helpers/dom';
 import { statusPage, type PostSpec } from '../fixtures/x-dom';
-import { ARTICLE_POST } from '../fixtures/article';
+import { ARTICLE_POST, ARTICLE_POST_SIGNED_IN } from '../fixtures/article';
 
 function scanArticle() {
   const url = `https://x.com/make_claude/status/${ARTICLE_POST.id}`;
@@ -164,5 +164,64 @@ describe('X Articles (long-form posts)', () => {
     );
     expect(html).toContain('<strong>un seul bit</strong>');
     expect(html).not.toMatch(/<script/i);
+  });
+});
+
+describe('X Articles, signed-in rendering (classic layout, Draft.js)', () => {
+  const url = `https://x.com/make_claude/status/${ARTICLE_POST_SIGNED_IN.id}`;
+  const html = statusPage('classic', [ARTICLE_POST_SIGNED_IN], ARTICLE_POST_SIGNED_IN.id);
+  const t = scanPage(parseDoc(html, url), url).cells[0]!.tweet!;
+  const a = t.article!;
+
+  it('captures the title, cover and the whole body in order', () => {
+    expect(a.title).toBe('JEV ne veut pas remplacer Claude');
+    expect(a.url).toBe('https://x.com/make_claude/article/2105380835675312294');
+    expect(a.coverUrl).toMatch(/media\/Cover2105380835675312294/);
+    expect(a.partial).toBeUndefined();
+    expect(a.blocks.map((b) => b.t)).toEqual([
+      'paragraph',
+      'paragraph',
+      'divider',
+      'image',
+      'heading',
+      'paragraph',
+      'code',
+      'code',
+      'list',
+      'quote',
+      'heading',
+      'paragraph',
+    ]);
+  });
+
+  it('reads the body nested <article> as the post content, not as a quote', () => {
+    expect(t.quoted).toBeUndefined();
+    expect(a.coverUrl).toMatch(/media\/Cover2105380835675312294/);
+  });
+
+  it('keeps inline-style bold / italic, code lines, list items and heading levels', () => {
+    const p2 = a.blocks[1];
+    if (p2?.t !== 'paragraph') throw new Error('paragraph expected');
+    expect(p2.text).toContainEqual({ t: 'text', v: 'un seul bit', b: true });
+    expect(p2.text).toContainEqual({ t: 'text', v: 'des milliers', i: true });
+    expect(a.blocks[4]).toMatchObject({ t: 'heading', level: 3 });
+    expect(a.blocks[6]).toEqual({
+      t: 'code',
+      lang: 'bash',
+      code: 'jev noul \\\n  "Does this need a refund?"',
+    });
+    expect(a.blocks[7]).toEqual({ t: 'code', code: 'npm install -g jev\njev --help' });
+    const list = a.blocks[8];
+    if (list?.t !== 'list') throw new Error('list expected');
+    expect(list.ordered).toBe(true);
+    expect(list.items).toHaveLength(2);
+    expect(list.items[1]).toContainEqual({ t: 'text', v: 'plus rapide', b: true });
+    expect(a.blocks[10]).toMatchObject({ t: 'heading', level: 4 });
+  });
+
+  it('does not duplicate the Article images and cover as post media', () => {
+    expect(t.media).toEqual([]);
+    expect(tweetSchema.safeParse(t).success).toBe(true);
+    expect(postPreviewText(t)).toContain('La plupart des agents IA');
   });
 });

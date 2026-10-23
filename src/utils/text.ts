@@ -81,3 +81,28 @@ export function truncate(input: string, max: number): string {
 export function pluralize(n: number, one: string, many: string): string {
   return `${n} ${n === 1 ? one : many}`;
 }
+
+/** Author as written on its site: « @handle » on X, « u/name » on Reddit. */
+export function authorLabel(tweet: Pick<Tweet, 'author' | 'platform'>): string {
+  return tweet.platform === 'reddit' ? `u/${tweet.author.handle}` : `@${tweet.author.handle}`;
+}
+
+/** Fallback titles, replaced by a better one when the entry is updated. */
+export const GENERIC_TITLE_RE = /^(Publication de @|Post de u\/|Commentaire de u\/)/;
+
+/** Title of a new entry: Article / Reddit post title, else the first line, else a generic label. */
+export function autoEntryTitle(first: Tweet): string {
+  const generic =
+    first.platform === 'reddit'
+      ? `${first.reddit?.kind === 'comment' ? 'Commentaire' : 'Post'} de u/${first.author.handle}`
+      : `Publication de @${first.author.handle}`;
+  return first.article?.title?.trim() || deriveTitle(postPreviewText(first)) || generic;
+}
+
+/** Author of an entry as written on its site. */
+export function entryAuthorLabel(entry: {
+  authorHandle: string;
+  platform?: Tweet['platform'];
+}): string {
+  return entry.platform === 'reddit' ? `u/${entry.authorHandle}` : `@${entry.authorHandle}`;
+}

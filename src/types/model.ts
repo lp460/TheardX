@@ -5,6 +5,9 @@
 
 export type TweetId = string;
 
+/** Site a record comes from. Absent on records created before 1.2 (= X). */
+export type Platform = 'x' | 'reddit';
+
 export interface Author {
   /** Handle without the leading "@", original casing. */
   handle: string;
@@ -44,11 +47,36 @@ export interface XArticle {
   blocks: ArticleBlock[];
   /** Only a preview was rendered (timeline card): open the post to capture the full Article. */
   partial?: boolean;
+  /**
+   * Rich body of the post itself rather than a separate Article (Reddit posts and comments): shown
+   * inline, without the Article frame. For a Reddit post, `title` is the post title.
+   */
+  inline?: boolean;
+}
+
+/** Reddit-specific facts about a post (t3_) or comment (t1_). */
+export interface RedditMeta {
+  kind: 'post' | 'comment';
+  subreddit?: string;
+  /** t3_ ID of the post this record belongs to (itself for a post). */
+  postId: string;
+  /** For comments: t1_ parent comment, or the t3_ post for top-level comments. */
+  parentId?: string;
+  /** For comments: 0 = top-level. */
+  depth?: number;
+  /** For comments: rank among its siblings in the order Reddit displayed them. */
+  position?: number;
+  score?: number;
+  /** Posts: total number of comments announced by Reddit. */
+  commentCount?: number;
+  flair?: string;
+  /** The author is the post's author (OP). */
+  isOp?: boolean;
 }
 
 export interface MediaItem {
   kind: MediaKind;
-  /** Image URL (photo) or poster image URL (video / gif). Always https://pbs.twimg.com/… */
+  /** Image URL (photo) or poster image URL (video / gif), on an allowed media host (twimg, redd.it). */
   url: string;
   /** Descriptive alternative text, only when the author provided one. */
   alt?: string;
@@ -94,8 +122,12 @@ export interface QuotedRef {
   media?: MediaItem[];
 }
 
+/** A saved post. Historically X-only ("tweet"); also Reddit posts and comments since 1.2. */
 export interface Tweet {
+  /** X: numeric ID. Reddit: thing ID (t3_… post, t1_… comment). */
   id: TweetId;
+  platform?: Platform;
+  reddit?: RedditMeta;
   url: string;
   author: Author;
   /** ISO 8601. Only set when read from the page or decoded from the post ID (snowflake). */
@@ -121,11 +153,23 @@ export interface Tweet {
   firstSeenAt: number;
   lastSeenAt: number;
   /** DOM layout the record was extracted from (diagnostics). */
-  source?: 'xds' | 'classic' | 'import';
+  source?: 'xds' | 'classic' | 'reddit' | 'import';
 }
 
 export type RelationType = 'reply' | 'quote' | 'link';
-export type RelationSource = 'ancestor-chain' | 'connector' | 'quote-card' | 'text-link' | 'import';
+export type RelationSource =
+  | 'ancestor-chain'
+  | 'connector'
+  | 'quote-card'
+  | 'text-link'
+  | 'import'
+  /**
+   * The focal post's author replying right below it on its status page, before any other account:
+   * X lists the author's own replies first and, signed in, draws no thread line for them.
+   */
+  | 'author-reply'
+  /** Parent ID given by Reddit for a comment. */
+  | 'reddit-tree';
 
 export interface Relation {
   /** `${type}:${parentId}>${childId}` */
@@ -177,6 +221,8 @@ export interface ExternalRef {
 
 export interface Entry {
   id: string;
+  /** Absent = X. For Reddit, kind "thread" is a discussion: the post and its comment tree. */
+  platform?: Platform;
   kind: EntryKind;
   title: string;
   authorHandle: string;

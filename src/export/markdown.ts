@@ -1,7 +1,18 @@
 import type { EntryBundle, Segment, Tweet } from '@/types/model';
 import { cashtagUrl, hashtagUrl, linkLabel, profileUrl, safeHref } from '@/utils/url';
 import { articleToMarkdown, textIsOnlyArticleLink } from './article';
-import { dayString, mediaLabel, toView, type ExportOptions } from './model';
+import {
+  authorHref,
+  commentLevel,
+  dayString,
+  mediaLabel,
+  redditMeta,
+  siteName,
+  toView,
+  who,
+  withoutRepeatedTitle,
+  type ExportOptions,
+} from './model';
 
 /** Escapes characters that would change Markdown rendering. */
 export function escapeMarkdown(input: string): string {
@@ -65,9 +76,12 @@ function postBody(t: Tweet, opts: ExportOptions): string {
       parts.push(
         `![${escapeLinkText(m.alt ?? '')}](${mdUrl(m.url)})${m.alt ? `\n*${escapeMarkdown(m.alt)}*` : ''}`,
       );
-    else parts.push(`[${mediaLabel(m.kind)} — voir sur X](${mdUrl(m.playbackUrl ?? t.url)})`);
+    else
+      parts.push(
+        `[${mediaLabel(m.kind)} — voir sur ${siteName(t.platform)}](${mdUrl(m.playbackUrl ?? t.url)})`,
+      );
   }
-  if (t.card && !t.article)
+  if (t.card && (!t.article || t.article.inline))
     parts.push(
       `> 🔗 [${escapeLinkText(t.card.title ?? t.card.domain ?? t.card.url)}](${mdUrl(t.card.url)})${t.card.domain ? ` — ${escapeMarkdown(t.card.domain)}` : ''}`,
     );
@@ -84,36 +98,80 @@ function postBody(t: Tweet, opts: ExportOptions): string {
       `> **Citation — ${escapeMarkdown(who)}**${q.url ? ` · [source](${mdUrl(q.url)})` : ''}\n>\n${body}`,
     );
   }
-  if (opts.includeUrls !== false) parts.push(`[Voir la publication](${t.url})`);
+  if (opts.includeUrls !== false)
+    parts.push(
+      t.platform === 'reddit' ? `[Voir sur Reddit](${t.url})` : `[Voir la publication](${t.url})`,
+    );
   return parts.join('\n\n');
+}
+
+/** Reddit discussion: the post, then each comment as a blockquote nested by depth. */
+function redditPosts(posts: Tweet[], title: string, opts: ExportOptions): string[] {
+  const out: string[] = [];
+  for (const raw of posts) {
+    const t = withoutRepeatedTitle(raw, title);
+    const level = commentLevel(t);
+    const head = `**${escapeMarkdown(redditMeta(t))}**`;
+    if (!level) {
+      out.push('', '## Post', '', head, '', postBody(t, opts));
+      continue;
+    }
+    if (out.every((l) => l !== '## Commentaires')) out.push('', '## Commentaires');
+    const prefix = '>'.repeat(level) + ' ';
+    const block = `${head}\n\n${postBody(t, opts)}`
+      .split('\n')
+      .map((l) => (l ? prefix + l : prefix.trimEnd()))
+      .join('\n');
+    out.push('', block);
+  }
+  return out;
 }
 
 export function toMarkdown(b: EntryBundle, opts: ExportOptions = {}): string {
   const v = toView(b, opts);
   const lines: string[] = [];
-  lines.push(`# ${escapeMarkdown(v.title || `Publication de @${v.author.handle}`)}`, '');
+  const reddit = v.platform === 'reddit';
   lines.push(
-    `Auteur : ${v.author.name ? `${escapeMarkdown(v.author.name)} ` : ''}[@${v.author.handle}](${profileUrl(v.author.handle)})  `,
+    `# ${escapeMarkdown(v.title || `Publication de ${who(v.author.handle, v.platform)}`)}`,
+    '',
   );
+  lines.push(
+    `Auteur : ${v.author.name ? `${escapeMarkdown(v.author.name)} ` : ''}[${who(v.author.handle, v.platform)}](${authorHref(v.author.handle, v.platform)})  `,
+  );
+  const sub = v.posts.find((t) => t.reddit?.subreddit)?.reddit?.subreddit;
+  if (reddit && sub) lines.push(`Subreddit : [r/${sub}](https://www.reddit.com/r/${sub}/)  `);
   lines.push(`Source : ${v.sourceUrl}  `);
   if (v.publishedAt) lines.push(`Publié le : ${dayString(v.publishedAt)}  `);
   lines.push(`Capture : ${v.statusLine}`);
-  if (v.incomplete) lines.push('', '> ⚠️ Le thread n’a pas pu être vérifié comme complet.');
+  if (v.incomplete)
+    lines.push(
+      '',
+      reddit
+        ? '> ⚠️ Des commentaires n’étaient pas chargés au moment de l’enregistrement.'
+        : '> ⚠️ Le thread n’a pas pu être vérifié comme complet.',
+    );
   if (v.context.length) {
     lines.push('', '---', '', '**En réponse à :**', '');
     for (const c of v.context)
       lines.push(
-        `> **@${c.author.handle}** — ${segmentsToMarkdown(c.text).split('\n').join('\n> ')}`,
-        `> [source](${c.url})`,
+        reddit
+          ? postBody(withoutRepeatedTitle(c, ''), opts)
+              .split('\n')
+              .map((l) => `> ${l}`)
+              .join('\n')
+          : `> **@${c.author.handle}** — ${segmentsToMarkdown(c.text).split('\n').join('\n> ')}`,
+        reddit ? '' : `> [source](${c.url})`,
       );
   }
   const total = v.posts.length;
-  v.posts.forEach((t, i) => {
-    lines.push('', total > 1 ? `## ${i + 1} / ${total}` : '## Publication', '');
-    if (t.author.handle.toLowerCase() !== v.author.handle.toLowerCase())
-      lines.push(`**@${t.author.handle}**`, '');
-    lines.push(postBody(t, opts));
-  });
+  if (reddit) lines.push(...redditPosts(v.posts, v.title, opts));
+  else
+    v.posts.forEach((t, i) => {
+      lines.push('', total > 1 ? `## ${i + 1} / ${total}` : '## Publication', '');
+      if (t.author.handle.toLowerCase() !== v.author.handle.toLowerCase())
+        lines.push(`**@${t.author.handle}**`, '');
+      lines.push(postBody(t, opts));
+    });
   if (v.references.length) {
     lines.push('', '## Références', '');
     for (const r of v.references)

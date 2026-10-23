@@ -1,4 +1,7 @@
-import type { EntryBundle, Tweet } from '@/types/model';
+import type { EntryBundle, Platform, Tweet } from '@/types/model';
+import { redditUserUrl } from '@/utils/reddit-url';
+import { profileUrl } from '@/utils/url';
+import { vocab } from '@/utils/vocab';
 
 export interface ExportOptions {
   /** Add the URL of each post. */
@@ -16,6 +19,7 @@ export interface ExportOptions {
 }
 
 export interface ExportView {
+  platform: Platform;
   title: string;
   author: { handle: string; name?: string };
   sourceUrl: string;
@@ -32,6 +36,14 @@ export interface ExportView {
 
 export function statusLine(b: EntryBundle, count: number): { line: string; incomplete: boolean } {
   const c = b.entry.completeness;
+  if (b.entry.platform === 'reddit') {
+    const n = vocab('reddit').posts(count);
+    if (c.status === 'manual') return { line: `${n} — sélection`, incomplete: false };
+    if (b.entry.kind !== 'thread') return { line: n, incomplete: false };
+    return c.status === 'complete'
+      ? { line: `${n} — tous les commentaires chargés`, incomplete: false }
+      : { line: `${n} — des commentaires n’étaient pas chargés`, incomplete: true };
+  }
   const posts = `${count} publication${count > 1 ? 's' : ''}`;
   switch (c.status) {
     case 'complete':
@@ -62,7 +74,9 @@ export function toView(b: EntryBundle, opts: ExportOptions = {}): ExportView {
   const posts = ids.map((id) => b.tweets[id]).filter((t): t is Tweet => !!t);
   const first = posts[0];
   const { line, incomplete } = statusLine(b, posts.length);
+  const platform = b.entry.platform ?? 'x';
   const view: ExportView = {
+    platform,
     title: b.entry.title,
     author: {
       handle: b.entry.authorHandle,
@@ -71,7 +85,9 @@ export function toView(b: EntryBundle, opts: ExportOptions = {}): ExportView {
     sourceUrl: first?.url ?? b.entry.sourceUrl,
     savedAt: b.entry.savedAt,
     statusLine: opts.tweetIds?.length
-      ? `${posts.length} publication${posts.length > 1 ? 's' : ''} sélectionnée${posts.length > 1 ? 's' : ''}`
+      ? platform === 'reddit'
+        ? `${vocab(platform).posts(posts.length)} sélectionné${posts.length > 1 ? 's' : ''}`
+        : `${posts.length} publication${posts.length > 1 ? 's' : ''} sélectionnée${posts.length > 1 ? 's' : ''}`
       : line,
     incomplete: opts.tweetIds?.length ? false : incomplete,
     posts,
@@ -99,4 +115,39 @@ export function dayString(iso?: string | number): string {
 
 export function mediaLabel(kind: string): string {
   return kind === 'video' ? 'Vidéo' : kind === 'gif' ? 'GIF' : 'Image';
+}
+
+/** « @handle » (X) or « u/name » (Reddit). */
+export function who(handle: string, platform: Platform = 'x'): string {
+  return platform === 'reddit' ? `u/${handle}` : `@${handle}`;
+}
+
+export function authorHref(handle: string, platform: Platform = 'x'): string {
+  return platform === 'reddit' ? redditUserUrl(handle) : profileUrl(handle);
+}
+
+export function siteName(platform: Platform = 'x'): string {
+  return platform === 'reddit' ? 'Reddit' : 'X';
+}
+
+/** Depth of a Reddit comment in the export (post = 0, top-level comment = 1). */
+export function commentLevel(t: Tweet): number {
+  return t.reddit?.kind === 'comment' ? Math.min((t.reddit.depth ?? 0) + 1, 10) : 0;
+}
+
+/** A Reddit post's body repeats the entry title: exports print it once. */
+export function withoutRepeatedTitle(t: Tweet, title: string): Tweet {
+  if (!t.article?.inline || t.article.title !== title) return t;
+  const { title: _omit, ...article } = t.article;
+  return { ...t, article };
+}
+
+/** One-line facts about a Reddit post / comment: author, OP, score, date. */
+export function redditMeta(t: Tweet): string {
+  const r = t.reddit;
+  const parts = [`u/${t.author.handle}`];
+  if (r?.isOp) parts.push('OP');
+  if (r?.score !== undefined) parts.push(`▲ ${r.score}`);
+  if (t.createdAt) parts.push(dayString(t.createdAt));
+  return parts.join(' · ');
 }

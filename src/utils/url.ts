@@ -120,6 +120,10 @@ export function parseXRoute(input: string | URL): XRoute {
     if (parts.length <= 5) return { kind: 'status', ...status };
   }
   const parts = url.pathname.split('/').filter(Boolean);
+  // /handle/article/ID: full-page view of a post's long-form Article (same ID as the post).
+  if (parts[1] === 'article' && isHandle(parts[0]) && isTweetId(parts[2])) {
+    return { kind: 'status', id: parts[2]!, handle: parts[0]! };
+  }
   if (parts.length === 0 || parts[0] === 'home') return { kind: 'home' };
   if (parts.length >= 1 && isHandle(parts[0])) return { kind: 'profile', handle: parts[0]! };
   return { kind: 'other' };
@@ -162,7 +166,18 @@ export function safeHref(input: string | undefined | null): string | null {
   return url.toString();
 }
 
-const MEDIA_HOSTS = new Set(['pbs.twimg.com', 'video.twimg.com', 'abs.twimg.com']);
+const MEDIA_HOSTS = new Set([
+  'pbs.twimg.com',
+  'video.twimg.com',
+  'abs.twimg.com',
+  // Reddit: post images, previews, avatars and community icons.
+  'i.redd.it',
+  'preview.redd.it',
+  'cf.preview.redd.it',
+  'external-preview.redd.it',
+  'styles.redditmedia.com',
+  'www.redditstatic.com',
+]);
 
 /** Media URLs we accept from pages or imports. */
 export function isAllowedMediaUrl(input: string): boolean {

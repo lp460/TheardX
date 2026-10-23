@@ -68,6 +68,12 @@ describe('status URL normalisation', () => {
       handle: 'ada',
     });
     expect(parseXRoute('https://x.com/home')).toEqual({ kind: 'home' });
+    // The full-page view of a post's Article uses the post's ID.
+    expect(parseXRoute('https://x.com/make_claude/article/2105380835675312294')).toEqual({
+      kind: 'status',
+      id: '2105380835675312294',
+      handle: 'make_claude',
+    });
     expect(parseXRoute('https://x.com/ada')).toEqual({ kind: 'profile', handle: 'ada' });
     expect(parseXRoute('https://x.com/settings/account')).toEqual({ kind: 'other' });
     expect(parseXRoute('https://example.com/ada/status/1')).toEqual({ kind: 'other' });

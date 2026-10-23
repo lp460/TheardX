@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { CaptureMode } from '@/thread-engine';
-import type { Category, Collection, Completeness } from '@/types/model';
+import type { Category, Collection, Completeness, Platform } from '@/types/model';
 
 export interface PanelPreview {
   focalId: string;
@@ -47,10 +47,13 @@ export interface MenuState {
     saved: boolean;
     isFocal: boolean;
     onStatusPage: boolean;
+    platform?: Platform;
   } | null;
 }
 
 interface ContentStore {
+  /** Site of the page (wording of the injected UI). */
+  platform: Platform;
   menu: MenuState | null;
   /** Floating ThreadShelf button shown on X pages. */
   fabVisible: boolean;
@@ -75,6 +78,7 @@ interface ContentStore {
 let seq = 0;
 
 export const useContent = create<ContentStore>((set) => ({
+  platform: 'x',
   menu: null,
   fabVisible: false,
   tone: 'light',

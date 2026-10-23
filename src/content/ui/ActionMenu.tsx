@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { useContent, type MenuAction } from '../store';
+import { vocab } from '@/utils/vocab';
 
 interface Item {
   id: MenuAction;
@@ -42,23 +43,30 @@ export function ActionMenu({
   const [active, setActive] = useState(0);
 
   const info = menu?.info;
+  const platform = useContent((s) => s.platform);
+  const v = vocab(info?.platform ?? platform);
   const hasTarget = !!menu?.targetId && !!info;
   const count = info?.threadCount ?? 0;
+  const thread = v.theThread;
   const groups: Item[][] = hasTarget
     ? [
         [
           {
             id: 'save-thread',
-            label: count > 1 ? `Enregistrer le thread (${count})` : 'Enregistrer le thread',
-            hint: info?.onStatusPage ? undefined : 'Ouvrez la publication pour un thread vérifié',
+            label: count > 1 ? `Enregistrer ${thread} (${count})` : `Enregistrer ${thread}`,
+            hint: info?.onStatusPage ? undefined : v.openPostHint,
             icon: <Layers3 size={15} />,
           },
-          { id: 'save-tweet', label: 'Enregistrer cette publication', icon: <Save size={15} /> },
-          {
-            id: 'save-references',
-            label: 'Enregistrer avec citations et liens',
-            icon: <MessageSquareQuote size={15} />,
-          },
+          { id: 'save-tweet', label: `Enregistrer ${v.thisPost}`, icon: <Save size={15} /> },
+          ...(v.references
+            ? [
+                {
+                  id: 'save-references' as const,
+                  label: 'Enregistrer avec citations et liens',
+                  icon: <MessageSquareQuote size={15} />,
+                },
+              ]
+            : []),
           {
             id: 'select',
             label: 'Ajouter à une sélection…',
@@ -66,9 +74,9 @@ export function ActionMenu({
           },
         ],
         [
-          { id: 'copy-thread', label: 'Copier le thread (Markdown)', icon: <Copy size={15} /> },
-          { id: 'copy-tweet', label: 'Copier cette publication', icon: <Copy size={15} /> },
-          { id: 'copy-text', label: 'Copier le thread (texte brut)', icon: <FileText size={15} /> },
+          { id: 'copy-thread', label: `Copier ${thread} (Markdown)`, icon: <Copy size={15} /> },
+          { id: 'copy-tweet', label: `Copier ${v.thisPost}`, icon: <Copy size={15} /> },
+          { id: 'copy-text', label: `Copier ${thread} (texte brut)`, icon: <FileText size={15} /> },
         ],
         [
           { id: 'read', label: 'Lire dans ThreadShelf', icon: <BookOpen size={15} /> },
@@ -88,6 +96,14 @@ export function ActionMenu({
                 },
               ]
             : []),
+        ],
+        [
+          {
+            id: 'diagnostics' as const,
+            label: 'Copier un diagnostic de la page',
+            hint: 'Structure seulement, sans texte — pour signaler un problème',
+            icon: <Stethoscope size={15} />,
+          },
         ],
       ]
     : [
@@ -187,7 +203,7 @@ export function ActionMenu({
             </svg>
             ThreadShelf
             {info?.handle ? (
-              <span className="truncate font-normal text-muted">· @{info.handle}</span>
+              <span className="truncate font-normal text-muted">· {v.at(info.handle)}</span>
             ) : null}
             {info?.saved ? (
               <span className="ml-auto rounded-md bg-success/10 px-1.5 py-px text-[10.5px] font-medium text-success">

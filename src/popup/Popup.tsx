@@ -24,7 +24,10 @@ import type { ContentMessage, ContentState } from '@/messaging/protocol';
 import { repository } from '@/storage/repository';
 import { searchEntries } from '@/storage/search';
 import { domainOf } from '@/settings/schema';
+import { requestRedditAccess, useRedditAccess } from '@/components/RedditSettings';
 import { formatRelative } from '@/utils/format';
+import { entryAuthorLabel } from '@/utils/text';
+import { vocab } from '@/utils/vocab';
 
 type Status =
   | { kind: 'idle' }
@@ -99,7 +102,11 @@ export function Popup() {
     void refresh();
   };
 
+  const redditAccess = useRedditAccess();
+  const [redditError, setRedditError] = useState('');
   const focal = state?.focal;
+  const isReddit = state?.platform === 'reddit';
+  const v = vocab(state?.platform);
   const siteOff = domain && (!settings.enabled || settings.disabledDomains.includes(domain));
 
   return (
@@ -135,8 +142,8 @@ export function Popup() {
           </div>
         ) : !domain ? (
           <p className="text-[13px] leading-relaxed text-muted">
-            Ouvrez une publication sur <span className="font-medium text-fg">x.com</span> pour
-            l’enregistrer, la copier ou la lire.
+            Ouvrez une publication sur <span className="font-medium text-fg">x.com</span> ou un post
+            Reddit pour l’enregistrer, la copier ou la lire. Reddit s’active dans les Paramètres.
           </p>
         ) : siteOff ? (
           <div className="flex items-center justify-between gap-3">
@@ -156,7 +163,9 @@ export function Popup() {
           </div>
         ) : !state ? (
           <p className="text-[13px] leading-relaxed text-muted">
-            Rechargez l’onglet X pour activer ThreadShelf sur cette page.
+            {domain === 'reddit.com'
+              ? 'Activez Reddit dans les Paramètres de ThreadShelf, puis rechargez l’onglet.'
+              : 'Rechargez l’onglet X pour activer ThreadShelf sur cette page.'}
           </p>
         ) : focal ? (
           <div data-testid="popup-focal">
@@ -164,14 +173,13 @@ export function Popup() {
               <span className="truncate text-[13px] font-semibold text-fg">
                 {focal.name ?? focal.handle}
               </span>
-              <span className="truncate text-[12px] text-muted">@{focal.handle}</span>
+              <span className="truncate text-[12px] text-muted">{v.at(focal.handle)}</span>
             </div>
             <p className="mt-1 line-clamp-2 text-[12.5px] leading-snug text-muted">
               {focal.preview}
             </p>
             <div className="mt-2 flex items-center gap-2 text-[12px] text-muted">
-              <Layers3 size={13} /> {focal.threadCount} publication
-              {focal.threadCount > 1 ? 's' : ''} dans le thread détecté
+              <Layers3 size={13} /> {v.posts(focal.threadCount)} dans {v.theThread}
               {focal.savedEntryId ? (
                 <span className="ml-auto rounded-md bg-success/10 px-1.5 py-0.5 text-[11px] font-medium text-success">
                   Enregistré
@@ -184,10 +192,10 @@ export function Popup() {
                 onClick={() => run('save-thread', 'Enregistrement…')}
                 data-testid="popup-save-thread"
               >
-                <Save size={14} /> Thread
+                <Save size={14} /> {v.Thread}
               </Button>
               <Button variant="outline" onClick={() => run('save-tweet', 'Enregistrement…')}>
-                <Save size={14} /> Publication
+                <Save size={14} /> {isReddit ? 'Message seul' : 'Publication'}
               </Button>
               <Button variant="outline" onClick={() => run('copy-thread', 'Copie…')}>
                 <Copy size={14} /> Copier
@@ -195,13 +203,15 @@ export function Popup() {
               <Button variant="outline" onClick={() => run('open-reader', 'Ouverture…')}>
                 <BookOpen size={14} /> Lire
               </Button>
-              <Button
-                variant="ghost"
-                className="col-span-2"
-                onClick={() => run('save-references', 'Enregistrement…')}
-              >
-                <MessageSquareQuote size={14} /> Publication + citations et liens
-              </Button>
+              {v.references ? (
+                <Button
+                  variant="ghost"
+                  className="col-span-2"
+                  onClick={() => run('save-references', 'Enregistrement…')}
+                >
+                  <MessageSquareQuote size={14} /> Publication + citations et liens
+                </Button>
+              ) : null}
             </div>
             <div
               className={cn(
@@ -227,11 +237,41 @@ export function Popup() {
         ) : (
           <p className="text-[13px] leading-relaxed text-muted">
             {state.detected
-              ? `${state.detected} publication(s) détectée(s). Ouvrez-en une pour capturer son thread.`
+              ? isReddit
+                ? `${v.posts(state.detected)} détecté(s). Ouvrez un post pour enregistrer sa discussion.`
+                : `${state.detected} publication(s) détectée(s). Ouvrez-en une pour capturer son thread.`
               : 'Aucune publication détectée sur cette page.'}
           </p>
         )}
       </section>
+
+      {redditAccess === false ? (
+        <section
+          className="flex items-center justify-between gap-3 border-b border-line px-3.5 py-2.5"
+          aria-label="Reddit"
+          data-testid="popup-reddit"
+        >
+          <p className="text-[12.5px] leading-snug text-muted">
+            {redditError || 'Enregistrez aussi les posts et discussions Reddit.'}
+          </p>
+          <Button
+            size="sm"
+            variant="outline"
+            className="shrink-0"
+            onClick={() => {
+              // Called directly from the click: the browser shows its permission prompt.
+              requestRedditAccess()
+                .then((ok) => {
+                  if (ok) void refresh();
+                  else setRedditError('Accès refusé. Vous pourrez réessayer à tout moment.');
+                })
+                .catch((e: unknown) => setRedditError(e instanceof Error ? e.message : String(e)));
+            }}
+          >
+            <Power size={13} /> Activer Reddit
+          </Button>
+        </section>
+      ) : null}
 
       <section className="p-3.5" aria-label="Récents">
         <div className="relative">
@@ -263,7 +303,7 @@ export function Popup() {
                 >
                   <span className="block truncate text-[13px] text-fg">{e.title}</span>
                   <span className="flex items-center gap-1.5 text-[11.5px] text-faint">
-                    @{e.authorHandle} · {formatRelative(e.savedAt)}{' '}
+                    {entryAuthorLabel(e)} · {formatRelative(e.savedAt)}{' '}
                     {e.kind === 'thread' ? (
                       <CompletenessBadge completeness={e.completeness} compact />
                     ) : null}
@@ -296,7 +336,7 @@ export function Popup() {
             className="accent-[hsl(var(--ts-accent))]"
             data-testid="popup-enabled"
           />
-          Activé sur X
+          Activé
         </label>
         <button
           type="button"

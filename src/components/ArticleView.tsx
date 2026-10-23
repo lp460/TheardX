@@ -25,14 +25,18 @@ export function ArticleView({
 }) {
   const href = safeHref(article.url) ?? postUrl;
   const textCls = 'text-[15px] leading-relaxed text-fg';
+  // Inline bodies (Reddit posts and comments) are the post's own text: no Article frame.
+  const inline = !!article.inline;
   return (
-    <div className={cn('min-w-0', className)} data-testid="article-view">
-      <div className="mb-2 flex items-center gap-1.5 font-sans text-[11.5px] font-semibold uppercase tracking-wide text-faint">
-        <FileText size={12} /> Article X
-        {article.readingTime ? (
-          <span className="font-normal normal-case tracking-normal">· {article.readingTime}</span>
-        ) : null}
-      </div>
+    <div className={cn('min-w-0', className)} data-testid={inline ? 'post-body' : 'article-view'}>
+      {inline ? null : (
+        <div className="mb-2 flex items-center gap-1.5 font-sans text-[11.5px] font-semibold uppercase tracking-wide text-faint">
+          <FileText size={12} /> Article X
+          {article.readingTime ? (
+            <span className="font-normal normal-case tracking-normal">· {article.readingTime}</span>
+          ) : null}
+        </div>
+      )}
       {article.coverUrl ? (
         <MediaView
           item={{ kind: 'photo', url: article.coverUrl }}
@@ -43,27 +47,38 @@ export function ArticleView({
       ) : null}
       {article.title && !hideTitle ? (
         <h2
-          className="mb-4 text-[1.45em] font-semibold leading-tight tracking-[-0.015em] text-fg"
-          style={textStyle?.fontSize ? { fontSize: Number(textStyle.fontSize) * 1.35 } : undefined}
+          className={cn(
+            'font-semibold leading-tight tracking-[-0.015em] text-fg',
+            inline ? 'mb-3 text-[1.2em]' : 'mb-4 text-[1.45em]',
+          )}
+          style={
+            textStyle?.fontSize
+              ? { fontSize: Number(textStyle.fontSize) * (inline ? 1.15 : 1.35) }
+              : undefined
+          }
         >
           {article.title}
         </h2>
       ) : null}
       {article.partial ? (
         <p className="rounded-xl border border-dashed border-line bg-subtle/60 px-4 py-3 font-sans text-[13px] text-muted">
-          Seul l’aperçu de l’Article était affiché.{' '}
+          {inline
+            ? 'Seul un extrait du post était affiché.'
+            : 'Seul l’aperçu de l’Article était affiché.'}{' '}
           <a
             href={href}
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1 text-accent hover:underline"
           >
-            Ouvrez la publication <ExternalLink size={11} />
+            {inline ? 'Ouvrez le post' : 'Ouvrez la publication'} <ExternalLink size={11} />
           </a>{' '}
-          puis enregistrez à nouveau pour capturer l’Article complet.
+          {inline
+            ? 'puis enregistrez à nouveau pour capturer le texte complet.'
+            : 'puis enregistrez à nouveau pour capturer l’Article complet.'}
         </p>
       ) : null}
-      <div className="space-y-4">
+      <div className={inline ? 'space-y-3' : 'space-y-4'}>
         {(compact ? article.blocks.slice(0, 6) : article.blocks).map((b, i) => {
           switch (b.t) {
             case 'heading':

@@ -36,6 +36,11 @@ export function buildSearchText(
     if (t.card?.title) parts.push(t.card.title, t.card.domain ?? '');
     for (const m of t.media) if (m.alt) parts.push(m.alt);
     if (t.article) parts.push(articlePlainText(t.article));
+    if (t.platform === 'reddit') {
+      parts.push(`u/${t.author.handle}`);
+      if (t.reddit?.subreddit) parts.push(`r/${t.reddit.subreddit}`, t.reddit.subreddit);
+      if (t.reddit?.flair) parts.push(t.reddit.flair);
+    }
   }
   return fold(parts.filter(Boolean).join('\n'));
 }

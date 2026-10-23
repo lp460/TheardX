@@ -1,7 +1,18 @@
 import type { EntryBundle, Segment, Tweet } from '@/types/model';
 import { cashtagUrl, hashtagUrl, linkLabel, profileUrl, safeHref } from '@/utils/url';
 import { articleToHtml, textIsOnlyArticleLink } from './article';
-import { dayString, mediaLabel, toView, type ExportOptions } from './model';
+import {
+  authorHref,
+  commentLevel,
+  dayString,
+  mediaLabel,
+  redditMeta,
+  siteName,
+  toView,
+  who,
+  withoutRepeatedTitle,
+  type ExportOptions,
+} from './model';
 
 export function escapeHtml(input: string): string {
   return input
@@ -64,10 +75,10 @@ function post(t: Tweet, opts: ExportOptions, index?: string): string {
     if (m.kind === 'photo') parts.push(img(m.url, m.alt, opts));
     else
       parts.push(
-        `<p class="media-ref">${a(safeHref(m.playbackUrl ?? t.url), `${mediaLabel(m.kind)} — voir sur X`)}</p>`,
+        `<p class="media-ref">${a(safeHref(m.playbackUrl ?? t.url), `${mediaLabel(m.kind)} — voir sur ${siteName(t.platform)}`)}</p>`,
       );
   }
-  if (t.card && !t.article) {
+  if (t.card && (!t.article || t.article.inline)) {
     parts.push(
       `<p class="card">${a(safeHref(t.card.url), t.card.title ?? t.card.domain ?? t.card.url)}${t.card.domain ? ` <span class="muted">${escapeHtml(t.card.domain)}</span>` : ''}</p>`,
     );
@@ -87,8 +98,15 @@ function post(t: Tweet, opts: ExportOptions, index?: string): string {
   }
   if (opts.includeUrls !== false)
     parts.push(
-      `<div class="link">${a(safeHref(t.url), 'Voir la publication sur X')}${t.createdAt ? ` · ${escapeHtml(dayString(t.createdAt))}` : ''}</div>`,
+      `<div class="link">${a(safeHref(t.url), t.platform === 'reddit' ? 'Voir sur Reddit' : 'Voir la publication sur X')}${t.createdAt ? ` · ${escapeHtml(dayString(t.createdAt))}` : ''}</div>`,
     );
+  if (t.platform === 'reddit') {
+    const level = commentLevel(t);
+    const head = `<div class="num">${escapeHtml(redditMeta(t))}</div>`;
+    return level
+      ? `<article class="comment" style="margin-left:${(level - 1) * 22}px">${head}${parts.join('')}</article>`
+      : `<article>${head}${parts.join('')}</article>`;
+  }
   return `<article>${parts.join('')}</article>`;
 }
 
@@ -103,7 +121,7 @@ article{padding:20px 0;border-bottom:1px solid var(--line)}.num{font:600 12px -a
 p{margin:0 0 .8em}a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
 figure{margin:16px 0}img{max-width:100%;height:auto;border-radius:12px;display:block}figcaption{font:14px/1.5 -apple-system,system-ui,sans-serif;color:var(--muted);margin-top:6px}
 pre{overflow-x:auto;padding:12px 14px;border-radius:10px;background:var(--quote);font:13px/1.55 ui-monospace,Menlo,monospace}code{font-family:ui-monospace,Menlo,monospace}.article h2{font:600 1.35em/1.3 -apple-system,system-ui,sans-serif;margin:18px 0 6px}.article h3,.article h4,.article h5{font:600 1.1em/1.35 -apple-system,system-ui,sans-serif;margin:22px 0 6px}hr{border:none;border-top:1px solid var(--line);margin:24px auto;width:80px}blockquote{margin:16px 0;padding:14px 16px;border-radius:12px;background:var(--quote);font-size:.92em}.q-head{font:600 14px -apple-system,system-ui,sans-serif;margin-bottom:6px}
-.muted{color:var(--muted)}.link,.media-ref,.card{font:14px -apple-system,system-ui,sans-serif}.context{opacity:.8}
+.comment{padding:12px 0 12px 16px;border-bottom:none;border-left:2px solid var(--line);font-size:.92em}.muted{color:var(--muted)}.link,.media-ref,.card{font:14px -apple-system,system-ui,sans-serif}.context{opacity:.8}
 footer{margin-top:40px;font:13px -apple-system,system-ui,sans-serif;color:var(--muted)}
 @media print{body{background:#fff;color:#000;font-size:12pt}main{max-width:none;padding:0}article{break-inside:avoid}a{color:#000}}
 `;
@@ -113,8 +131,10 @@ export function toHtml(b: EntryBundle, opts: ExportOptions = {}): string {
   const v = toView(b, opts);
   const total = v.posts.length;
   const body: string[] = [];
+  const reddit = v.platform === 'reddit';
+  const sub = v.posts.find((t) => t.reddit?.subreddit)?.reddit?.subreddit;
   body.push(
-    `<header><h1>${escapeHtml(v.title || `Publication de @${v.author.handle}`)}</h1><div class="meta">${v.author.name ? `${escapeHtml(v.author.name)} · ` : ''}${a(profileUrl(v.author.handle), `@${v.author.handle}`)}${v.publishedAt ? ` · ${escapeHtml(dayString(v.publishedAt))}` : ''}<br>${escapeHtml(v.statusLine)} · ${a(safeHref(v.sourceUrl), 'Source')}</div>${v.incomplete ? '<div class="warn">Ce thread n’a pas pu être vérifié comme complet.</div>' : ''}</header>`,
+    `<header><h1>${escapeHtml(v.title || `Publication de ${who(v.author.handle, v.platform)}`)}</h1><div class="meta">${v.author.name ? `${escapeHtml(v.author.name)} · ` : ''}${reddit && sub ? `${a(`https://www.reddit.com/r/${encodeURIComponent(sub)}/`, `r/${sub}`)} · ` : ''}${a(authorHref(v.author.handle, v.platform), who(v.author.handle, v.platform))}${v.publishedAt ? ` · ${escapeHtml(dayString(v.publishedAt))}` : ''}<br>${escapeHtml(v.statusLine)} · ${a(safeHref(v.sourceUrl), 'Source')}</div>${v.incomplete ? `<div class="warn">${reddit ? 'Des commentaires n’étaient pas chargés au moment de l’enregistrement.' : 'Ce thread n’a pas pu être vérifié comme complet.'}</div>` : ''}</header>`,
   );
   if (v.context.length) {
     body.push(
@@ -122,7 +142,11 @@ export function toHtml(b: EntryBundle, opts: ExportOptions = {}): string {
     );
   }
   v.posts.forEach((t, i) =>
-    body.push(post(t, opts, total > 1 ? `${i + 1} / ${total}` : undefined)),
+    body.push(
+      reddit
+        ? post(withoutRepeatedTitle(t, v.title), opts)
+        : post(t, opts, total > 1 ? `${i + 1} / ${total}` : undefined),
+    ),
   );
   if (v.references.length)
     body.push(`<h2 class="meta">Références</h2>${v.references.map((r) => post(r, opts)).join('')}`);
@@ -131,7 +155,7 @@ export function toHtml(b: EntryBundle, opts: ExportOptions = {}): string {
       `<section><h2 class="meta">Note personnelle</h2>${segmentsToHtml([{ t: 'text', v: v.note.trim() }])}</section>`,
     );
   body.push(
-    `<footer>Exporté avec ThreadShelf le ${escapeHtml(dayString(Date.now()))}. Contenu publié par son auteur sur X.</footer>`,
+    `<footer>Exporté avec ThreadShelf le ${escapeHtml(dayString(Date.now()))}. Contenu publié par ses auteurs sur ${siteName(v.platform)}.</footer>`,
   );
   return `<!doctype html>
 <html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">

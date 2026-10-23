@@ -19,6 +19,7 @@ import { detectCapabilities, shortcutsUrl } from '@/utils/browser';
 import { downloadFile } from '@/utils/download';
 import { formatBytes, isoDay } from '@/utils/format';
 import { useSettings } from './hooks';
+import { RedditSettings } from './RedditSettings';
 import { SyncSettings } from './SyncSettings';
 import { toast } from './ToastNotification';
 import { Button } from './ui/Button';
@@ -236,8 +237,9 @@ export function SettingsPanel() {
           onChange={(v) => update({ floatingButton: v })}
           disabled={!s.enabled || !s.injectUi}
           label="Bouton flottant ThreadShelf"
-          description="Bouton toujours visible en bas à droite de X, qui ouvre toutes les actions."
+          description="Bouton toujours visible en bas à droite des pages, qui ouvre toutes les actions."
         />
+        <RedditSettings />
         <Switch
           id="set-notif"
           checked={s.notifications}
@@ -247,7 +249,7 @@ export function SettingsPanel() {
         />
         <Row label="Domaines" description="Activer ThreadShelf par domaine.">
           <div className="flex gap-3 text-[13px]">
-            {(['x.com', 'twitter.com'] as const).map((d) => (
+            {(['x.com', 'twitter.com', 'reddit.com'] as const).map((d) => (
               <label key={d} className="flex items-center gap-1.5">
                 <input
                   type="checkbox"

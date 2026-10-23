@@ -3,6 +3,7 @@
  * imported backup files. Strings are bounded, IDs and URLs are checked, unknown keys are dropped.
  */
 import { z } from 'zod';
+import { REDDIT_THING_RE, REDDIT_USER_RE, SUBREDDIT_RE } from '@/utils/reddit-url';
 import { HANDLE_RE, TWEET_ID_RE, isAllowedMediaUrl, safeHref } from '@/utils/url';
 
 // Never try to compile validators with `new Function` — forbidden by the extension CSP (no eval).
@@ -10,13 +11,21 @@ z.config({ jitless: true });
 
 const MAX_TEXT = 20_000;
 const str = (max = 2_000) => z.string().max(max);
-export const tweetId = z.string().regex(TWEET_ID_RE);
-export const handle = z.string().regex(HANDLE_RE);
+/** X post ID or Reddit thing ID (t3_ post, t1_ comment). */
+export const tweetId = z
+  .string()
+  .max(40)
+  .refine((v) => TWEET_ID_RE.test(v) || REDDIT_THING_RE.test(v), 'invalid post id');
+/** X handle or Reddit username. */
+export const handle = z
+  .string()
+  .max(40)
+  .refine((v) => HANDLE_RE.test(v) || REDDIT_USER_RE.test(v), 'invalid handle');
 const httpUrl = z
   .string()
   .max(4_000)
   .refine((u) => safeHref(u) !== null, 'http(s) URL required');
-const mediaUrl = z.string().max(2_000).refine(isAllowedMediaUrl, 'twimg URL required');
+const mediaUrl = z.string().max(2_000).refine(isAllowedMediaUrl, 'media host not allowed');
 const isoDate = z
   .string()
   .max(40)
@@ -98,10 +107,26 @@ export const articleSchema = z.object({
   readingTime: str(80).optional(),
   blocks: z.array(articleBlockSchema).max(2_000),
   partial: z.boolean().optional(),
+  inline: z.boolean().optional(),
+});
+
+export const redditMetaSchema = z.object({
+  kind: z.enum(['post', 'comment']),
+  subreddit: z.string().regex(SUBREDDIT_RE).optional(),
+  postId: z.string().regex(REDDIT_THING_RE),
+  parentId: z.string().regex(REDDIT_THING_RE).optional(),
+  depth: z.number().int().nonnegative().max(1_000).optional(),
+  position: z.number().int().nonnegative().max(1_000_000).optional(),
+  score: z.number().int().min(-10_000_000).max(1_000_000_000).optional(),
+  commentCount: z.number().int().nonnegative().max(100_000_000).optional(),
+  flair: str(200).optional(),
+  isOp: z.boolean().optional(),
 });
 
 export const tweetSchema = z.object({
   id: tweetId,
+  platform: z.enum(['x', 'reddit']).optional(),
+  reddit: redditMetaSchema.optional(),
   url: httpUrl,
   author: authorSchema,
   createdAt: isoDate.optional(),
@@ -120,7 +145,7 @@ export const tweetSchema = z.object({
   facts: factsSchema.optional(),
   firstSeenAt: ts,
   lastSeenAt: ts,
-  source: z.enum(['xds', 'classic', 'import']).optional(),
+  source: z.enum(['xds', 'classic', 'reddit', 'import']).optional(),
 });
 
 export const relationSchema = z.object({
@@ -128,7 +153,15 @@ export const relationSchema = z.object({
   type: z.enum(['reply', 'quote', 'link']),
   parentId: tweetId,
   childId: tweetId,
-  source: z.enum(['ancestor-chain', 'connector', 'quote-card', 'text-link', 'import']),
+  source: z.enum([
+    'ancestor-chain',
+    'connector',
+    'quote-card',
+    'text-link',
+    'import',
+    'author-reply',
+    'reddit-tree',
+  ]),
   gap: z.boolean().optional(),
   observedAt: ts,
 });
@@ -163,6 +196,7 @@ const entityId = z
 
 export const entrySchema = z.object({
   id: entityId,
+  platform: z.enum(['x', 'reddit']).optional(),
   kind: z.enum(['tweet', 'thread', 'references', 'selection']),
   title: str(500),
   authorHandle: handle,

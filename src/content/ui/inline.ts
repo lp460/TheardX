@@ -2,6 +2,8 @@
  * Small vanilla elements injected next to X's own controls, each isolated in its own Shadow DOM.
  * They never replace or hide native controls; they are appended after them.
  */
+import type { Platform } from '@/types/model';
+import { vocab } from '@/utils/vocab';
 
 const LOGO = `<svg viewBox="0 0 32 32" width="18" height="18" aria-hidden="true"><rect x="1" y="1" width="30" height="30" rx="8.5" fill="currentColor" opacity=".14"/><rect x="8" y="8" width="16" height="3.2" rx="1.6" fill="currentColor"/><rect x="8" y="13.6" width="12" height="3.2" rx="1.6" fill="currentColor" opacity=".8"/><rect x="8" y="19.2" width="8" height="3.2" rx="1.6" fill="currentColor" opacity=".6"/></svg>`;
 const CHECK = `<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>`;
@@ -102,6 +104,7 @@ button:hover{background:${p.hover};color:${p.accent}}
 /* ---------------------------------------------------------------- focal-post bar ---------------------------------------------------------------- */
 
 export interface BarState {
+  platform?: Platform;
   tone: Tone;
   saved: boolean;
   count: number;
@@ -159,13 +162,13 @@ button.primary{color:${p.accent}}
       s.status === 'busy'
         ? 'Enregistrement…'
         : s.count > 1
-          ? `${s.count} publications${s.status === 'incomplete' ? ' · incomplet' : ''}`
+          ? `${vocab(s.platform).posts(s.count)}${s.status === 'incomplete' ? ' · incomplet' : ''}`
           : s.saved
             ? 'Enregistré'
             : '';
     this.wrap.innerHTML = `<span class="brand">${LOGO}ThreadShelf</span>
-<button class="primary" data-act="save" aria-label="${label} le thread">${label}</button><span class="sep"></span>
-<button data-act="copy" aria-label="Copier le thread">Copier</button><span class="sep"></span>
+<button class="primary" data-act="save" aria-label="${label} ${vocab(s.platform).theThread}">${label}</button><span class="sep"></span>
+<button data-act="copy" aria-label="Copier ${vocab(s.platform).theThread}">Copier</button><span class="sep"></span>
 <button data-act="read" aria-label="Lire dans ThreadShelf">Lire</button><span class="sep"></span>
 <button data-act="more" aria-label="Toutes les actions ThreadShelf" aria-haspopup="menu">•••</button>
 ${meta ? `<span class="meta">${s.status !== 'busy' ? '<span class="dot"></span>' : ''}${meta}</span>` : ''}`;

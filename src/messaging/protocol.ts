@@ -3,6 +3,7 @@
  * Every incoming request is validated with zod before being handled.
  */
 import { z } from 'zod';
+import { REDDIT_THING_RE } from '@/utils/reddit-url';
 import { factsSchema, relationSchema, tweetId, tweetSchema } from '@/storage/validation';
 import type { Category, Collection, Entry } from '@/types/model';
 import type { SaveResult } from '@/storage/repository';
@@ -24,6 +25,13 @@ export const captureRequest = z.object({
     selection: z.array(tweetId).max(2_000).optional(),
     pageUrl: z.string().url().max(2_000),
     pageKind: z.string().max(20).optional(),
+    reddit: z
+      .object({
+        postId: z.string().regex(REDDIT_THING_RE),
+        announced: z.number().int().nonnegative().max(100_000_000).optional(),
+        moreControls: z.number().int().nonnegative().max(100_000),
+      })
+      .optional(),
     options: z
       .object({
         entryId: entityId.optional(),
@@ -132,6 +140,7 @@ export type ContentMessage = z.infer<typeof contentMessageSchema>;
 
 export interface ContentState {
   active: boolean;
+  platform?: 'x' | 'reddit';
   supported: boolean;
   layout: string;
   route: string;

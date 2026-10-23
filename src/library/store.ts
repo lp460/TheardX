@@ -64,6 +64,7 @@ interface LibraryState {
   readFilter: ReadFilter;
   favoritesOnly: boolean;
   categoryFilter: string;
+  platformFilter: '' | 'x' | 'reddit';
   selected: Set<string>;
   commandOpen: boolean;
   setView: (v: View) => void;
@@ -72,6 +73,7 @@ interface LibraryState {
   setReadFilter: (r: ReadFilter) => void;
   setFavoritesOnly: (v: boolean) => void;
   setCategoryFilter: (c: string) => void;
+  setPlatformFilter: (p: '' | 'x' | 'reddit') => void;
   toggleSelected: (id: string) => void;
   setSelected: (ids: string[]) => void;
   clearSelection: () => void;
@@ -85,6 +87,7 @@ export const useLibrary = create<LibraryState>((set) => ({
   readFilter: 'all',
   favoritesOnly: false,
   categoryFilter: '',
+  platformFilter: '',
   selected: new Set(),
   commandOpen: false,
   setView: (view) => {
@@ -97,6 +100,7 @@ export const useLibrary = create<LibraryState>((set) => ({
   setReadFilter: (readFilter) => set({ readFilter }),
   setFavoritesOnly: (favoritesOnly) => set({ favoritesOnly }),
   setCategoryFilter: (categoryFilter) => set({ categoryFilter }),
+  setPlatformFilter: (platformFilter) => set({ platformFilter }),
   toggleSelected: (id) =>
     set((s) => {
       const next = new Set(s.selected);

@@ -36,10 +36,19 @@ function expandedLinkUrl(a: Element): string | null {
   return cleanExternalUrl(href) ?? safeHref(href);
 }
 
-function classifyAnchor(a: Element): Segment | null {
+/** Site the text comes from: relative links resolve against it; X-only entities only on X. */
+export type TextOrigin = 'x' | 'reddit';
+
+function classifyAnchor(a: Element, origin: TextOrigin = 'x'): Segment | null {
   const href = a.getAttribute('href') ?? '';
   const text = (a.textContent ?? '').trim();
   if (!href) return text ? { t: 'text', v: text } : null;
+  if (origin === 'reddit') {
+    // Reddit: plain links (r/…, u/… and external), relative ones resolved on reddit.com.
+    const url = cleanExternalUrl(href.startsWith('/') ? `https://www.reddit.com${href}` : href);
+    if (!url) return text ? { t: 'text', v: text } : null;
+    return { t: 'link', v: text || url, href: url };
+  }
 
   if (href.startsWith('/hashtag/')) {
     const tag = decodeURIComponent(href.slice('/hashtag/'.length).split(/[?#]/)[0] ?? '');
@@ -67,7 +76,10 @@ function classifyAnchor(a: Element): Segment | null {
  * Converts a post text container into structured segments: text, links, mentions, hashtags,
  * cashtags. Emoji images become their alt text. Scripts, buttons ("Show more") and SVGs are ignored.
  */
-export function extractRichText(container: Element, opts: { marks?: boolean } = {}): Segment[] {
+export function extractRichText(
+  container: Element,
+  opts: { marks?: boolean; origin?: TextOrigin } = {},
+): Segment[] {
   const out: Segment[] = [];
   const text = (v: string, b: boolean, i: boolean): Segment => {
     const seg: Segment = { t: 'text', v };
@@ -94,13 +106,21 @@ export function extractRichText(container: Element, opts: { marks?: boolean } = 
       return;
     }
     if (el.tagName === 'A') {
-      const seg = classifyAnchor(el);
+      const seg = classifyAnchor(el, opts.origin);
       if (seg) out.push(seg);
       return;
     }
     if (el.getAttribute('data-testid') === 'tweet-text-show-more-link') return;
-    const bold = b || el.tagName === 'B' || el.tagName === 'STRONG';
-    const italic = i || el.tagName === 'I' || el.tagName === 'EM';
+    // Draft.js (signed-in X Articles) expresses bold / italic as inline styles.
+    const style = (el as HTMLElement).style;
+    const weight = style?.fontWeight ?? '';
+    const bold =
+      b ||
+      el.tagName === 'B' ||
+      el.tagName === 'STRONG' ||
+      weight === 'bold' ||
+      Number(weight) >= 600;
+    const italic = i || el.tagName === 'I' || el.tagName === 'EM' || style?.fontStyle === 'italic';
     el.childNodes.forEach((n) => walk(n, bold, italic));
   };
   container.childNodes.forEach((n) => walk(n, false, false));

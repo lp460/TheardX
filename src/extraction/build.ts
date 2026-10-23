@@ -115,7 +115,20 @@ export function buildTweet(raw: RawTweet, now = Date.now()): Tweet | null {
   if (raw.card) tweet.card = raw.card;
   if (raw.quoted) tweet.quoted = { ...raw.quoted, media: dedupeMedia(raw.quoted.media ?? []) };
   if (raw.replyingTo?.length) tweet.replyingTo = raw.replyingTo;
-  if (raw.article) tweet.article = raw.article;
+  if (raw.article) {
+    tweet.article = raw.article;
+    // Images that belong to the Article body are not also the post's own media.
+    const key = (u: string) => (u.split('?')[0] ?? u).replace(/\.\w+$/, '');
+    const inArticle = new Set(
+      [
+        raw.article.coverUrl,
+        ...raw.article.blocks.map((b) => (b.t === 'image' ? b.media.url : undefined)),
+      ]
+        .filter((u): u is string => !!u)
+        .map(key),
+    );
+    if (inArticle.size) tweet.media = tweet.media.filter((m) => !inArticle.has(key(m.url)));
+  }
   return tweet;
 }
 

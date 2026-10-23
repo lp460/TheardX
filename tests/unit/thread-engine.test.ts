@@ -116,8 +116,32 @@ describe('uncertain structures', () => {
     const t = threadPosts(3).map((p) => ({ ...p, above: false, below: false }));
     const { graph } = graphFor('xds', t, t[0]!);
     const r = reconstructAuthorThread(graph, t[0]!.id);
-    expect(r.orderedIds).toEqual([t[0]!.id]);
+    // The author's own replies listed right below the post are its continuation…
+    expect(r.orderedIds).toEqual(t.map((p) => p.id));
+    // …but nothing shows that the author stopped there.
     expect(r.completeness.status).not.toBe('complete');
+  });
+
+  it('signed-in X: the author’s own replies under the post, drawn without thread lines, are the thread', () => {
+    // Observed on x.com signed in (Oct. 2026): the author's two replies come first, with no line;
+    // other accounts' reply chains below do have lines (so the line detector is « validated »).
+    const t = threadPosts(3).map((p) => ({ ...p, above: false, below: false }));
+    const other = { ...replies(1, 'ada_dev')[0]!, below: true };
+    const answer = {
+      id: '2089000000000000999',
+      handle: 'ada_dev',
+      text: 'Answering a reader, not part of the thread.',
+      above: true,
+    };
+    const late = replies(2, 'ada_dev')[1]!;
+    for (const layout of ['classic', 'xds'] as const) {
+      const { graph } = graphFor(layout, [...t, other, answer, late], t[0]!);
+      const r = reconstructAuthorThread(graph, t[0]!.id, { pageKind: 'status' });
+      expect(r.orderedIds).toEqual(t.map((p) => p.id));
+      expect(r.orderedIds).not.toContain(answer.id);
+      expect(r.completeness.status).toBe('complete');
+      expect(graph.relations.get(`reply:${t[0]!.id}>${t[1]!.id}`)?.source).toBe('author-reply');
+    }
   });
 
   it('does not treat chronology or authorship alone as proof', () => {

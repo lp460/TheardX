@@ -16,6 +16,7 @@ import type { Category, Collection, Entry } from '@/types/model';
 import { searchEntries } from '@/storage/search';
 import { formatDate } from '@/utils/format';
 import { Kbd } from './ui/primitives';
+import { entryAuthorLabel } from '@/utils/text';
 
 export interface CommandAction {
   id: string;
@@ -110,7 +111,7 @@ export function SearchCommand({
                       <BookOpen size={14} className="shrink-0 text-muted" />
                       <span className="min-w-0 flex-1 truncate">{e.title}</span>
                       <span className="shrink-0 text-[11.5px] text-faint">
-                        @{e.authorHandle}
+                        {entryAuthorLabel(e)}
                         {e.publishedAt ? ` · ${formatDate(e.publishedAt)}` : ''}
                       </span>
                       <button

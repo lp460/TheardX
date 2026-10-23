@@ -1,6 +1,6 @@
 # ThreadShelf
 
-Enregistrez, lisez, copiez et organisez les publications et threads de X.com. Extension Manifest V3 conçue pour **Arc sur macOS**, compatible Chrome, Brave, Edge et autres navigateurs Chromium.
+Enregistrez, lisez, copiez et organisez les publications et threads de X.com, et les discussions Reddit (facultatif). Extension Manifest V3 conçue pour **Arc sur macOS**, compatible Chrome, Brave, Edge et autres navigateurs Chromium.
 
 Pocket + mode lecture + gestionnaire de favoris, spécialisé pour X. Tout reste dans votre navigateur : pas de compte, pas de serveur, aucune télémétrie.
 
@@ -8,6 +8,13 @@ Pocket + mode lecture + gestionnaire de favoris, spécialisé pour X. Tout reste
 
 - **Détection automatique, enregistrement sur action.** Sur x.com et twitter.com, ThreadShelf reconnaît les publications affichées par X, dans la mise en page actuelle comme dans la mise en page « classique » `data-testid`. Rien n'est enregistré sans action de votre part.
 - **Un bouton ThreadShelf sur X.** Chaque publication reçoit un bouton ThreadShelf (violet) à la fin de sa barre d'actions. Un clic ouvre un menu avec **toutes les actions** : enregistrer le thread, la publication ou la publication avec ses références ; ajouter à une sélection ; copier (thread en Markdown, publication, texte brut) ; lire ; collection, tags et note ; bibliothèque ; supprimer la sauvegarde. Un **bouton flottant** « ThreadShelf », toujours visible en bas à droite, ouvre le même menu pour la publication en cours de lecture. Sous la publication ouverte, la barre `ThreadShelf · Enregistrer | Copier | Lire | •••` reste disponible. Les commandes natives de X ne sont jamais masquées.
+- **Reddit (facultatif).** Paramètres → Général → « Activer ThreadShelf sur Reddit » : le navigateur demande l’accès à reddit.com. Ensuite, chaque post et chaque commentaire reçoit le bouton ThreadShelf.
+  - **Discussion** : le post et ses commentaires chargés, en arbre.
+  - **Message seul** : un post, ou un commentaire avec les messages auxquels il répond.
+  - **Sélection** de commentaires.
+  - Les réponses dépliées ensuite (« more replies ») sont ajoutées à la même entrée.
+  - Le lecteur indente les commentaires par niveau. Les exports gardent l’arbre : citations imbriquées en Markdown, indentation en texte.
+  - Seul le Reddit actuel (www.reddit.com) est pris en charge, pas old.reddit.com.
 - **Articles X.** Les publications longues (Articles) sont enregistrées en entier : titre, couverture, intertitres, paragraphes, listes, citations, blocs de code, images.
 - **Traduction.** Dans le lecteur, « Traduire » traduit le thread ou l’Article avec le traducteur intégré au navigateur (Google Chrome 138+), sur l’appareil et sans envoi de données. Les traductions sont gardées hors ligne, copiables et exportables. Si le navigateur ne le propose pas, un bouton ouvre Google Traduction, uniquement sur votre clic.
 - **Quatre modes de capture :**

@@ -50,6 +50,8 @@ const ALLOWED_PERMS = new Set([
   'contextMenus',
   'clipboardWrite',
   'alarms',
+  // Only used to register the Reddit content script on hosts the user granted (optional permission).
+  'scripting',
 ]);
 for (const p of m.permissions ?? []) if (!ALLOWED_PERMS.has(p)) fail(`unexpected permission: ${p}`);
 for (const p of [
@@ -58,13 +60,23 @@ for (const p of [
   'webRequest',
   'history',
   '<all_urls>',
-  'scripting',
   'debugger',
 ]) {
   if ((m.permissions ?? []).includes(p) || (m.host_permissions ?? []).includes(p))
     fail(`forbidden permission: ${p}`);
 }
-const OPTIONAL_HOSTS = new Set(['https://github.com/*', 'https://api.github.com/*']);
+const OPTIONAL_HOSTS = new Set([
+  'https://github.com/*',
+  'https://api.github.com/*',
+  'https://www.reddit.com/*',
+  'https://reddit.com/*',
+  'https://i.redd.it/*',
+  'https://preview.redd.it/*',
+  'https://cf.preview.redd.it/*',
+  'https://external-preview.redd.it/*',
+  'https://styles.redditmedia.com/*',
+  'https://www.redditstatic.com/*',
+]);
 if ((m.optional_host_permissions ?? []).some((h) => !OPTIONAL_HOSTS.has(h)))
   fail(`optional_host_permissions too broad: ${m.optional_host_permissions}`);
 if ((m.host_permissions ?? []).some((h) => !/^https:\/\/pbs\.twimg\.com\/\*$/.test(h)))

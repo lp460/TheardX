@@ -27,9 +27,75 @@ export interface PostSpec {
   verified?: boolean;
   /** Long-form X Article: body HTML reproduces X's markup (p/span, h3, hr, figure, code blocks). */
   article?: { title: string; body: string; cover?: boolean; full?: boolean };
+  /** Signed-in (classic) rendering of an Article: Draft.js blocks, see draftBlock(). */
+  draftArticle?: { title: string; blocks: string };
 }
 
 /** A code block as X renders it inside an Article. */
+/** One Draft.js block as rendered by the signed-in X app. Inline runs: [text, 'b' | 'i' | ''][]. */
+export function draftBlock(
+  type: string,
+  runs: [string, string?][],
+  key = `k${Math.random().toString(36).slice(2, 7)}`,
+): string {
+  const spans = runs
+    .map(([v, mark], i) => {
+      const style =
+        mark === 'b'
+          ? ' style="font-weight: bold;"'
+          : mark === 'i'
+            ? ' style="font-style: italic;"'
+            : '';
+      return `<span data-offset-key="${key}-0-${i}"${style}><span data-text="true">${esc(v)}</span></span>`;
+    })
+    .join('');
+  const inner = `<div data-offset-key="${key}-0-0" class="public-DraftStyleDefault-block public-DraftStyleDefault-ltr">${spans}</div>`;
+  const attrs = `class="longform-${type}" data-block="true" data-editor="ed" data-offset-key="${key}-0-0"`;
+  // Headings are real <h1>–<h3> wrapped in a dir="ltr" div (observed on x.com, Oct. 2026).
+  const h = { 'header-one': 'h1', 'header-two': 'h2', 'header-three': 'h3' }[type];
+  return h
+    ? `<div dir="ltr" class="css-175oi2r"><${h} ${attrs}>${inner}</${h}></div>`
+    : `<div ${attrs}>${inner}</div>`;
+}
+
+const atomic = (inner: string) =>
+  `<section class="css-175oi2r" data-block="true" data-editor="ed" data-offset-key="a${tco++}-0-0" contenteditable="false"><div class="css-175oi2r">${inner}</div></section>`;
+
+/** Atomic image block of a signed-in Article. */
+export function draftPhoto(src: string, handle = 'make_claude', id = '1'): string {
+  return atomic(
+    `<div class="css-175oi2r"><div class="css-175oi2r"><a href="/${handle}/article/${id}/media/${tco++}" role="link" class="css-175oi2r"><div class="css-175oi2r"><div class="css-175oi2r"></div><div class="css-175oi2r"><div data-testid="tweetPhoto" class="css-175oi2r"><div class="css-175oi2r"></div><img alt="Image" draggable="true" src="${src}" class="css-9pa8cd"></div></div></div></a></div></div>`,
+  );
+}
+
+/** Atomic separator block. */
+export function draftSeparator(): string {
+  return atomic('<div role="separator" class="css-175oi2r"></div>');
+}
+
+/** Atomic code block: language header, copy button, Prism-highlighted <pre><code>. */
+export function draftCode(lang: string, lines: string[]): string {
+  const code = lines
+    .map((l) =>
+      l
+        .split(/(\s+)/)
+        .map((t, i) => (i % 2 ? t : `<span class="token">${esc(t)}</span>`))
+        .join(''),
+    )
+    .join('\n');
+  return atomic(
+    `<div data-testid="markdown-code-block" class="css-175oi2r"><div class="css-175oi2r"><div dir="ltr" class="css-146c3p1"><span class="css-1jxf684">${lang}</span></div><div class="css-175oi2r"><button role="button" aria-label="Copier le code" class="css-175oi2r"><div dir="ltr"><div><span></span></div></div></button></div></div><pre><code class="language-${lang}">${code}</code></pre></div>`,
+  );
+}
+
+function classicDraftArticle(p: PostSpec): string {
+  const a = p.draftArticle!;
+  // Observed on x.com (signed in, Oct. 2026): the read view is a nested <article>; the cover is its
+  // first photo, then the title, an action group, the Draft.js body and a status line.
+  const cover = `<div class="css-175oi2r"><div class="css-175oi2r"><div class="css-175oi2r"><div class="css-175oi2r"><div class="css-175oi2r"><a href="/${p.handle}/article/${p.id}/media/${p.id}0" role="link"><div><div></div><div><div data-testid="tweetPhoto"><div></div><img alt="Image" draggable="true" src="https://pbs.twimg.com/media/Cover${p.id}?format=jpg&amp;name=large" class="css-9pa8cd"></div></div></div></a></div></div></div></div></div>`;
+  return `<div class="css-175oi2r"><div class="css-175oi2r r-16y2uox"><div class="css-175oi2r"><article role="article" tabindex="-1" class="css-175oi2r" data-testid="twitterArticleReadView">${cover}<div class="css-175oi2r"><div class="css-175oi2r"><div dir="auto" class="css-146c3p1" data-testid="twitter-article-title"><span class="css-1jxf684">${esc(a.title)}</span></div></div><div class="css-175oi2r"><div role="group" class="css-175oi2r"><div></div><div></div><div></div></div></div><div class="css-175oi2r" data-testid="twitterArticleRichTextView"><div class="css-175oi2r"><div class="DraftEditor-root"><div class="DraftEditor-editorContainer"><div class="public-DraftEditor-content" contenteditable="false" data-testid="longformRichTextComponent"><div data-contents="true">${a.blocks}</div></div></div></div></div></div><div class="css-175oi2r"><div role="status" class="css-175oi2r"><div></div></div></div></div></article></div></div></div>`;
+}
+
 export function articleCode(lang: string, lines: string[]): string {
   return `<div><div class="flex"><span>${esc(lang)}</span><button data-slot="xds-button" aria-label="Copier le code" type="button"><span><svg></svg></span></button></div><div><pre tabindex="0"><code>${lines.map((l) => `<span><span>${esc(l)}</span></span>`).join('\n')}</code></pre></div></div>`;
 }
@@ -195,7 +261,7 @@ function classicArticle(p: PostSpec, nested = false): string {
   const group = nested
     ? ''
     : `<div aria-label="3 replies, 1 repost, 12 likes" role="group" class="css-175oi2r r-1kbdv8c"><div><button data-testid="reply" aria-label="3 Replies. Reply" role="button"></button></div><div><button data-testid="retweet" role="button"></button></div><div><button data-testid="like" role="button"></button></div><div><a href="/${p.handle}/status/${p.id}/analytics" role="link"></a></div><div><button data-testid="bookmark" role="button"></button></div><div><button aria-label="Share post" role="button"></button></div></div>`;
-  return `<article aria-labelledby="id${p.id}" role="article" tabindex="0" data-testid="tweet" class="css-175oi2r"><div class="css-175oi2r"><div class="css-175oi2r r-top-row"><div class="css-175oi2r r-avatar-col-top">${p.above ? line('above') : ''}</div></div><div class="css-175oi2r r-main-row" style="display:flex"><div class="css-175oi2r r-avatar-col"><div data-testid="Tweet-User-Avatar"><a href="/${p.handle}" role="link"><img alt="" draggable="true" src="${avatar(p.handle)}" class="css-9pa8cd"></a></div>${p.below ? line('below') : ''}</div><div class="css-175oi2r r-content-col"><div data-testid="User-Name"><div><a href="/${p.handle}" role="link"><span>${esc(name)}</span></a>${p.verified ? '<svg data-testid="icon-verified" aria-label="Verified account"></svg>' : ''}</div><div><a href="/${p.handle}" role="link" tabindex="-1"><span>@${p.handle}</span></a><a href="/${p.handle}/status/${p.id}" role="link"><time datetime="${iso}">Jul 21</time></a></div></div>${replying}${text}${photos}${video}${card}${quote}${group}</div></div></div></article>`;
+  return `<article aria-labelledby="id${p.id}" role="article" tabindex="0" data-testid="tweet" class="css-175oi2r"><div class="css-175oi2r"><div class="css-175oi2r r-top-row"><div class="css-175oi2r r-avatar-col-top">${p.above ? line('above') : ''}</div></div><div class="css-175oi2r r-main-row" style="display:flex"><div class="css-175oi2r r-avatar-col"><div data-testid="Tweet-User-Avatar"><a href="/${p.handle}" role="link"><img alt="" draggable="true" src="${avatar(p.handle)}" class="css-9pa8cd"></a></div>${p.below ? line('below') : ''}</div><div class="css-175oi2r r-content-col"><div data-testid="User-Name"><div><a href="/${p.handle}" role="link"><span>${esc(name)}</span></a>${p.verified ? '<svg data-testid="icon-verified" aria-label="Verified account"></svg>' : ''}</div><div><a href="/${p.handle}" role="link" tabindex="-1"><span>@${p.handle}</span></a><a href="/${p.handle}/status/${p.id}" role="link"><time datetime="${iso}">Jul 21</time></a></div></div>${replying}${text}${p.draftArticle ? classicDraftArticle(p) : ''}${photos}${video}${card}${quote}${group}</div></div></div></article>`;
 }
 
 function classicCell(c: CellSpec, y: number): string {

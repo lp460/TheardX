@@ -37,7 +37,10 @@ export function quoteContainers(article: Element): Element[] {
     const box = name.closest('div[role="link"]');
     if (box && article.contains(box)) boxes.add(box);
   }
-  for (const nested of Array.from(article.querySelectorAll('article'))) boxes.add(nested);
+  for (const nested of Array.from(article.querySelectorAll('article'))) {
+    // Signed-in X renders a long-form Article's body as a nested <article>: it is the post's content.
+    if (nested.getAttribute('data-testid') !== 'twitterArticleReadView') boxes.add(nested);
+  }
   return [...boxes];
 }
 

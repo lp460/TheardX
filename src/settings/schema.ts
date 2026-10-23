@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const SUPPORTED_DOMAINS = ['x.com', 'twitter.com'] as const;
+export const SUPPORTED_DOMAINS = ['x.com', 'twitter.com', 'reddit.com'] as const;
 export type SupportedDomain = (typeof SUPPORTED_DOMAINS)[number];
 
 export const settingsSchema = z.object({

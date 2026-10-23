@@ -2,6 +2,7 @@
 import { repository } from '@/storage/repository';
 import { handleMessage, type BackgroundDeps } from './handlers';
 import type { ContentMessage } from '@/messaging/protocol';
+import { installRedditAccess } from './reddit-access';
 import { installSyncService } from './sync-service';
 
 const deps: BackgroundDeps = {
@@ -53,6 +54,7 @@ const STATUS_PATTERNS = [
   'https://mobile.x.com/*/status/*',
   'https://mobile.twitter.com/*/status/*',
 ];
+const REDDIT_POSTS = ['https://www.reddit.com/r/*/comments/*', 'https://reddit.com/r/*/comments/*'];
 const X_PAGES = [
   'https://x.com/*',
   'https://twitter.com/*',
@@ -77,6 +79,12 @@ function setupContextMenus() {
       documentUrlPatterns: STATUS_PATTERNS,
     });
     chrome.contextMenus.create({
+      id: 'ts-save-discussion',
+      title: 'Enregistrer la discussion dans ThreadShelf',
+      contexts: ['page', 'selection'],
+      documentUrlPatterns: REDDIT_POSTS,
+    });
+    chrome.contextMenus.create({
       id: 'ts-open-library',
       title: 'Ouvrir la bibliothèque ThreadShelf',
       contexts: ['action'],
@@ -92,7 +100,7 @@ chrome.contextMenus?.onClicked.addListener(async (info, tab) => {
   if (!tab?.id) return;
   if (info.menuItemId === 'ts-save-link' && info.linkUrl)
     await sendToTab(tab.id, { type: 'content.save-link', url: info.linkUrl });
-  if (info.menuItemId === 'ts-save-thread')
+  if (info.menuItemId === 'ts-save-thread' || info.menuItemId === 'ts-save-discussion')
     await sendToTab(tab.id, { type: 'content.run', action: 'save-thread' });
 });
 
@@ -105,3 +113,4 @@ chrome.runtime.onInstalled.addListener((details) => {
 chrome.runtime.onStartup?.addListener(setupContextMenus);
 
 installSyncService();
+installRedditAccess();

@@ -8,4 +8,5 @@ export {
   type CapturePlan,
   type ThreadResult,
 } from './reconstruct';
+export { planRedditCapture, redditTreeOrder } from './reddit';
 export { completenessLabel, completenessTone, issueLabel, captureSummary } from './labels';

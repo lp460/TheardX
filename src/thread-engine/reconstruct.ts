@@ -7,7 +7,9 @@ import type {
   Tweet,
 } from '@/types/model';
 import { compareIds } from '@/utils/snowflake';
+import type { RedditDiscussionState } from '@/extraction/types';
 import type { ThreadGraph } from './graph';
+import { planRedditCapture } from './reddit';
 
 export type CaptureMode = 'tweet' | 'thread' | 'references' | 'selection';
 
@@ -200,9 +202,20 @@ export function planCapture(
   graph: ThreadGraph,
   mode: CaptureMode,
   focalId: string,
-  opts: { selection?: string[]; pageKind?: string; now?: number } = {},
+  opts: {
+    selection?: string[];
+    pageKind?: string;
+    now?: number;
+    reddit?: RedditDiscussionState;
+  } = {},
 ): CapturePlan {
   const now = opts.now ?? Date.now();
+  if (graph.tweets.get(focalId)?.platform === 'reddit')
+    return planRedditCapture(graph, mode, focalId, {
+      selection: opts.selection,
+      state: opts.reddit,
+      now,
+    });
   const single = (status: CompletenessStatus, issues: IssueCode[] = []): Completeness => ({
     status,
     startVerified: false,

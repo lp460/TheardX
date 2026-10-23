@@ -33,7 +33,7 @@ Un content script ne peut pas ouvrir l'IndexedDB de l'extension (il s'exécute d
 | `components/`                               | Composants partagés : `TweetCard`, `ThreadCard`, `ExportDialog`, `SettingsPanel`, `CollectionManager`, `SearchCommand`, `ToastNotification`, primitives (Radix)                                                                                                    |
 | `library/`, `reader/`, `popup/`, `options/` | Pages de l'extension                                                                                                                                                                                                                                               |
 | `settings/`                                 | Schéma des préférences (zod, valeurs par défaut, récupération des valeurs corrompues) et stockage                                                                                                                                                                  |
-| `adapters/`                                 | Contrat `ContentAdapter` et adaptateur X (prévu pour d'autres sites)                                                                                                                                                                                               |
+| `adapters/`                                 | Contrat `ContentAdapter` (scan, emplacement des boutons, thème, route) et adaptateurs X et Reddit ; le contrôleur de page ne dépend que de ce contrat                                                                                                              |
 | `ai/`                                       | Interface pour l'IA facultative — aucun fournisseur livré, consentement obligatoire                                                                                                                                                                                |
 | `sync/`                                     | Synchronisation GitHub : client REST et création du dépôt (`github.ts`), connexion Device Flow (`device-flow.ts`, `github-app.ts`), chiffrement (`crypto.ts`), moteur de fusion (`engine.ts`), secrets locaux ; côté service worker : `background/sync-service.ts` |
 
@@ -55,6 +55,14 @@ X a changé de mise en page. En octobre 2026, la version servie aux visiteurs no
 Le texte est stocké sous forme de **segments** (texte, lien, mention, hashtag, cashtag), jamais en HTML. Le bouton « Voir plus » est ignoré et marque le texte comme tronqué. Les textes alternatifs génériques (« Image ») ne sont pas conservés comme description.
 
 La date vient de la page ou, à défaut, de l'ID snowflake ; c'est une donnée vérifiable, la source est conservée (`createdAtSource`). Rien n'est inventé : un champ absent reste absent.
+
+### Reddit (`extraction/reddit.ts`)
+
+Le Reddit actuel (« shreddit », relevé en octobre 2026) expose les faits dans des attributs : `<shreddit-post id="t3_…" author permalink created-timestamp score comment-count subreddit-name post-type content-href>` et `<shreddit-comment thingid="t1_…" author parentid depth comment-position postid permalink created score>`. Le corps est lu dans `#<id>-post-rtjson-content` / `#<thingid>-comment-rtjson-content` (HTML sémantique converti en blocs, comme les Articles X, et stocké dans `article` avec `inline: true`). Médias : `zoomable-img` (image), `gallery-carousel li` (galerie), affiche de `shreddit-player` (vidéo). Les commentaires non chargés sont les `faceplate-partial[src*="/more-comments/"]`.
+
+Le modèle reste le même : un post ou un commentaire est un `Tweet` avec `platform: 'reddit'` et des faits `reddit` (subreddit, parent, profondeur, rang, score, OP). L'arbre vient des `parentid` (relations `reddit-tree`), sans aucune inférence. `thread-engine/reddit.ts` planifie une discussion en parcours en profondeur, les frères dans l'ordre affiché par Reddit. La discussion est complète quand plus aucun « more replies » n'est affiché.
+
+Le script de contenu n'est déclaré que pour X dans le manifeste. Pour Reddit, `background/reddit-access.ts` l'enregistre dynamiquement (`chrome.scripting.registerContentScripts`) quand l'utilisateur accorde l'accès facultatif à reddit.com, et le retire si l'accès est révoqué.
 
 ## Reconstruction des threads
 

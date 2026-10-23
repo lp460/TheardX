@@ -12,7 +12,7 @@ export function createManifest(pkg) {
     short_name: 'ThreadShelf',
     version: pkg.version,
     description:
-      'Enregistrez, lisez, copiez et organisez les publications et threads X.com. Bibliothèque locale, mode lecture, exports.',
+      'Enregistrez, lisez, copiez et organisez les threads X et les discussions Reddit. Bibliothèque locale, mode lecture, exports.',
     minimum_chrome_version: '120',
     icons,
     action: {
@@ -35,11 +35,31 @@ export function createManifest(pkg) {
       },
     ],
     options_ui: { page: 'options/index.html', open_in_tab: true },
-    permissions: ['storage', 'unlimitedStorage', 'contextMenus', 'clipboardWrite', 'alarms'],
+    permissions: [
+      'storage',
+      'unlimitedStorage',
+      'contextMenus',
+      'clipboardWrite',
+      'alarms',
+      // Registers the Reddit content script once the user grants reddit.com (no install warning).
+      'scripting',
+    ],
     // Only used to download images of posts you saved, for offline reading.
     host_permissions: ['https://pbs.twimg.com/*'],
-    // Requested only when the user clicks « Se connecter avec GitHub ».
-    optional_host_permissions: ['https://github.com/*', 'https://api.github.com/*'],
+    optional_host_permissions: [
+      // Requested only when the user clicks « Se connecter avec GitHub ».
+      'https://github.com/*',
+      'https://api.github.com/*',
+      // Requested only when the user turns Reddit on (pages + images of saved posts).
+      'https://www.reddit.com/*',
+      'https://reddit.com/*',
+      'https://i.redd.it/*',
+      'https://preview.redd.it/*',
+      'https://cf.preview.redd.it/*',
+      'https://external-preview.redd.it/*',
+      'https://styles.redditmedia.com/*',
+      'https://www.redditstatic.com/*',
+    ],
     commands: {
       _execute_action: {
         suggested_key: { default: 'Alt+Shift+T' },

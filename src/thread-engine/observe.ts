@@ -26,6 +26,7 @@ const sameAuthor = (a?: Tweet, b?: Tweet) =>
  * Nothing is inferred from authorship or chronology alone.
  */
 export function observe(scan: PageScan, now = Date.now()): Observation {
+  if (scan.layout === 'reddit') return observeReddit(scan, now);
   const cells = scan.cells;
   const tweets: Tweet[] = [];
   const relations: Relation[] = [];
@@ -57,6 +58,23 @@ export function observe(scan: PageScan, now = Date.now()): Observation {
     linked.add(`${a.tweet!.id}>${b.tweet!.id}`);
   };
 
+  // On its status page, X lists the focal author's own replies first, right below the focal post.
+  // Signed in, it draws no thread line between them: that run is the thread's continuation.
+  let runEnd = focalIndex;
+  if (isStatus && focalIndex >= 0) {
+    const focalTweet = cells[focalIndex]!.tweet;
+    while (
+      cells[runEnd + 1]?.kind === 'tweet' &&
+      sameAuthor(cells[runEnd + 1]!.tweet, focalTweet) &&
+      cells[runEnd + 1]!.tweet!.context === 'full'
+    )
+      runEnd += 1;
+  }
+  // The run-based reading only applies where X drew no thread line between the author's replies.
+  let runUnlined = false;
+  for (let i = Math.max(focalIndex, 0); i < runEnd; i++)
+    if (!(cells[i]!.connectorBelow && cells[i + 1]!.connectorAbove)) runUnlined = true;
+
   for (let i = 0; i < cells.length - 1; i++) {
     const a = cells[i]!;
     const b = cells[i + 1]!;
@@ -65,6 +83,7 @@ export function observe(scan: PageScan, now = Date.now()): Observation {
       const connected = a.connectorBelow && b.connectorAbove;
       if (connected) addReply(a, b, 'connector');
       else if (inAncestorZone) addReply(a, b, 'ancestor-chain');
+      else if (i >= focalIndex && i + 1 <= runEnd) addReply(a, b, 'author-reply');
       continue;
     }
     // a → [deleted post] → c : the chain passes through an unavailable post.
@@ -111,6 +130,12 @@ export function observe(scan: PageScan, now = Date.now()): Observation {
         } else if (i < focalIndex) {
           // An ancestor that is not linked to the next row: the rendering is not what we expect.
           f.continuation = 'unknown';
+        } else if (runUnlined && i === runEnd && next?.tweet && !sameAuthor(next.tweet, c.tweet)) {
+          // The author's own replies come first: another account's reply ends the thread.
+          f.continuation = 'none';
+        } else if (runUnlined && i === runEnd && !next) {
+          // Nothing rendered below yet: more of the author's replies may still load.
+          f.continuation = 'unknown';
         } else if (detectorValidated) {
           f.continuation = 'none';
         } else if (next?.tweet && sameAuthor(next.tweet, c.tweet)) {
@@ -133,6 +158,30 @@ export function observe(scan: PageScan, now = Date.now()): Observation {
     facts,
     pageKind: scan.route.kind,
     detectorValidated,
+    order,
+  };
+  if (scan.focalId) obs.focalId = scan.focalId;
+  return obs;
+}
+
+/** Reddit: the comment tree is given by the page (parent ID of every comment). */
+function observeReddit(scan: PageScan, now: number): Observation {
+  const tweets: Tweet[] = [];
+  const relations: Relation[] = [];
+  const order: string[] = [];
+  for (const c of scan.cells) {
+    if (!c.tweet) continue;
+    tweets.push(c.tweet);
+    order.push(c.tweet.id);
+    if (c.parentId)
+      relations.push(makeRelation('reply', c.parentId, c.tweet.id, 'reddit-tree', now));
+  }
+  const obs: Observation = {
+    tweets,
+    relations,
+    facts: {},
+    pageKind: scan.route.kind,
+    detectorValidated: true,
     order,
   };
   if (scan.focalId) obs.focalId = scan.focalId;

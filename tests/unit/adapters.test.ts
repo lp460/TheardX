@@ -21,7 +21,9 @@ describe('content adapters', () => {
     expect(a!.scan(doc, doc.location.href).cells).toHaveLength(2);
     const el = a!.findPostElement(doc, t[1]!.id);
     expect(el?.tagName).toBe('ARTICLE');
-    expect(a!.actionAnchor(el!)?.querySelector('[data-engagement-action="share"]')).not.toBeNull();
+    expect(
+      a!.actionSlot(el!)?.container.querySelector('[data-engagement-action="share"]'),
+    ).not.toBeNull();
   });
 
   it('AI is never available without opt-in and consent', () => {

@@ -1,7 +1,8 @@
 import type { ContentAdapter } from './content-adapter';
+import { redditAdapter } from './reddit-adapter';
 import { xAdapter } from './x-adapter';
 
-const ADAPTERS: ContentAdapter[] = [xAdapter];
+const ADAPTERS: ContentAdapter[] = [xAdapter, redditAdapter];
 
 export function adapterFor(url: string | URL): ContentAdapter | null {
   try {

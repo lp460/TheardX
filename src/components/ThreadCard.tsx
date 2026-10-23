@@ -18,7 +18,8 @@ import {
 import type { MouseEvent } from 'react';
 import type { Category, Collection, Entry, Tweet } from '@/types/model';
 import { formatDate, formatRelative } from '@/utils/format';
-import { postPreviewText, truncate } from '@/utils/text';
+import { entryAuthorLabel, postPreviewText, truncate } from '@/utils/text';
+import { vocab } from '@/utils/vocab';
 import { CompletenessBadge } from './CompletenessBadge';
 import { Avatar, useMediaSrc } from './media';
 import { Button } from './ui/Button';
@@ -162,7 +163,7 @@ export function EntryMenu({
           icon={<ExternalLink size={14} />}
           onSelect={() => window.open(entry.sourceUrl, '_blank', 'noopener')}
         >
-          Ouvrir sur X
+          Ouvrir sur {entry.platform === 'reddit' ? 'Reddit' : 'X'}
         </MenuItem>
         <MenuSeparator />
         <MenuItem icon={<Trash2 size={14} />} destructive onSelect={() => actions.remove(entry)}>
@@ -177,9 +178,7 @@ function Meta({ entry, category }: { entry: Entry; category?: Category }) {
   return (
     <div className="flex flex-wrap items-center gap-1.5">
       {entry.kind !== 'tweet' ? (
-        <Badge>
-          {entry.tweetIds.length} publication{entry.tweetIds.length > 1 ? 's' : ''}
-        </Badge>
+        <Badge>{vocab(entry.platform).posts(entry.tweetIds.length)}</Badge>
       ) : null}
       {entry.kind === 'thread' || entry.kind === 'selection' ? (
         <CompletenessBadge completeness={entry.completeness} compact />
@@ -302,7 +301,7 @@ export function ThreadCard({
             </span>
           </div>
           <div className="truncate text-[12px] text-muted">
-            {entry.authorName ?? entry.authorHandle} · @{entry.authorHandle}
+            {entry.authorName ?? entry.authorHandle} · {entryAuthorLabel(entry)}
             {entry.publishedAt ? ` · ${formatDate(entry.publishedAt)}` : ''}
           </div>
         </div>
@@ -360,7 +359,8 @@ export function ThreadCard({
             {entry.authorName ?? entry.authorHandle}
           </div>
           <div className="truncate text-[12px] text-muted">
-            @{entry.authorHandle}
+            {first?.reddit?.subreddit ? `r/${first.reddit.subreddit} · ` : ''}
+            {entryAuthorLabel(entry)}
             {entry.publishedAt ? ` · ${formatDate(entry.publishedAt)}` : ''}
           </div>
         </div>

@@ -1,4 +1,5 @@
-import type { Completeness, CompletenessStatus, IssueCode } from '@/types/model';
+import type { Completeness, CompletenessStatus, IssueCode, Platform } from '@/types/model';
+import { vocab } from '@/utils/vocab';
 
 export function completenessLabel(status: CompletenessStatus): string {
   switch (status) {
@@ -33,7 +34,14 @@ export function completenessTone(status: CompletenessStatus): Tone {
   }
 }
 
-export function issueLabel(code: IssueCode): string {
+export function issueLabel(code: IssueCode, platform?: Platform): string {
+  if (platform === 'reddit') {
+    if (code === 'end-not-loaded')
+      return 'Des commentaires ne sont pas encore chargés — dépliez les « more replies » ou faites défiler.';
+    if (code === 'end-unverified')
+      return 'Impossible de vérifier que tous les commentaires sont chargés.';
+    if (code === 'start-not-loaded') return 'Le post lui-même n’est pas chargé — ouvrez le post.';
+  }
   switch (code) {
     case 'start-not-loaded':
       return 'Le début du thread n’est pas chargé — remontez dans la page.';
@@ -59,13 +67,17 @@ export function issueLabel(code: IssueCode): string {
 }
 
 /** Toast / summary message after a capture. */
-export function captureSummary(count: number, c: Completeness, kind: string): string {
-  const posts = `${count} publication${count > 1 ? 's' : ''}`;
-  if (kind === 'thread') {
-    if (c.status === 'complete') return `Thread enregistré — ${posts}`;
-    return `${posts} capturée${count > 1 ? 's' : ''} — thread potentiellement incomplet`;
-  }
-  if (kind === 'selection') return `Sélection enregistrée — ${posts}`;
+export function captureSummary(
+  count: number,
+  c: Completeness,
+  kind: string,
+  platform?: Platform,
+): string {
+  const v = vocab(platform);
+  if (kind === 'thread')
+    return c.status === 'complete' ? v.savedComplete(count) : v.savedIncomplete(count);
+  if (kind === 'selection') return `Sélection enregistrée — ${v.posts(count)}`;
+  if (platform === 'reddit') return 'Message enregistré';
   if (kind === 'references') return `Publication et références enregistrées`;
   return 'Publication enregistrée';
 }

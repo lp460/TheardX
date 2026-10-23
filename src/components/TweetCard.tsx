@@ -1,19 +1,71 @@
-import { BadgeCheck, ExternalLink, Link2, Quote } from 'lucide-react';
+import { ArrowBigUp, BadgeCheck, ExternalLink, Link2, MessageSquare, Quote } from 'lucide-react';
 import type { CSSProperties } from 'react';
 import type { LinkCard, QuotedRef, Tweet } from '@/types/model';
 import { formatDateTime, formatDate } from '@/utils/format';
+import { subredditUrl } from '@/utils/reddit-url';
+import { authorLabel } from '@/utils/text';
 import { hostnameOf, safeHref } from '@/utils/url';
 import { Avatar, MediaView, useMediaSrc } from './media';
 import { ArticleView } from './ArticleView';
 import { RichText } from './RichText';
 import { cn } from './ui/cn';
 
+const compactNumber = new Intl.NumberFormat('fr-FR', { notation: 'compact' });
+
+/** Reddit facts shown next to a post or comment: subreddit, score, OP, number of comments. */
+export function RedditBadges({
+  tweet,
+  showSubreddit = true,
+  showComments = false,
+  className,
+}: {
+  tweet: Pick<Tweet, 'reddit'>;
+  showSubreddit?: boolean;
+  showComments?: boolean;
+  className?: string;
+}) {
+  const r = tweet.reddit;
+  if (!r) return null;
+  return (
+    <span className={cn('inline-flex flex-wrap items-center gap-x-2 gap-y-1', className)}>
+      {showSubreddit && r.subreddit ? (
+        <a
+          href={subredditUrl(r.subreddit)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-medium text-fg hover:underline"
+        >
+          r/{r.subreddit}
+        </a>
+      ) : null}
+      {r.isOp ? (
+        <span className="rounded bg-accent-soft px-1 text-[10.5px] font-semibold text-accent">
+          OP
+        </span>
+      ) : null}
+      {r.score !== undefined ? (
+        <span className="inline-flex items-center gap-0.5" title={`Score : ${r.score}`}>
+          <ArrowBigUp size={13} /> {compactNumber.format(r.score)}
+        </span>
+      ) : null}
+      {showComments && r.commentCount !== undefined ? (
+        <span className="inline-flex items-center gap-1">
+          <MessageSquare size={12} /> {compactNumber.format(r.commentCount)}
+        </span>
+      ) : null}
+      {r.flair ? (
+        <span className="rounded-full bg-subtle px-2 py-px text-[11px]">{r.flair}</span>
+      ) : null}
+    </span>
+  );
+}
+
 export function AuthorLine({
   tweet,
   size = 40,
   showDate = true,
 }: {
-  tweet: Pick<Tweet, 'author' | 'createdAt' | 'url' | 'createdAtSource'>;
+  tweet: Pick<Tweet, 'author' | 'createdAt' | 'url' | 'createdAtSource' | 'platform' | 'reddit'>;
   size?: number;
   showDate?: boolean;
 }) {
@@ -28,7 +80,10 @@ export function AuthorLine({
           ) : null}
         </div>
         <div className="truncate text-[12.5px] text-muted">
-          @{tweet.author.handle}
+          {tweet.platform === 'reddit' && tweet.reddit?.subreddit
+            ? `r/${tweet.reddit.subreddit} · `
+            : ''}
+          {authorLabel(tweet)}
           {showDate && tweet.createdAt ? (
             <>
               {' · '}
@@ -204,7 +259,9 @@ export function TweetCard({
         </p>
       ) : null}
       <MediaGrid tweet={tweet} compact={compact} />
-      {tweet.card && !tweet.article ? <LinkCardView card={tweet.card} /> : null}
+      {tweet.card && (!tweet.article || tweet.article.inline) ? (
+        <LinkCardView card={tweet.card} />
+      ) : null}
       {tweet.quoted ? <QuotedCard quoted={tweet.quoted} /> : null}
     </div>
   );

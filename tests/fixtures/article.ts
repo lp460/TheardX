@@ -1,4 +1,11 @@
-import { articleCode, type PostSpec } from './x-dom';
+import {
+  articleCode,
+  draftBlock,
+  draftCode,
+  draftPhoto,
+  draftSeparator,
+  type PostSpec,
+} from './x-dom';
 
 /** Reproduces the structure of the X Article observed on x.com (October 2026). */
 export const ARTICLE_POST: PostSpec = {
@@ -24,6 +31,54 @@ export const ARTICLE_POST: PostSpec = {
       articleCode('bash', ['jev noul \\', '  "Does this need a refund?"']),
       '<div><ul><li><span>moins cher</span></li><li><b><strong>plus rapide</strong></b></li></ul>',
       '<blockquote><span>La question est de savoir si l’appel doit exister.</span></blockquote>',
+    ].join(''),
+  },
+};
+
+const media = (key: string) => `https://pbs.twimg.com/media/${key}?format=jpg&name=large`;
+
+/** The same Article as rendered for a signed-in user (classic layout, Draft.js body). */
+export const ARTICLE_POST_SIGNED_IN: PostSpec = {
+  id: '2105380835675312294',
+  handle: 'make_claude',
+  name: 'make claude',
+  verified: true,
+  text: '',
+  draftArticle: {
+    title: 'JEV ne veut pas remplacer Claude',
+    blocks: [
+      draftBlock('unstyled', [
+        ['La plupart des agents IA appellent un modèle coûteux à chaque étape.'],
+      ]),
+      draftBlock('unstyled', [
+        ['Même pour '],
+        ['un seul bit', 'b'],
+        [' d’information, et '],
+        ['des milliers', 'i'],
+        [' de tokens.'],
+      ]),
+      draftSeparator(),
+      draftPhoto(media('HTfIevoXYAAuKZJ'), 'make_claude', '2105380835675312294'),
+      draftBlock('header-two', [['Jev en commande shell']]),
+      draftBlock('unstyled', [['Installer la CLI :']]),
+      draftCode('bash', ['jev noul \\', '  "Does this need a refund?"']),
+      // Older rendering: one Draft.js block per code line.
+      '<pre class="public-DraftStyleDefault-pre">' +
+        draftBlock('code-block', [['npm install -g jev']]) +
+        draftBlock('code-block', [['jev --help']]) +
+        '</pre>',
+      '<ol class="public-DraftStyleDefault-ol">' +
+        draftBlock('ordered-list-item', [['moins cher']])
+          .replace(/^<div/, '<li')
+          .replace(/<\/div>$/, '</li>') +
+        draftBlock('ordered-list-item', [['plus rapide', 'b']])
+          .replace(/^<div/, '<li')
+          .replace(/<\/div>$/, '</li>') +
+        '</ol>',
+      draftBlock('blockquote', [['La question est de savoir si l’appel doit exister.']]),
+      draftBlock('unstyled', [['']]),
+      draftBlock('header-three', [['Conclusion']]),
+      draftBlock('unstyled', [['Fin.']]),
     ].join(''),
   },
 };

@@ -53,6 +53,12 @@ Les fixtures (`tests/fixtures/x-dom.ts`) imitent deux mises en page. La premièr
 
 En mode headless, X répond par une erreur HTTP (détection d'automatisation). Ce blocage n'est **pas** contourné : le test se lance en fenêtre visible (`HEADED=1`).
 
+## Compatibilité réelle (reddit.com en direct)
+
+`tests/e2e-real/real-reddit.spec.ts` (`HEADED=1 npm run test:real -- real-reddit`) ouvre deux listes publiques et le premier post de chacune, sans connexion. Il vérifie la détection, les boutons, l'enregistrement de la discussion et l'arbre stocké, puis ouvre le lecteur.
+
+Les tests automatisés ne peuvent pas accepter la fenêtre d'autorisation du navigateur. Les tests Reddit utilisent donc une copie de `dist/` où l'accès à Reddit est déjà accordé (`redditGrantedDist()` dans `tests/e2e/harness.ts`). L'enregistrement dynamique du script après autorisation est testé à part (`tests/integration/reddit.test.ts`).
+
 ## Limites connues des tests
 
 - Les vues réservées aux utilisateurs **connectés** de X n'ont pas pu être observées : aucune session X n'est disponible dans l'environnement de test, et aucun identifiant n'a été demandé. Les fixtures « classic » couvrent l'ancienne mise en page connectée ; la mise en page actuelle a été relevée en navigation non connectée.

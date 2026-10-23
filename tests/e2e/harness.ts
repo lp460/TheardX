@@ -6,7 +6,7 @@ import {
   type Page,
   type Worker,
 } from '@playwright/test';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
@@ -23,19 +23,48 @@ export interface Harness {
   mediaRequests: () => number;
   ext: (path: string) => string;
   openX: (path: string) => Promise<Page>;
+  openReddit: (path: string) => Promise<Page>;
   userDataDir: string;
+}
+
+/**
+ * Copy of dist/ where Reddit access is already granted. Automated browsers cannot accept the
+ * permission prompt shown when a user turns Reddit on, so the e2e tests load this variant; the
+ * shipped manifest keeps reddit.com optional.
+ */
+export function redditGrantedDist(): string {
+  const dir = join(tmpdir(), `threadshelf-dist-reddit-${process.pid}`);
+  if (!existsSync(join(dir, 'manifest.json'))) {
+    cpSync(DIST, dir, { recursive: true });
+    const m = JSON.parse(readFileSync(join(dir, 'manifest.json'), 'utf8'));
+    const reddit = m.optional_host_permissions.filter((h: string) => !h.includes('github'));
+    m.host_permissions = [...m.host_permissions, ...reddit];
+    m.optional_host_permissions = m.optional_host_permissions.filter(
+      (h: string) => !reddit.includes(h),
+    );
+    m.content_scripts.push({
+      matches: ['https://www.reddit.com/*', 'https://reddit.com/*'],
+      js: ['content.js'],
+      run_at: 'document_idle',
+      all_frames: false,
+    });
+    writeFileSync(join(dir, 'manifest.json'), JSON.stringify(m, null, 2));
+  }
+  return dir;
 }
 
 export async function launch(
   userDataDir?: string,
+  opts: { extensionDir?: string } = {},
 ): Promise<{ context: BrowserContext; dir: string; ownDir: boolean }> {
   const dir = userDataDir ?? mkdtempSync(join(tmpdir(), 'threadshelf-e2e-'));
+  const ext = opts.extensionDir ?? DIST;
   const context = await chromium.launchPersistentContext(dir, {
     channel: 'chromium',
     headless: process.env.HEADED ? false : true,
     viewport: { width: 1360, height: 900 },
     locale: 'fr-FR',
-    args: [`--disable-extensions-except=${DIST}`, `--load-extension=${DIST}`],
+    args: [`--disable-extensions-except=${ext}`, `--load-extension=${ext}`],
   });
   return { context, dir, ownDir: !userDataDir };
 }
@@ -57,6 +86,14 @@ export async function setupRoutes(
     return route.fulfill({ status: 200, contentType: 'text/html; charset=utf-8', body: html });
   };
   await context.route(/^https:\/\/(x|twitter)\.com\//, handler);
+  await context.route(/^https:\/\/(www\.)?reddit\.com\//, handler);
+  await context.route(
+    /^https:\/\/(i|preview|external-preview|cf\.preview)\.redd\.it\/|^https:\/\/(styles\.redditmedia|www\.redditstatic)\.com\//,
+    (route) => {
+      counter.n += 1;
+      return route.fulfill({ status: 200, contentType: 'image/png', body: PNG });
+    },
+  );
   await context.route(/^https:\/\/pbs\.twimg\.com\//, (route) => {
     counter.n += 1;
     return route.fulfill({ status: 200, contentType: 'image/png', body: PNG });
@@ -72,10 +109,10 @@ export async function extensionWorker(context: BrowserContext): Promise<Worker> 
   return worker;
 }
 
-export const test = base.extend<{ h: Harness }>({
-  // eslint-disable-next-line no-empty-pattern
-  h: async ({}, use) => {
-    const { context, dir } = await launch();
+export const test = base.extend<{ h: Harness; extensionDir: string | undefined }>({
+  extensionDir: [undefined, { option: true }],
+  h: async ({ extensionDir }, use) => {
+    const { context, dir } = await launch(undefined, { extensionDir });
     const pages = new Map<string, string>();
     const counter = { n: 0 };
     await setupRoutes(context, pages, counter);
@@ -95,6 +132,11 @@ export const test = base.extend<{ h: Harness }>({
       openX: async (path) => {
         const page = await context.newPage();
         await page.goto(`https://x.com${path}`);
+        return page;
+      },
+      openReddit: async (path) => {
+        const page = await context.newPage();
+        await page.goto(`https://www.reddit.com${path}`);
         return page;
       },
     };
@@ -134,7 +176,9 @@ export async function libraryEntries(h: Harness): Promise<
   {
     id: string;
     kind: string;
+    platform?: string;
     tweetIds: string[];
+    contextTweetIds: string[];
     completeness: { status: string; issues: string[] };
     title: string;
     offline: string;

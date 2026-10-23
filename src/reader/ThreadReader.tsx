@@ -27,7 +27,7 @@ import { CompletenessBadge } from '@/components/CompletenessBadge';
 import { ExportDialog } from '@/components/ExportDialog';
 import { useHotkeys, useSettings, useThemeClass } from '@/components/hooks';
 import { MediaProvider, useOnline } from '@/components/media';
-import { AuthorLine, QuotedCard, TweetCard } from '@/components/TweetCard';
+import { AuthorLine, QuotedCard, RedditBadges, TweetCard } from '@/components/TweetCard';
 import { ToastNotification } from '@/components/ToastNotification';
 import { Button } from '@/components/ui/Button';
 import { cn } from '@/components/ui/cn';
@@ -40,7 +40,8 @@ import { repository } from '@/storage/repository';
 import { issueLabel } from '@/thread-engine/labels';
 import type { EntryBundle, Tweet } from '@/types/model';
 import { formatDate, formatDateTime } from '@/utils/format';
-import { postPreviewText, truncate } from '@/utils/text';
+import { authorLabel, postPreviewText, truncate } from '@/utils/text';
+import { vocab } from '@/utils/vocab';
 import { render } from '@/export';
 import {
   applyTranslations,
@@ -552,6 +553,9 @@ export function ThreadReader() {
   const { entry } = bundle;
   const c = entry.completeness;
   const incomplete = entry.kind === 'thread' && c.status !== 'complete';
+  const isReddit = entry.platform === 'reddit';
+  const words = vocab(entry.platform);
+  const siteName = isReddit ? 'Reddit' : 'X';
   const fontClass = settings.reader.font === 'serif' ? 'font-serif' : 'font-sans';
 
   return (
@@ -711,7 +715,9 @@ export function ThreadReader() {
         </header>
 
         <div className="mx-auto flex max-w-6xl justify-center gap-10 px-4 pb-32 pt-10 print:block print:p-0">
-          {posts.length > 3 ? <Toc posts={posts} active={active} onJump={jump} /> : null}
+          {posts.length > 3 && !isReddit ? (
+            <Toc posts={posts} active={active} onJump={jump} />
+          ) : null}
           <article
             className="min-w-0 flex-1 print:max-w-none"
             style={{ maxWidth: settings.reader.width }}
@@ -736,9 +742,13 @@ export function ThreadReader() {
                 ) : null}
                 <span aria-hidden>·</span>
                 <span data-testid="reader-count">
-                  {posts.length} publication{posts.length > 1 ? 's' : ''} capturée
-                  {posts.length > 1 ? 's' : ''}
+                  {isReddit
+                    ? words.posts(posts.length)
+                    : `${posts.length} publication${posts.length > 1 ? 's' : ''} capturée${posts.length > 1 ? 's' : ''}`}
                 </span>
+                {isReddit && first?.reddit?.kind === 'post' ? (
+                  <RedditBadges tweet={first} showComments />
+                ) : null}
                 {entry.kind === 'thread' || entry.kind === 'selection' ? (
                   <CompletenessBadge completeness={c} />
                 ) : null}
@@ -748,7 +758,7 @@ export function ThreadReader() {
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1 text-accent hover:underline print:hidden"
                 >
-                  Voir sur X <ExternalLink size={11} />
+                  Voir sur {siteName} <ExternalLink size={11} />
                 </a>
               </div>
               {incomplete ? (
@@ -758,18 +768,20 @@ export function ThreadReader() {
                   data-testid="reader-incomplete"
                 >
                   <div className="flex items-center gap-2 font-medium text-warning">
-                    <AlertTriangle size={14} /> Thread potentiellement incomplet
+                    <AlertTriangle size={14} />{' '}
+                    {isReddit ? 'Discussion incomplète' : 'Thread potentiellement incomplet'}
                   </div>
                   <ul className="mt-1 list-disc pl-5 text-muted">
                     {c.issues
                       .filter((i) => i !== 'truncated-text')
                       .map((i) => (
-                        <li key={i}>{issueLabel(i)}</li>
+                        <li key={i}>{issueLabel(i, entry.platform)}</li>
                       ))}
                   </ul>
                   <p className="mt-1 text-muted">
-                    Ouvrez la publication sur X et enregistrez à nouveau : ThreadShelf complétera
-                    cette entrée sans créer de doublon.
+                    {isReddit
+                      ? 'Ouvrez le post sur Reddit, dépliez les réponses puis enregistrez à nouveau : ThreadShelf complétera cette entrée sans créer de doublon.'
+                      : 'Ouvrez la publication sur X et enregistrez à nouveau : ThreadShelf complétera cette entrée sans créer de doublon.'}
                   </p>
                 </div>
               ) : null}
@@ -873,11 +885,24 @@ export function ThreadReader() {
                   }}
                   data-index={i}
                   id={`post-${i + 1}`}
-                  aria-label={`Publication ${i + 1} sur ${posts.length}`}
+                  aria-label={
+                    isReddit
+                      ? `${t.reddit?.kind === 'comment' ? 'Commentaire' : 'Post'} de ${authorLabel(t)}`
+                      : `Publication ${i + 1} sur ${posts.length}`
+                  }
                   className={cn(
-                    'group relative scroll-mt-24 border-b border-line/60 py-7 first:pt-0 last:border-0 print:break-inside-avoid',
+                    'group relative scroll-mt-24 print:break-inside-avoid',
+                    t.reddit?.kind === 'comment'
+                      ? 'border-l-2 border-line/70 py-3 pl-4'
+                      : 'border-b border-line/60 py-7 first:pt-0 last:border-0',
                     selecting && selection.has(t.id) && 'rounded-xl bg-accent-soft/50',
                   )}
+                  style={
+                    t.reddit?.kind === 'comment'
+                      ? { marginLeft: Math.min(t.reddit.depth ?? 0, 8) * 18 }
+                      : undefined
+                  }
+                  data-depth={t.reddit?.depth}
                   data-testid="reader-post"
                 >
                   <div className="mb-3 flex items-center gap-3 font-sans text-[11.5px] font-semibold tracking-[0.06em] text-faint">
@@ -897,12 +922,18 @@ export function ThreadReader() {
                         className="h-4 w-4 accent-[hsl(var(--ts-accent))]"
                       />
                     ) : null}
-                    {posts.length > 1 ? (
+                    {isReddit ? (
+                      <span className="flex min-w-0 items-center gap-2 normal-case tracking-normal text-muted">
+                        <span className="truncate font-semibold text-fg">{authorLabel(t)}</span>
+                        <RedditBadges tweet={t} showSubreddit={false} />
+                      </span>
+                    ) : posts.length > 1 ? (
                       <span>
                         {i + 1} / {posts.length}
                       </span>
                     ) : null}
-                    {t.author.handle.toLowerCase() !== entry.authorHandle.toLowerCase() ? (
+                    {!isReddit &&
+                    t.author.handle.toLowerCase() !== entry.authorHandle.toLowerCase() ? (
                       <span className="normal-case tracking-normal text-muted">
                         @{t.author.handle}
                       </span>
@@ -913,7 +944,7 @@ export function ThreadReader() {
                       rel="noopener noreferrer"
                       className="ml-auto font-normal tracking-normal text-faint opacity-0 transition-opacity hover:text-accent group-hover:opacity-100 focus:opacity-100 print:hidden"
                     >
-                      {t.createdAt ? formatDateTime(t.createdAt) : 'Voir sur X'}
+                      {t.createdAt ? formatDateTime(t.createdAt) : `Voir sur ${siteName}`}
                     </a>
                   </div>
                   <TweetCard
@@ -921,7 +952,13 @@ export function ThreadReader() {
                     showAuthor={false}
                     hideArticleTitle={!!t.article?.title && t.article.title === entry.title}
                     textClassName={cn('text-fg', fontClass)}
-                    textStyle={{ fontSize: settings.reader.fontSize, lineHeight: 1.7 }}
+                    textStyle={{
+                      fontSize:
+                        t.reddit?.kind === 'comment'
+                          ? Math.round(settings.reader.fontSize * 0.88)
+                          : settings.reader.fontSize,
+                      lineHeight: 1.7,
+                    }}
                   />
                 </section>
               ))}
@@ -970,8 +1007,10 @@ export function ThreadReader() {
             ) : null}
             <NoteEditor bundle={bundle} />
             <footer className="mt-10 font-sans text-[12px] text-faint">
-              Enregistré le {formatDateTime(entry.savedAt)} · Contenu publié par @
-              {entry.authorHandle} sur X.
+              Enregistré le {formatDateTime(entry.savedAt)} ·{' '}
+              {isReddit
+                ? `Discussion publiée sur Reddit${first?.reddit?.subreddit ? ` (r/${first.reddit.subreddit})` : ''}.`
+                : `Contenu publié par @${entry.authorHandle} sur X.`}
             </footer>
           </article>
         </div>

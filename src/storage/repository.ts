@@ -4,6 +4,7 @@
  */
 import { planCapture, ThreadGraph, mergeTweet, type CaptureMode } from '@/thread-engine';
 import { captureSummary } from '@/thread-engine/labels';
+import type { RedditDiscussionState } from '@/extraction/types';
 import type {
   Category,
   Collection,
@@ -15,7 +16,7 @@ import type {
   Tweet,
 } from '@/types/model';
 import { uid } from '@/utils/id';
-import { deriveTitle, postPreviewText } from '@/utils/text';
+import { autoEntryTitle, GENERIC_TITLE_RE } from '@/utils/text';
 import { canonicalTweetUrl } from '@/utils/url';
 import { fromStoredTweet, getDb, toStoredTweet, type ThreadShelfDB } from './db';
 import { buildSearchText } from './search';
@@ -40,6 +41,8 @@ export interface CaptureInput {
   selection?: string[];
   pageUrl: string;
   pageKind?: string;
+  /** Reddit: what the page said about loaded / unloaded comments. */
+  reddit?: RedditDiscussionState;
   options?: CaptureOptions;
 }
 
@@ -129,6 +132,7 @@ export class Repository {
         const plan = planCapture(graph, input.mode, input.focalId, {
           selection: input.selection,
           pageKind: input.pageKind,
+          reddit: input.reddit,
           now,
         });
         if (plan.tweetIds.length === 0) throw new Error('Nothing to save.');
@@ -200,7 +204,10 @@ export class Repository {
           referenceTweetIds: [],
           externalRefs: [],
           completeness: plan.completeness,
-          sourceUrl: canonicalTweetUrl(input.focalId, focal.author.handle),
+          sourceUrl:
+            focal.platform === 'reddit'
+              ? focal.url
+              : canonicalTweetUrl(input.focalId, focal.author.handle),
           savedAt: now,
           updatedAt: now,
           readState: 'unread',
@@ -214,10 +221,7 @@ export class Repository {
           offline: 'text-only',
           searchText: '',
         };
-        const autoTitle =
-          first.article?.title?.trim() ||
-          deriveTitle(postPreviewText(first)) ||
-          `Publication de @${first.author.handle}`;
+        const autoTitle = autoEntryTitle(first);
         const entry: Entry = {
           ...base,
           kind: plan.kind,
@@ -228,7 +232,9 @@ export class Repository {
           completeness: plan.completeness,
           authorHandle: first.author.handle,
           updatedAt: now,
-          title: base.title && !created ? base.title : autoTitle,
+          // Keep a title chosen by the user; replace the generic fallback when better data arrives.
+          title:
+            base.title && !created && !GENERIC_TITLE_RE.test(base.title) ? base.title : autoTitle,
           tags: normalizeTags([...base.tags, ...(opts.tags ?? [])]),
           collectionIds:
             opts.collectionId && !base.collectionIds.includes(opts.collectionId)
@@ -240,6 +246,7 @@ export class Repository {
         };
         if (first.author.name) entry.authorName = first.author.name;
         if (first.createdAt) entry.publishedAt = first.createdAt;
+        if (first.platform === 'reddit') entry.platform = 'reddit';
         if (created) entry.offline = hasMedia([...tweets.values()]) ? 'text-only' : 'full';
         else if (
           hasMedia([...tweets.values()]) &&
@@ -253,7 +260,12 @@ export class Repository {
           entry,
           created,
           count: entry.tweetIds.length,
-          message: captureSummary(entry.tweetIds.length, entry.completeness, entry.kind),
+          message: captureSummary(
+            entry.tweetIds.length,
+            entry.completeness,
+            entry.kind,
+            entry.platform,
+          ),
         };
       },
     );
