@@ -93,6 +93,8 @@ test('the PWA reopens its local library with no network after first visit', asyn
   // Precache completion can precede clients.claim() controlling the first page.
   await expect.poll(() => page.evaluate(() => !!navigator.serviceWorker.controller)).toBe(true);
   expect(await page.evaluate(() => localStorage.getItem('threadshelf.web.account'))).toBe('lp460');
+  // Let the auth request fail naturally offline; the online mock must not hide that state.
+  await page.unroute('**/api/auth/me');
   await context.setOffline(true);
   await page.reload();
   await expect(page.getByTestId('view-title')).toHaveText('Bibliothèque');
