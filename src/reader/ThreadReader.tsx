@@ -61,7 +61,9 @@ const ENTRY_ID = params.get('id') ?? '';
 const PRINT = params.get('print') === '1';
 
 function libraryUrl(): string {
-  return chrome.runtime.getURL('library/index.html');
+  return typeof chrome !== 'undefined' && chrome.runtime?.getURL
+    ? chrome.runtime.getURL('library/index.html')
+    : '/';
 }
 
 function ReaderSettings() {
@@ -567,18 +569,18 @@ export function ThreadReader() {
             scrolled ? 'border-line' : 'border-transparent',
           )}
         >
-          <div className="mx-auto flex h-14 max-w-6xl items-center gap-2 px-4">
+          <div className="mx-auto flex h-14 max-w-6xl items-center gap-1 overflow-x-auto px-2 sm:gap-2 sm:px-4">
             <Button
               variant="ghost"
               size="sm"
               onClick={() => (location.href = libraryUrl())}
               aria-label="Retour à la bibliothèque"
             >
-              <ArrowLeft size={15} /> Bibliothèque
+              <ArrowLeft size={15} /> <span className="hidden sm:inline">Bibliothèque</span>
             </Button>
             <div
               className={cn(
-                'min-w-0 flex-1 truncate text-center text-[13px] font-medium text-fg transition-opacity',
+                'hidden min-w-0 flex-1 truncate text-center text-[13px] font-medium text-fg transition-opacity sm:block',
                 scrolled ? 'opacity-100' : 'opacity-0',
               )}
               aria-hidden={!scrolled}

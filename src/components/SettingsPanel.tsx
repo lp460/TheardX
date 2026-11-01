@@ -21,6 +21,7 @@ import { formatBytes, isoDay } from '@/utils/format';
 import { useSettings } from './hooks';
 import { RedditSettings } from './RedditSettings';
 import { SyncSettings } from './SyncSettings';
+import { WebSyncSettings } from '@/web/WebSyncSettings';
 import { toast } from './ToastNotification';
 import { Button } from './ui/Button';
 import { cn } from './ui/cn';
@@ -147,6 +148,7 @@ export function SettingsPanel() {
   const [confirmClear, setConfirmClear] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const caps = detectCapabilities();
+  const isWeb = typeof chrome === 'undefined' || !chrome.runtime?.id;
 
   if (!loaded)
     return (
@@ -199,7 +201,7 @@ export function SettingsPanel() {
 
   return (
     <div className="space-y-4" data-testid="settings-panel">
-      <Section title="Général" icon={<Monitor size={15} />}>
+      {!isWeb ? <Section title="Général" icon={<Monitor size={15} />}>
         <Switch
           id="set-enabled"
           checked={s.enabled}
@@ -268,7 +270,7 @@ export function SettingsPanel() {
             ))}
           </div>
         </Row>
-      </Section>
+      </Section> : null}
 
       <Section title="Apparence et lecture" icon={<Sun size={15} />}>
         <Row label="Thème">
@@ -359,7 +361,7 @@ export function SettingsPanel() {
         <StorageMeter />
       </Section>
 
-      <SyncSettings />
+      {isWeb ? <WebSyncSettings /> : <SyncSettings />}
 
       <Section title="Données" icon={<Database size={15} />} id="data">
         <Row
@@ -440,7 +442,7 @@ export function SettingsPanel() {
         </Row>
       </Section>
 
-      <Section title="Raccourcis clavier" icon={<Keyboard size={15} />}>
+      {!isWeb ? <Section title="Raccourcis clavier" icon={<Keyboard size={15} />}>
         <div className="grid grid-cols-[1fr_auto] gap-y-2 py-2.5 text-[13px]">
           <span>Ouvrir ThreadShelf</span>
           <span>
@@ -463,7 +465,7 @@ export function SettingsPanel() {
           Modifiables dans{' '}
           <code className="rounded bg-subtle px-1">{shortcutsUrl(caps.browser)}</code>.
         </p>
-      </Section>
+      </Section> : null}
 
       <Section title="Fonctions IA (facultatives)" icon={<Sparkles size={15} />}>
         <p className="py-2.5 text-[12.5px] leading-relaxed text-muted">
@@ -474,8 +476,7 @@ export function SettingsPanel() {
       </Section>
 
       <p className="px-1 text-[12px] text-faint">
-        ThreadShelf {VERSION} · navigateur détecté : {caps.browser} · panneau latéral natif :{' '}
-        {caps.sidePanel ? 'disponible' : 'non disponible'} · aucune télémétrie.
+        TheardX {VERSION} · {isWeb ? 'PWA web' : `navigateur ${caps.browser}`} · aucune télémétrie.
       </p>
 
       <ConfirmDialog

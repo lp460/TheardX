@@ -49,6 +49,9 @@ export interface SyncResult {
 
 export class SyncError extends Error {}
 
+/** Allows the web PWA to reuse this exact sync/merge engine via an authenticated server API. */
+export type SyncClient = Pick<GitHubClient, 'repo' | 'readFile' | 'writeFile'>;
+
 /** JSON with sorted object keys — identical data always gives identical text (and git diffs stay small). */
 export function stableStringify(value: unknown): string {
   return JSON.stringify(value, (_k, v: unknown) => {
@@ -84,10 +87,10 @@ async function sha256(text: string): Promise<string> {
   return Array.from(digest, (b) => b.toString(16).padStart(2, '0')).join('');
 }
 
-function validateConfig(config: SyncConfig, secrets: SyncCredentials): void {
+function validateConfig(config: SyncConfig, secrets: SyncCredentials, externalClient = false): void {
   if (!/^[\w.-]{1,100}\/[\w.-]{1,100}$/.test(config.repo.trim()))
     throw new SyncError('Connectez d’abord votre compte GitHub.');
-  if (!secrets.token.trim()) throw new SyncError('Connectez d’abord votre compte GitHub.');
+  if (!externalClient && !secrets.token.trim()) throw new SyncError('Connectez d’abord votre compte GitHub.');
   if (!/^[\w.-]+(\/[\w.-]+)*\.json$/.test(config.filePath))
     throw new SyncError('Chemin de fichier invalide (doit finir par .json).');
   if (config.encrypt && secrets.passphrase.length < 8)
@@ -99,13 +102,14 @@ export async function runSync(opts: {
   secrets: SyncCredentials;
   db?: ThreadShelfDB;
   fetcher?: Fetcher;
+  client?: SyncClient;
   appVersion?: string;
   maxAttempts?: number;
 }): Promise<SyncResult> {
   const { config, secrets } = opts;
-  validateConfig(config, secrets);
+  validateConfig(config, secrets, !!opts.client);
   const db = opts.db ?? getDb();
-  const client = new GitHubClient(secrets.token, opts.fetcher);
+  const client = opts.client ?? new GitHubClient(secrets.token, opts.fetcher);
   const repo = await client.repo(config.repo.trim());
   if (!repo.private && !config.encrypt) {
     throw new SyncError(

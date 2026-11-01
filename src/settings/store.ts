@@ -1,6 +1,7 @@
 import { DEFAULT_SETTINGS, parseSettings, type Settings } from './schema';
 
 const KEY = 'threadshelf.settings';
+const WEB_EVENT = 'threadshelf:web-settings';
 
 /**
  * Settings live in chrome.storage.local (not IndexedDB): content scripts on x.com cannot open the
@@ -12,9 +13,28 @@ function area(): chrome.storage.StorageArea | null {
 
 let memory: Settings = DEFAULT_SETTINGS;
 
+function webSettings(): Settings {
+  try {
+    const raw = localStorage.getItem(KEY);
+    return raw ? parseSettings(JSON.parse(raw)) : DEFAULT_SETTINGS;
+  } catch {
+    return DEFAULT_SETTINGS;
+  }
+}
+
+function storeWebSettings(settings: Settings): void {
+  try {
+    localStorage.setItem(KEY, JSON.stringify(settings));
+    window.dispatchEvent(new CustomEvent(WEB_EVENT, { detail: settings }));
+  } catch {
+    // Private browsing may disable localStorage; retain the in-memory fallback.
+  }
+  memory = settings;
+}
+
 export async function loadSettings(): Promise<Settings> {
   const a = area();
-  if (!a) return memory;
+  if (!a) return typeof localStorage !== 'undefined' ? webSettings() : memory;
   const data = await a.get(KEY);
   return parseSettings(data[KEY]);
 }
@@ -36,6 +56,7 @@ export async function updateSettings(patch: DeepPartial<Settings>): Promise<Sett
   });
   const a = area();
   if (a) await a.set({ [KEY]: next });
+  else if (typeof window !== 'undefined') storeWebSettings(next);
   else memory = next;
   return next;
 }
@@ -44,11 +65,24 @@ export async function replaceSettings(next: Settings): Promise<void> {
   const parsed = parseSettings(next);
   const a = area();
   if (a) await a.set({ [KEY]: parsed });
+  else if (typeof window !== 'undefined') storeWebSettings(parsed);
   else memory = parsed;
 }
 
 export function onSettingsChanged(cb: (s: Settings) => void): () => void {
-  if (typeof chrome === 'undefined' || !chrome.storage?.onChanged) return () => {};
+  if (typeof chrome === 'undefined' || !chrome.storage?.onChanged) {
+    if (typeof window === 'undefined') return () => {};
+    const onLocal = (event: Event) => cb((event as CustomEvent<Settings>).detail);
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === KEY) cb(webSettings());
+    };
+    window.addEventListener(WEB_EVENT, onLocal);
+    window.addEventListener('storage', onStorage);
+    return () => {
+      window.removeEventListener(WEB_EVENT, onLocal);
+      window.removeEventListener('storage', onStorage);
+    };
+  }
   const listener = (changes: Record<string, chrome.storage.StorageChange>, areaName: string) => {
     if (areaName === 'local' && changes[KEY]) cb(parseSettings(changes[KEY].newValue));
   };

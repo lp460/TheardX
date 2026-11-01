@@ -156,7 +156,7 @@ function BulkBar({
       role="toolbar"
       aria-label="Actions groupées"
       data-testid="bulk-bar"
-      className="sticky bottom-4 z-20 mx-auto mt-4 flex w-fit items-center gap-1 rounded-2xl border border-line bg-elevated/95 px-2 py-1.5 shadow-float backdrop-blur animate-ts-in"
+      className="sticky bottom-16 z-20 mx-auto mt-4 flex w-fit max-w-[calc(100vw-1rem)] items-center gap-1 overflow-x-auto rounded-2xl border border-line bg-elevated/95 px-2 py-1.5 shadow-float backdrop-blur animate-ts-in md:bottom-4"
     >
       <span className="px-2 text-[13px] font-medium text-fg">
         {ids.length} sélectionnée{ids.length > 1 ? 's' : ''}
@@ -449,8 +449,8 @@ export function LibraryView({
   const selectMode = selectedIds.length > 0;
 
   const header = (
-    <header className="sticky top-0 z-10 border-b border-line bg-bg/85 px-6 pb-3 pt-5 backdrop-blur-md">
-      <div className="flex items-center gap-3">
+    <header className="sticky top-0 z-10 border-b border-line bg-bg/85 px-4 pb-3 pt-4 backdrop-blur-md sm:px-6 sm:pt-5">
+      <div className="flex flex-wrap items-center gap-3 sm:flex-nowrap">
         <h1
           className="text-[20px] font-semibold tracking-[-0.015em] text-fg"
           data-testid="view-title"
@@ -458,8 +458,8 @@ export function LibraryView({
           {viewTitle(s.view, collections, categories)}
         </h1>
         {filtered ? <span className="text-[13px] text-faint">{filtered.length}</span> : null}
-        <div className="ml-auto flex items-center gap-2">
-          <div className="relative">
+        <div className="ml-auto flex w-full min-w-0 items-center gap-2 sm:w-auto">
+          <div className="relative min-w-0 flex-1 sm:flex-none">
             <Search
               size={14}
               className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-faint"
@@ -469,7 +469,7 @@ export function LibraryView({
               onChange={(e) => s.setQuery(e.target.value)}
               placeholder="Rechercher…"
               aria-label="Rechercher dans la bibliothèque"
-              className="h-8 w-64 pl-8 pr-12"
+              className="h-8 w-full pl-8 pr-12 sm:w-64"
               data-testid="library-search"
             />
             <button

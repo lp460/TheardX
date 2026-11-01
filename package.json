@@ -10,6 +10,9 @@
   "scripts": {
     "dev": "node scripts/build.mjs --watch",
     "build": "node scripts/build.mjs",
+    "build:web": "vite build --config vite.web.config.ts && node scripts/generate-web-sw.mjs",
+    "dev:web": "vite --config vite.web.config.ts",
+    "preview:web": "vite preview --config vite.web.config.ts --host 127.0.0.1 --port 4173",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "eslint .",
     "format": "prettier --write .",
@@ -18,6 +21,7 @@
     "test:unit": "vitest run tests/unit",
     "test:integration": "vitest run tests/integration",
     "test:e2e": "playwright test",
+    "test:e2e:web": "playwright test -c playwright.web.config.ts",
     "validate": "node scripts/validate-build.mjs",
     "zip": "node scripts/zip.mjs",
     "check": "npm run typecheck && npm run lint && npm run test && npm run build && npm run validate && npm run test:e2e",

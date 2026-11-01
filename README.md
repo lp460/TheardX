@@ -1,5 +1,7 @@
 # ThreadShelf
 
+> **Version web/PWA Vercel :** voir [docs/WEB-PWA.md](docs/WEB-PWA.md). Le build web est indépendant de l'extension et réutilise la bibliothèque GitHub existante.
+
 Enregistrez, lisez, copiez et organisez les publications et threads de X.com, et les discussions Reddit (facultatif). Extension Manifest V3 conçue pour **Arc sur macOS**, compatible Chrome, Brave, Edge et autres navigateurs Chromium.
 
 Pocket + mode lecture + gestionnaire de favoris, spécialisé pour X. Tout reste dans votre navigateur : pas de compte, pas de serveur, aucune télémétrie.

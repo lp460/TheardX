@@ -16,6 +16,8 @@ import {
   MousePointerClick,
   Pin,
   FolderCog,
+  Menu as MenuIcon,
+  X,
 } from 'lucide-react';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { CollectionManager } from '@/components/CollectionManager';
@@ -156,6 +158,8 @@ export function LibraryApp() {
   useThemeClass(settings.theme);
   const s = useLibrary();
   const [manageOpen, setManageOpen] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const isWeb = typeof chrome === 'undefined' || !chrome.runtime?.id;
 
   useEffect(() => {
     const onHash = () =>
@@ -199,7 +203,10 @@ export function LibraryApp() {
     document.title = 'ThreadShelf — Bibliothèque';
   }, []);
 
-  const go = (v: View) => s.setView(v);
+  const go = (v: View) => {
+    s.setView(v);
+    setMobileNavOpen(false);
+  };
   const commandActions: CommandAction[] = [
     {
       id: 'all',
@@ -227,7 +234,7 @@ export function LibraryApp() {
       run: async () =>
         downloadFile(
           JSON.stringify(
-            await exportLibrary({ settings, appVersion: chrome.runtime.getManifest().version }),
+            await exportLibrary({ settings, appVersion: isWeb ? 'web' : chrome.runtime.getManifest().version }),
             null,
             2,
           ),
@@ -239,13 +246,23 @@ export function LibraryApp() {
 
   return (
     <TooltipProvider>
-      <div className="flex h-screen overflow-hidden">
+      <div className={cn('flex overflow-hidden', isWeb ? 'h-full' : 'h-screen')}>
+        {mobileNavOpen ? <button type="button" aria-label="Fermer la navigation"
+          onClick={() => setMobileNavOpen(false)}
+          className="fixed inset-0 z-30 bg-black/40 md:hidden" /> : null}
         <aside
-          className="flex w-60 shrink-0 flex-col border-r border-line bg-subtle/40"
+          className={cn(
+            'w-60 shrink-0 flex-col border-r border-line bg-subtle/95 md:relative md:z-auto md:flex md:bg-subtle/40',
+            mobileNavOpen ? 'fixed inset-y-0 left-0 z-40 flex shadow-2xl' : 'hidden',
+          )}
           aria-label="Navigation"
         >
           <div className="flex h-14 items-center px-4">
             <Logo />
+            <button type="button" onClick={() => setMobileNavOpen(false)}
+              className="ml-auto rounded-lg p-2 text-muted md:hidden" aria-label="Fermer le menu">
+              <X size={18} />
+            </button>
           </div>
           <div className="px-3">
             <button
@@ -378,9 +395,9 @@ export function LibraryApp() {
           </div>
         </aside>
 
-        <main className="relative flex-1 overflow-y-auto" id="main">
+        <main className="relative min-w-0 flex-1 overflow-y-auto pb-20 md:pb-0" id="main">
           {s.view.kind === 'settings' ? (
-            <div className="mx-auto max-w-3xl px-6 py-8">
+            <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-8">
               <h1 className="mb-5 text-[20px] font-semibold tracking-[-0.015em] text-fg">
                 Paramètres
               </h1>
@@ -398,6 +415,28 @@ export function LibraryApp() {
             />
           )}
         </main>
+        <nav aria-label="Navigation mobile" className="fixed bottom-0 left-0 right-0 z-20 flex items-center justify-around border-t border-line bg-surface/95 px-2 pb-[env(safe-area-inset-bottom)] shadow-lg backdrop-blur md:hidden">
+          {([
+            ['all', Inbox, 'Tout'],
+            ['later', Clock, 'À lire'],
+            ['favorites', Star, 'Favoris'],
+          ] as const).map(([kind, Icon, label]) => (
+            <button key={kind} type="button" onClick={() => go({ kind })}
+              aria-current={s.view.kind === kind ? 'page' : undefined}
+              className={cn('flex min-h-14 flex-1 flex-col items-center justify-center gap-1 text-[11px]',
+                s.view.kind === kind ? 'font-semibold text-accent' : 'text-muted')}>
+              <Icon size={19} />{label}
+            </button>
+          ))}
+          <button type="button" onClick={() => s.setCommandOpen(true)}
+            className="flex min-h-14 flex-1 flex-col items-center justify-center gap-1 text-[11px] text-muted">
+            <CommandIcon size={19} />Chercher
+          </button>
+          <button type="button" onClick={() => setMobileNavOpen(true)}
+            className="flex min-h-14 flex-1 flex-col items-center justify-center gap-1 text-[11px] text-muted">
+            <MenuIcon size={19} />Menu
+          </button>
+        </nav>
       </div>
       <SearchCommand
         open={s.commandOpen}
