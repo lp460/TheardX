@@ -33,13 +33,17 @@ self.addEventListener('fetch', (event) => {
       }).catch(async () => {
         const cache = await caches.open(CACHE);
         const shell = url.pathname.startsWith('/reader') ? '/reader/index.html' : '/index.html';
-        return (await cache.match(url.pathname)) || (await cache.match(shell)) || Response.error();
+        return (await cache.match(url.pathname, { ignoreVary: true }))
+          || (await cache.match(shell, { ignoreVary: true })) || Response.error();
       }),
     );
     return;
   }
   event.respondWith(
-    caches.match(request).then((cached) => cached || fetch(request).then((response) => {
+    // Vite may serve modules with `Vary: Origin`: SW precache requests and module
+    // imports have different Origin headers, but share the same immutable URL.
+    // Matching by URL without Vary lets those public, same-origin assets work offline.
+    caches.match(request, { ignoreVary: true }).then((cached) => cached || fetch(request).then((response) => {
       if (response.ok && (url.pathname.startsWith('/assets/') || url.pathname.startsWith('/icons/'))) {
         const copy = response.clone();
         event.waitUntil(caches.open(CACHE).then((cache) => cache.put(request, copy)));

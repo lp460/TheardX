@@ -95,21 +95,6 @@ test('the PWA reopens its local library with no network after first visit', asyn
   expect(await page.evaluate(() => localStorage.getItem('threadshelf.web.account'))).toBe('lp460');
   await context.setOffline(true);
   await page.reload();
-  // Keep this diagnostic until the offline browser reload is stable on CI.
-  console.log('offline-reload', await page.evaluate(async () => {
-    try {
-      return {
-        href: location.href,
-        title: document.title,
-        text: document.body?.innerText?.slice(0, 200),
-        account: localStorage.getItem('threadshelf.web.account'),
-        serviceWorker: !!navigator.serviceWorker.controller,
-        shellCached: !!(await caches.match('/index.html')),
-      };
-    } catch (error) {
-      return { error: String(error), title: document.title };
-    }
-  }));
   await expect(page.getByTestId('view-title')).toHaveText('Bibliothèque');
   await expect(page.getByText('Hors ligne')).toBeVisible();
 });
