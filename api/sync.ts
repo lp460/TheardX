@@ -1,4 +1,4 @@
-import { json, readSession, sameOrigin, unauthorized, type WebSession } from '../server/session';
+import { json, readSession, sameOrigin, unauthorized, type WebSession } from '../server/session.js';
 
 const API = 'https://api.github.com';
 const FILE = 'threadshelf/library.json';

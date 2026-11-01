@@ -1,6 +1,6 @@
 import {
   clearStateCookie, matchesState, readStateCookie, setSessionCookie, webOrigin,
-} from '../../server/session';
+} from '../../server/session.js';
 
 export default {
   async fetch(request: Request): Promise<Response> {

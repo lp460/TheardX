@@ -1,4 +1,4 @@
-import { json, readSession, unauthorized } from '../server/session';
+import { json, readSession, unauthorized } from '../server/session.js';
 
 const ALLOWED = new Set([
   'pbs.twimg.com', 'abs.twimg.com', 'video.twimg.com',

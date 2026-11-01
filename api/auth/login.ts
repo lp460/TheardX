@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { json, setStateCookie, webOrigin } from '../../server/session';
+import { json, setStateCookie, webOrigin } from '../../server/session.js';
 
 export default {
   fetch(request: Request): Response {

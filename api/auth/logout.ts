@@ -1,4 +1,4 @@
-import { clearSessionCookie, json, sameOrigin } from '../../server/session';
+import { clearSessionCookie, json, sameOrigin } from '../../server/session.js';
 
 export default {
   fetch(request: Request): Response {

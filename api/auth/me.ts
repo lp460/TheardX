@@ -1,4 +1,4 @@
-import { json, readSession, unauthorized } from '../../server/session';
+import { json, readSession, unauthorized } from '../../server/session.js';
 
 export default {
   fetch(request: Request): Response {
