@@ -1,6 +1,15 @@
 # TheardX Web/PWA — Vercel
 
-La version web partage **React 19, Vite, Dexie, le lecteur, les exports et le moteur de fusion** avec l'extension. Les builds sont indépendants : `npm run build` continue de produire l'extension MV3 dans `dist/`, `npm run build:web` produit la PWA dans `dist-web/`.
+La version web partage **React 19, Vite, Dexie, le lecteur, les exports et le moteur de fusion** avec l'extension. Les sorties restent distinctes : `npm run build` continue de produire l'extension MV3 dans `dist/`, `npm run build:web` produit la PWA dans `dist-web/` et prépare en plus un ZIP de la même extension pour téléchargement.
+
+## Interface web et distribution
+
+- L'accueil présente TheardX et permet de choisir Français, English ou Español. Le choix de langue est mémorisé dans le navigateur et ne modifie pas les préférences de l'extension.
+- Sur iPhone, la bibliothèque affiche des cartes sur toute la largeur et les filtres sont repliés derrière un bouton dédié. La navigation principale reste en bas de l'écran ; les collections et catégories sont dans le panneau « Menu ». Dans le lecteur, les actions secondaires (copie, export, impression) passent dans un menu compact.
+- L'accueil reste disponible après connexion via le bouton « Accueil » en haut de la bibliothèque, puis « Accéder à ma bibliothèque » pour revenir à la lecture.
+- Le bouton « Télécharger le ZIP » de l'accueil fournit `/downloads/threadshelf-extension.zip`, construit à partir de la même version de l'extension MV3 au cours de `npm run build:web`. **Ce n'est pas une installation automatique** : décompresser l'archive et charger son dossier en mode développeur sur un navigateur Chromium desktop (Chrome, Arc, Brave ou Edge).
+- Sur iPhone/iPad, utiliser plutôt la PWA via Safari → Partager → Sur l'écran d'accueil. L'extension Chromium desktop n'est pas installable telle quelle sur Safari iOS.
+- Les textes des posts et discussions ne sont pas traduits automatiquement quand on change la langue de l'interface.
 
 ## Installation et déploiement
 

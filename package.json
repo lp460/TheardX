@@ -10,7 +10,7 @@
   "scripts": {
     "dev": "node scripts/build.mjs --watch",
     "build": "node scripts/build.mjs",
-    "build:web": "vite build --config vite.web.config.ts && node scripts/generate-web-sw.mjs",
+    "build:web": "vite build --config vite.web.config.ts && node scripts/build-web-download.mjs && node scripts/generate-web-sw.mjs",
     "dev:web": "vite --config vite.web.config.ts",
     "preview:web": "vite preview --config vite.web.config.ts --host 127.0.0.1 --port 4173",
     "typecheck": "tsc --noEmit -p tsconfig.json",

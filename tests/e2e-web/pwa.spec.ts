@@ -1,5 +1,10 @@
 import { test, expect, type Page } from '@playwright/test';
 
+test.beforeEach(async ({ page }) => {
+  // Keep the original French assertions stable regardless of the CI browser locale.
+  await page.addInitScript(() => localStorage.setItem('theardx.web.language', 'fr'));
+});
+
 async function mockSignedIn(page: Page) {
   await page.route('**/api/auth/me', (route) => route.fulfill({
     status: 200, contentType: 'application/json', body: '{"login":"lp460"}',
@@ -15,13 +20,18 @@ async function mockSignedIn(page: Page) {
   });
 }
 
-test('the web app requires GitHub sign-in when online', async ({ page }) => {
+test('the public home explains TheardX, signs in through GitHub and offers the real extension download', async ({ page }) => {
   await page.route('**/api/auth/me', (route) => route.fulfill({
     status: 401, contentType: 'application/json', body: '{"error":"Connexion requise"}',
   }));
   await page.goto('/');
   await expect(page.getByRole('link', { name: /Se connecter avec GitHub/ })).toBeVisible();
-  await expect(page.getByText('Votre bibliothèque, partout.')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Gardez les contenus qui comptent.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'L’extension pour capturer. Le web pour lire.' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Télécharger le ZIP' })).toHaveAttribute('href', '/downloads/threadshelf-extension.zip');
+  const response = await page.request.get('/downloads/threadshelf-extension.zip');
+  expect(response.ok()).toBeTruthy();
+  expect((await response.body()).subarray(0, 2).toString()).toBe('PK');
 });
 
 test('the library has a usable mobile navigation without horizontal overflow', async ({ page }) => {
@@ -30,11 +40,40 @@ test('the library has a usable mobile navigation without horizontal overflow', a
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Bibliothèque' })).toBeVisible();
   await expect(page.getByRole('navigation', { name: 'Navigation mobile' })).toBeVisible();
+  await expect(page.getByRole('combobox', { name: 'Tous les auteurs' })).not.toBeVisible();
+  await page.getByRole('button', { name: 'Filtres' }).click();
+  await expect(page.getByRole('combobox', { name: 'Tous les auteurs' })).toBeVisible();
+  await page.getByRole('button', { name: 'Masquer les filtres' }).click();
   await page.getByRole('navigation', { name: 'Navigation mobile' }).getByText('À lire').click();
   await expect(page.getByRole('heading', { name: 'À lire plus tard' })).toBeVisible();
   await page.getByRole('navigation', { name: 'Navigation mobile' }).getByRole('button', { name: 'Menu' }).click();
   await expect(page.getByRole('navigation', { name: 'Navigation' })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+});
+
+test('signed-in users can return to the home page to download the extension', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockSignedIn(page);
+  await page.goto('/');
+  await page.getByRole('link', { name: 'Accueil' }).click();
+  await expect(page.getByRole('heading', { name: 'Gardez les contenus qui comptent.' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Télécharger le ZIP' })).toBeVisible();
+  await page.getByRole('link', { name: 'Accéder à ma bibliothèque' }).click();
+  await expect(page.getByRole('heading', { name: 'Bibliothèque' })).toBeVisible();
+});
+
+test('language selector translates the web experience in FR, EN and ES and remembers the choice', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockSignedIn(page);
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: 'Bibliothèque' })).toBeVisible();
+  await page.getByRole('combobox', { name: 'Langue' }).selectOption('es');
+  await expect(page.getByRole('heading', { name: 'Biblioteca' })).toBeVisible();
+  await expect(page.getByRole('navigation', { name: 'Navegación móvil' })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Biblioteca' })).toBeVisible();
+  await page.getByRole('combobox', { name: 'Idioma' }).selectOption('en');
+  await expect(page.getByRole('heading', { name: 'Library' })).toBeVisible();
 });
 
 test('the PWA reopens its local library with no network after first visit', async ({ page, context }) => {
