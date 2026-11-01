@@ -4,9 +4,10 @@ La version web partage **React 19, Vite, Dexie, le lecteur, les exports et le mo
 
 ## Installation et déploiement
 
-1. Créer une **nouvelle application OAuth GitHub dédiée au web** depuis GitHub Developer Settings. Ne pas modifier l'OAuth App `ThreadShelf` existante, qui utilise le Device Flow dans l'extension.
-   - Homepage URL : `https://<domaine-vercel>`
-   - Authorization callback URL : `https://<domaine-vercel>/api/auth/callback`
+1. **Réutiliser l'application OAuth GitHub `ThreadShelf` de l'extension.** GitHub permet depuis août 2026 d'enregistrer plusieurs URL de callback sur une même OAuth App. Dans GitHub Developer Settings → OAuth Apps → ThreadShelf, **conserver** les URLs existantes et l'option « Enable Device Flow », puis **ajouter** les callbacks web :
+   - Production : `https://theard-x.vercel.app/api/auth/callback`
+   - Prévisualisation (branche dédiée) : `https://theard-x-git-feat-web-pwa-vercel-lp-9f5d.vercel.app/api/auth/callback`
+   - Garder une correspondance exacte des URLs et désactiver le « wildcard matching » pour les nouvelles callbacks. Le Device Flow de l'extension ne dépend pas des callbacks web et reste inchangé.
    - Le site demandera le scope `repo`, requis par le stockage existant en dépôt privé. Pour une distribution à grande échelle, migrer ultérieurement vers une GitHub App à permissions limitées au dépôt sélectionné.
 2. Lier le dépôt `lp460/TheardX` à Vercel, framework `Vite`, racine du dépôt, build `npm run build:web`, sortie `dist-web`.
 3. Définir les variables d'environnement **côté serveur** dans Vercel :
@@ -14,11 +15,11 @@ La version web partage **React 19, Vite, Dexie, le lecteur, les exports et le mo
    | Variable | Valeur |
    | --- | --- |
    | `WEB_ORIGIN` | URL HTTPS exacte (sans `/` final) |
-   | `GITHUB_WEB_CLIENT_ID` | Client ID de la nouvelle OAuth App web |
-   | `GITHUB_WEB_CLIENT_SECRET` | Secret de cette OAuth App (ne jamais committer) |
+   | `GITHUB_WEB_CLIENT_ID` | Client ID de l'OAuth App `ThreadShelf` existante (égal à celui de l'extension) |
+   | `GITHUB_WEB_CLIENT_SECRET` | Client Secret de cette même OAuth App (à renseigner uniquement dans Vercel, jamais dans Git) |
    | `SESSION_SECRET` | Secret fort aléatoire, au moins 32 caractères |
 
-4. Déployer d'abord une preview. La connexion OAuth requiert une callback configurée pour cette URL exacte ; si les preview URLs changent, tester avec un domaine de staging stable. Ne pas publier en production avant un test réel de connexion et de synchronisation.
+4. Déployer d'abord une preview. La connexion OAuth requiert une callback configurée pour cette URL exacte ; utiliser l'alias stable de la branche, pas l'URL unique du build. Ne pas publier en production avant un test réel de connexion et de synchronisation.
 
 ## Utilisation
 
