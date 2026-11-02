@@ -1,8 +1,8 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   ArrowLeft, BookOpen, Bookmark, Check, Copy, FileText, Heart, Layers3, Library,
   MessageCircle, MessageSquareQuote, MoreHorizontal, MousePointerClick,
-  Repeat2, Save, Share2, SlidersHorizontal, Sparkles, ThumbsUp,
+  Repeat2, Save, Share2, SlidersHorizontal, Sparkles, ThumbsUp, X, ZoomIn,
 } from 'lucide-react';
 import { LogoMark } from '@/components/Logo';
 import { useWebI18n, type WebLanguage } from './i18n';
@@ -35,6 +35,11 @@ const copy = {
     addedTwoTitle: 'Un menu de capture complet', addedTwo: 'Sauvegarde du fil, des citations et des liens ; copie Markdown ou texte brut ; collections et tags.',
     addedThreeTitle: 'Un suivi des fils', addedThree: 'Sur Reddit, le nombre de messages et l’état « incomplet » sont visibles dans la barre.',
     seeGuide: 'Installer l’extension',
+    realEyebrow: 'Captures réelles', realTitle: 'Le plugin, tel qu’il apparaît dans le navigateur.',
+    realIntro: 'Voici les captures originales de X et Reddit. Le bouton violet, la barre d’actions et le menu sont ceux de la véritable extension. Touchez une image pour voir les détails.',
+    realPost: 'Directement sur la publication', realActions: 'La barre et le menu de ThreadShelf',
+    realZoom: 'Agrandir la capture', realClose: 'Fermer la capture',
+    realNote: 'Captures fournies pour illustrer l’extension. Les publications affichées appartiennent à leurs auteurs.',
   },
   en: {
     eyebrow: 'The extension in action', title: 'It works right inside X and Reddit.',
@@ -59,6 +64,11 @@ const copy = {
     addedTwoTitle: 'A full capture menu', addedTwo: 'Save threads, quotes and links; copy Markdown or plain text; organize with collections and tags.',
     addedThreeTitle: 'Thread status at a glance', addedThree: 'On Reddit, the toolbar shows the message count and whether the discussion is incomplete.',
     seeGuide: 'Install the extension',
+    realEyebrow: 'Real screenshots', realTitle: 'The extension, as it looks in your browser.',
+    realIntro: 'These are original screenshots from X and Reddit. The purple button, toolbar, and menu are from the real extension. Tap an image to explore the details.',
+    realPost: 'Right on the post', realActions: 'The ThreadShelf toolbar and menu',
+    realZoom: 'Enlarge screenshot', realClose: 'Close screenshot',
+    realNote: 'Screenshots shared to illustrate the extension. Posts shown belong to their respective authors.',
   },
   es: {
     eyebrow: 'La extensión en acción', title: 'Se integra directamente en X y Reddit.',
@@ -83,8 +93,53 @@ const copy = {
     addedTwoTitle: 'Un menú completo', addedTwo: 'Guarda hilos, citas y enlaces; copia Markdown o texto plano; organiza colecciones y etiquetas.',
     addedThreeTitle: 'Estado de las conversaciones', addedThree: 'En Reddit se muestra el número de mensajes y si la conversación está incompleta.',
     seeGuide: 'Instalar la extensión',
+    realEyebrow: 'Capturas reales', realTitle: 'Así se ve la extensión en el navegador.',
+    realIntro: 'Estas son capturas originales de X y Reddit. El botón violeta, la barra y el menú pertenecen a la extensión real. Pulsa una imagen para ver los detalles.',
+    realPost: 'Directamente en la publicación', realActions: 'La barra y el menú de ThreadShelf',
+    realZoom: 'Ampliar captura', realClose: 'Cerrar captura',
+    realNote: 'Capturas compartidas para mostrar la extensión. Las publicaciones pertenecen a sus respectivos autores.',
   },
 };
+
+const realScreenshots: Record<Platform, [string, string]> = {
+  x: ['/showcase/threadshelf-x-post.png', '/showcase/threadshelf-x-menu.png'],
+  reddit: ['/showcase/threadshelf-reddit-post.png', '/showcase/threadshelf-reddit-toolbar.png'],
+};
+
+function RealScreenshots({ platform, labels }: { platform: Platform; labels: typeof copy.fr }) {
+  const [zoomed, setZoomed] = useState<number | null>(null);
+  const closeButton = useRef<HTMLButtonElement>(null);
+  const lastTrigger = useRef<HTMLButtonElement>(null);
+  const shots = realScreenshots[platform];
+
+  useEffect(() => {
+    if (zoomed === null) return;
+    const previousOverflow = document.body.style.overflow;
+    const onEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') setZoomed(null); };
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', onEscape);
+    closeButton.current?.focus();
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', onEscape);
+      lastTrigger.current?.focus();
+    };
+  }, [zoomed]);
+
+  return <div data-testid="extension-real-gallery" className="mt-8 overflow-hidden rounded-[25px] border border-[#e2dfed] bg-white p-4 shadow-[0_20px_55px_#2f285012] sm:p-7">
+    <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+      <div className="max-w-2xl"><span className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[.16em] text-[#765ec2]"><ZoomIn size={15}/>{labels.realEyebrow} · {platform === 'x' ? 'X' : 'Reddit'}</span><h3 className="mt-2 text-[23px] font-bold leading-tight tracking-tight sm:text-[30px]">{labels.realTitle}</h3><p className="mt-2 text-[13px] leading-6 text-[#777589]">{labels.realIntro}</p></div>
+    </div>
+    <div className="grid gap-4 md:grid-cols-2">
+      {shots.map((src, index) => <button key={src} data-testid={`extension-real-screenshot-${index}`} type="button" aria-label={`${labels.realZoom} : ${platform === 'x' ? 'X' : 'Reddit'} · ${index === 0 ? labels.realPost : labels.realActions}`} onClick={(event) => { lastTrigger.current = event.currentTarget; setZoomed(index); }} className="ts-focus group overflow-hidden rounded-[18px] border border-[#e6e4eb] bg-[#f8f8fb] text-left transition hover:border-[#b8a9f0] hover:shadow-[0_10px_35px_#3c2b761c]">
+        <div className="relative aspect-[4/3] w-full overflow-hidden bg-[#f0eff5]"><img src={src} alt={`${platform === 'x' ? 'X' : 'Reddit'} : ${index === 0 ? labels.realPost : labels.realActions}`} width={platform === 'x' ? (index === 0 ? 611 : 606) : (index === 0 ? 728 : 817)} height={platform === 'x' ? (index === 0 ? 1015 : 940) : (index === 0 ? 549 : 777)} loading="lazy" decoding="async" className="h-full w-full object-cover object-bottom transition duration-300 group-hover:scale-[1.025]"/><span className="absolute bottom-3 right-3 inline-flex items-center gap-1.5 rounded-full bg-[#282039ed] px-3 py-2 text-[11px] font-semibold text-white shadow-md"><ZoomIn size={14}/>{labels.realZoom}</span></div>
+        <div className="flex items-center gap-3 px-4 py-3"><span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-[#eee9fb] text-[#7458c9]">{index === 0 ? '01' : '02'}</span><span className="text-[13px] font-semibold text-[#3d3b4a]">{index === 0 ? labels.realPost : labels.realActions}</span></div>
+      </button>)}
+    </div>
+    <p className="mt-4 text-[11px] leading-5 text-[#9693a1]">{labels.realNote}</p>
+    {zoomed !== null ? <div data-testid="extension-real-lightbox" className="fixed inset-0 z-[100] flex items-center justify-center bg-[#111020ed] p-3 sm:p-7" onClick={() => setZoomed(null)} role="presentation"><div role="dialog" aria-modal="true" aria-label={`${platform === 'x' ? 'X' : 'Reddit'} · ${zoomed === 0 ? labels.realPost : labels.realActions}`} onClick={(event) => event.stopPropagation()} className="relative flex max-h-full max-w-[min(100%,1100px)] flex-col items-center gap-3"><button ref={closeButton} type="button" aria-label={labels.realClose} onClick={() => setZoomed(null)} className="ts-focus self-end rounded-full bg-white p-2.5 text-[#332b48] shadow-lg hover:bg-[#eee9fb]"><X size={22}/></button><img src={shots[zoomed]} alt={`${platform === 'x' ? 'X' : 'Reddit'} · ${zoomed === 0 ? labels.realPost : labels.realActions}`} className="max-h-[calc(100dvh-100px)] max-w-full rounded-xl border border-white/20 bg-white object-contain shadow-2xl"/></div></div> : null}
+  </div>;
+}
 
 function Graphic({ platform, labels }: { platform: Platform; labels: typeof copy.fr }) {
   return <div aria-hidden="true" className={`relative flex h-[135px] w-full flex-col justify-center overflow-hidden rounded-2xl sm:h-[150px] ${platform === 'x' ? 'bg-gradient-to-br from-[#18122c] via-[#382b70] to-[#a58ddf]' : 'bg-gradient-to-br from-[#c7e4f1] via-[#e7eef9] to-[#d1c6ee]'}`}>
@@ -185,6 +240,7 @@ export function ExtensionShowcase() {
           [Bookmark,labels.addedThreeTitle,labels.addedThree],
         ] as const).map(([Icon,title,description],index)=><div key={title} className="flex gap-4 border-t border-[#f0eef4] pt-5"><div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[#f0ebff] text-[#775ec8]"><Icon size={20}/></div><div><span className="text-[10px] font-bold uppercase tracking-[.1em] text-[#a09cb4]">0{index+1}</span><h3 className="mt-1 text-sm font-bold text-[#333144]">{title}</h3><p className="mt-2 text-[13px] leading-6 text-[#817d90]">{description}</p></div></div>)}<a href="#installation" className="ts-focus mt-4 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#6e56cd] px-5 py-3 text-sm font-bold text-white hover:bg-[#5c45b8]">{labels.seeGuide} <span aria-hidden="true">↗</span></a></div>
       </div>
+      <RealScreenshots platform={platform} labels={labels}/>
     </div>
   </section>;
 }

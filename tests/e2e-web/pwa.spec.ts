@@ -129,6 +129,32 @@ test('the extension showcase compares X and Reddit before and after and exercise
   await expect(page.getByRole('heading', { name: 'Se integra directamente en X y Reddit.' })).toBeVisible();
 });
 
+test('the original X and Reddit screenshots load and can be enlarged on an iPhone-sized screen', async ({ page }) => {
+  await page.route('**/api/auth/me', (route) => route.fulfill({ status: 401, contentType: 'application/json', body: '{}' }));
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto('/?home=1#sur-x-et-reddit');
+  const gallery = page.getByTestId('extension-real-gallery');
+  await gallery.scrollIntoViewIfNeeded();
+  await expect(gallery.getByRole('img')).toHaveCount(2);
+  await expect(gallery.getByRole('img').first()).toHaveAttribute('src', '/showcase/threadshelf-x-post.png');
+  await expect(gallery.getByRole('img').first()).toHaveJSProperty('naturalWidth', 611);
+  await page.getByTestId('extension-real-screenshot-1').click();
+  await expect(page.getByTestId('extension-real-lightbox')).toBeVisible();
+  await expect(page.getByRole('dialog').getByRole('img')).toHaveAttribute('src', '/showcase/threadshelf-x-menu.png');
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('extension-real-lightbox')).toHaveCount(0);
+
+  await page.getByTestId('extension-platform-reddit').click();
+  await gallery.scrollIntoViewIfNeeded();
+  await expect(gallery.getByRole('img').first()).toHaveAttribute('src', '/showcase/threadshelf-reddit-post.png');
+  await expect(gallery.getByRole('img').first()).toHaveJSProperty('naturalWidth', 728);
+  await page.getByTestId('extension-real-screenshot-1').click();
+  await expect(page.getByRole('dialog').getByRole('img')).toHaveJSProperty('naturalWidth', 817);
+  await page.getByRole('button', { name: 'Fermer la capture' }).click();
+  await expect(page.getByTestId('extension-real-lightbox')).toHaveCount(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+});
+
 test('the library has a usable mobile navigation without horizontal overflow', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 760 });
   await mockSignedIn(page);
