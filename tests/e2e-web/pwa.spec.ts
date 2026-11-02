@@ -128,6 +128,10 @@ test('Safari-style web reader auto-translates with consent and reuses cached tex
       authorKey: 'someone', lang: 'en', text: [{ t: 'text', v: 'The weather is nice.' }],
       media: [], linkedTweetIds: [], availability: 'available', context: 'full',
       firstSeenAt: 1, lastSeenAt: 1,
+      article: {
+        url: 'https://x.com/someone/article/1', title: 'The weather is nice.',
+        blocks: [{ t: 'paragraph', text: [{ t: 'text', v: 'A beautiful day to read.' }] }],
+      },
     });
     tx.objectStore('entries').put({
       id: 'web-entry-1', kind: 'thread', title: 'The weather is nice.', authorHandle: 'someone',
@@ -150,6 +154,7 @@ test('Safari-style web reader auto-translates with consent and reuses cached tex
 
   await page.goto('/reader/?id=web-entry-1');
   await expect(page.getByTestId('reader-title')).toHaveText('FR : The weather is nice.');
+  await expect(page.getByTestId('reader-article')).toContainText('FR : A beautiful day to read.');
   await expect(page.getByTestId('reader-translation-note')).toContainText('Vercel AI Gateway');
   expect(requests).toBe(1);
 
