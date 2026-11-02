@@ -112,6 +112,7 @@ test('the extension showcase compares X and Reddit before and after and exercise
   await page.getByTestId('extension-after').click();
   await page.getByTestId('extension-more').click();
   await expect(page.getByTestId('extension-action-menu')).toContainText('Enregistrer avec citations et liens');
+  await expect.poll(() => page.getByTestId('extension-action-menu').evaluate((element) => element.getBoundingClientRect().top)).toBeGreaterThanOrEqual(0);
   await page.getByRole('menuitem', { name: 'Enregistrer avec citations et liens' }).click();
   await expect(page.getByRole('status').last()).toContainText('Publication enregistrée dans la simulation');
   await page.getByRole('button', { name: 'Lire', exact: true }).click();
