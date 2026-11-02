@@ -35,6 +35,7 @@ test('the public home explains TheardX, signs in through GitHub and offers the r
   await expect(page.getByTestId('demo-library-panel')).toBeVisible();
   await expect(page.getByText('Aperçu avec des exemples fictifs.', { exact: false })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Télécharger le ZIP' })).toHaveAttribute('href', '/downloads/threadshelf-extension.zip');
+  await expect(page.getByRole('link', { name: 'Guide d’installation' })).toHaveAttribute('href', '#installation');
   const response = await page.request.get('/downloads/threadshelf-extension.zip');
   expect(response.ok()).toBeTruthy();
   expect((await response.body()).subarray(0, 2).toString()).toBe('PK');
@@ -49,16 +50,55 @@ test('visitors can explore a realistic library and reader before signing in, inc
   await expect(page.getByTestId('landing-demo')).toBeVisible();
   const previewPosition = await page.getByTestId('landing-demo').boundingBox();
   expect(previewPosition?.y ?? Infinity).toBeLessThan(812);
-  await expect(page.getByTestId('demo-entry-0')).toContainText('Les idées qui méritent d’être relues');
+  await expect(page.getByTestId('demo-entry-0')).toContainText('Une application vocale libre');
   await page.getByTestId('demo-entry-0').click();
-  await expect(page.getByTestId('demo-reader-panel')).toContainText('Les idées qui méritent d’être relues');
+  await expect(page.getByTestId('demo-reader-panel')).toContainText('Une application vocale libre');
   await page.getByTestId('demo-library-tab').click();
   await expect(page.getByTestId('demo-library-panel')).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.getByRole('combobox', { name: 'Langue' }).selectOption('en');
-  await expect(page.getByTestId('demo-entry-0')).toContainText('Ideas worth revisiting');
+  await expect(page.getByTestId('demo-entry-0')).toContainText('An open-source voice app');
   await page.getByRole('combobox', { name: 'Language' }).selectOption('es');
-  await expect(page.getByTestId('demo-entry-0')).toContainText('Ideas que merecen una segunda lectura');
+  await expect(page.getByTestId('demo-entry-0')).toContainText('Una aplicación de voz libre');
+});
+
+test('the public demo filters cards, searches, saves favorites and offers grid/list layouts', async ({ page }) => {
+  await page.route('**/api/auth/me', (route) => route.fulfill({ status: 401, contentType: 'application/json', body: '{}' }));
+  await page.goto('/');
+  await expect(page.getByTestId('demo-library-panel')).toBeVisible();
+  await page.getByTestId('demo-search').fill('Maya');
+  await expect(page.getByTestId('demo-entry-3')).toBeVisible();
+  await expect(page.getByTestId('demo-entry-0')).toHaveCount(0);
+  await page.getByTestId('demo-search').fill('');
+  await page.getByTestId('demo-nav-favorites').click();
+  await expect(page.getByTestId('demo-entry-3')).toBeVisible();
+  await expect(page.getByTestId('demo-entry-0')).toHaveCount(0);
+  await page.getByTestId('demo-nav-all').click();
+  await page.getByRole('button', { name: 'Liste', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Liste', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('combobox', { name: 'Sources' }).selectOption('Reddit');
+  await expect(page.getByTestId('demo-entry-2')).toBeVisible();
+  await expect(page.getByTestId('demo-entry-0')).toHaveCount(0);
+});
+
+test('the installation guide stays on TheardX and gives official instructions for four browsers', async ({ page }) => {
+  await page.route('**/api/auth/me', (route) => route.fulfill({ status: 401, contentType: 'application/json', body: '{}' }));
+  await page.goto('/');
+  await page.getByRole('link', { name: 'Guide d’installation' }).click();
+  await expect(page).toHaveURL(/#installation$/);
+  await expect(page.getByRole('heading', { name: 'Installez TheardX, sans quitter cette page.' })).toBeVisible();
+  await expect(page.getByTestId('install-address')).toHaveText('chrome://extensions');
+  await expect(page.getByRole('link', { name: /Documentation officielle · Chrome/ })).toHaveAttribute('href', /developer\.chrome\.com/);
+  await page.getByTestId('install-brave').click();
+  await expect(page.getByTestId('install-address')).toHaveText('brave://extensions');
+  await expect(page.getByRole('link', { name: /Documentation officielle · Brave/ })).toHaveAttribute('href', /support\.brave\.app/);
+  await page.getByTestId('install-edge').click();
+  await expect(page.getByTestId('install-address')).toHaveText('edge://extensions');
+  await expect(page.getByRole('link', { name: /Documentation officielle · Edge/ })).toHaveAttribute('href', /learn\.microsoft\.com/);
+  await page.getByTestId('install-arc').click();
+  await expect(page.getByTestId('install-address')).toHaveText('arc://extensions');
+  await expect(page.getByRole('link', { name: /Documentation officielle · Arc/ })).toHaveAttribute('href', /start\.arc\.net/);
+  await expect(page.getByRole('link', { name: 'Guide d’installation' })).not.toHaveAttribute('href', /github\.com/);
 });
 
 test('the library has a usable mobile navigation without horizontal overflow', async ({ page }) => {
