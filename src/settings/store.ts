@@ -51,6 +51,7 @@ export async function updateSettings(patch: DeepPartial<Settings>): Promise<Sett
     reader: { ...current.reader, ...patch.reader },
     copy: { ...current.copy, ...patch.copy },
     ai: { ...current.ai, ...patch.ai },
+    webTranslation: { ...current.webTranslation, ...patch.webTranslation },
     library: { ...current.library, ...patch.library },
     sync: { ...current.sync, ...patch.sync },
   });

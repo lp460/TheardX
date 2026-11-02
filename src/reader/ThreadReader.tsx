@@ -53,6 +53,7 @@ import {
   type PostTranslation,
   type TranslateProgress,
 } from '@/translate/engine';
+import { translateCloudBundle } from '@/translate/cloud';
 import { languageName, TARGET_LANGUAGES } from '@/translate/languages';
 import { copyText } from '@/utils/clipboard';
 import { toast } from '@/components/ToastNotification';
@@ -68,7 +69,7 @@ function libraryUrl(): string {
     : '/';
 }
 
-function ReaderSettings() {
+function ReaderSettings({ isWeb }: { isWeb: boolean }) {
   const { t } = useWebI18n();
   const [s, update] = useSettings();
   const btn =
@@ -201,6 +202,23 @@ function ReaderSettings() {
                 ))}
               </select>
             </div>
+            {isWeb && !translationSupported() ? (
+              <label className="block rounded-xl border border-line bg-subtle/60 p-3">
+                <span className="flex items-center justify-between gap-3">
+                  <span className="text-[13px] font-medium text-fg">{t('readerAutoTranslate')}</span>
+                  <input type="checkbox" checked={s.webTranslation.automatic}
+                    data-testid="reader-auto-translate"
+                    onChange={(event) => void update({ webTranslation: {
+                      automatic: event.target.checked,
+                      consentAt: event.target.checked ? Date.now() : s.webTranslation.consentAt,
+                    } })}
+                    className="h-4 w-4 shrink-0 accent-[hsl(var(--ts-accent))]" />
+                </span>
+                <span className="mt-2 block text-[11px] leading-relaxed text-muted">
+                  {t('readerAutoTranslateHint')}
+                </span>
+              </label>
+            ) : null}
           </div>
         </Popover.Content>
       </Popover.Portal>
@@ -323,7 +341,12 @@ export function ThreadReader() {
   const [showTranslation, setShowTranslation] = useState(false);
   const [trProgress, setTrProgress] = useState<TranslateProgress | null>(null);
   const [trError, setTrError] = useState<string | null>(null);
+  const [translationsReady, setTranslationsReady] = useState(false);
+  const translationPending = useRef(false);
+  const manuallyViewingOriginal = useRef(false);
+  const currentTarget = useRef(settings.translateTo);
   const target = settings.translateTo;
+  currentTarget.current = target;
   const postRefs = useRef<(HTMLElement | null)[]>([]);
   const markedRead = useRef(false);
   const endRef = useRef<HTMLDivElement>(null);
@@ -379,35 +402,72 @@ export function ThreadReader() {
   // Cached translations for the chosen language (available offline).
   useEffect(() => {
     if (!allIds.length) return;
-    void repository.getTranslations(allIds, target).then(setTranslations);
+    let active = true;
+    setTranslationsReady(false);
+    void repository.getTranslations(allIds, target).then((cached) => {
+      if (!active) return;
+      setTranslations(cached);
+      setTranslationsReady(true);
+    });
     setShowTranslation(false);
+    manuallyViewingOriginal.current = false;
     setTrError(null);
+    return () => { active = false; };
   }, [allIds, target]);
 
   const translate = useCallback(async () => {
-    if (!bundle) return;
+    if (!bundle || translationPending.current) return;
     if (showTranslation) {
+      manuallyViewingOriginal.current = true;
       setShowTranslation(false);
       return;
     }
+    manuallyViewingOriginal.current = false;
+    const cloud = isWeb && !translationSupported();
+    if (cloud && !settings.webTranslation.consentAt) {
+      if (!window.confirm(t('readerCloudConfirm'))) return;
+      await update({ webTranslation: { consentAt: Date.now() } });
+    }
+    translationPending.current = true;
     setTrError(null);
     try {
       setTrProgress({ done: 0, total: 1 });
-      const fresh = await translateBundle(bundle, target, {
+      const fresh = await (cloud ? translateCloudBundle : translateBundle)(bundle, target, {
         existing: translations,
         onProgress: setTrProgress,
       });
       await repository.saveTranslations(fresh);
       const next = { ...translations };
       for (const r of fresh) next[r.key] = r;
-      setTranslations(next);
-      setShowTranslation(true);
+      if (currentTarget.current === target) {
+        setTranslations(next);
+        setShowTranslation(true);
+      }
     } catch (e) {
       setTrError(e instanceof Error ? e.message : String(e));
     } finally {
       setTrProgress(null);
+      translationPending.current = false;
     }
-  }, [bundle, showTranslation, target, translations]);
+  }, [bundle, showTranslation, target, translations, isWeb, settings.webTranslation.consentAt, t, update]);
+
+  // Opt-in translation starts in Safari when a missing translation is opened online. Cached
+  // translations always remain readable offline, without any request to the provider.
+  useEffect(() => {
+    if (!isWeb || !settings.webTranslation.automatic || !settings.webTranslation.consentAt ||
+      !translationsReady || !bundle ||
+      !needsTranslation || translationSupported() || trProgress || trError || showTranslation ||
+      manuallyViewingOriginal.current) return;
+    const missing = allIds.some((id) => {
+      const tweet = bundle.tweets[id];
+      return tweet && sourceLanguage(tweet) !== target && !translations[`${id}:${target}`];
+    });
+    if (!missing) { setShowTranslation(true); return; }
+    if (online) void translate();
+    else if (Object.keys(translations).length) setShowTranslation(true);
+  }, [allIds, bundle, isWeb, needsTranslation, online, settings.webTranslation.automatic,
+    settings.webTranslation.consentAt,
+    showTranslation, t, target, trError, trProgress, translate, translations, translationsReady]);
 
   const copyTranslation = useCallback(async () => {
     if (!view) return;
@@ -723,7 +783,7 @@ export function ThreadReader() {
                 <MenuItem icon={<Keyboard size={14} />} onSelect={() => setHelpOpen(true)}>{t('readerShortcuts')}</MenuItem>
               </MenuContent>
             </Menu></div> : null}
-            <ReaderSettings />
+            <ReaderSettings isWeb={isWeb} />
             <div className={isWeb ? 'hidden sm:block' : undefined}><Tooltip label={`${t('readerShortcuts')} (?)`}>
               <Button
                 variant="ghost"
@@ -827,11 +887,13 @@ export function ThreadReader() {
                   .filter((l) => l !== target)
                   .map(languageName)
                   .join(', ')}{' '}
-                en {languageName(target)} · sur votre appareil, rien n’est envoyé.
+                en {languageName(target)} ·{' '}
+                {Object.values(translations).some((record) => record.provider === 'cloud')
+                  ? t('readerCloudNote') : t('readerLocalNote')}
                 <button
                   type="button"
                   className="ml-auto font-medium text-accent hover:underline"
-                  onClick={() => setShowTranslation(false)}
+                  onClick={() => { manuallyViewingOriginal.current = true; setShowTranslation(false); }}
                 >
                   Afficher l’original
                 </button>
@@ -845,9 +907,11 @@ export function ThreadReader() {
               >
                 <p>{trError}</p>
                 <p className="mt-1 text-muted">
-                  {translationSupported()
-                    ? 'Vous pouvez réessayer, ou utiliser Google Traduction (le texte est alors envoyé à Google).'
-                    : 'La traduction intégrée nécessite Google Chrome 138 ou plus récent. Vous pouvez utiliser Google Traduction (le texte est alors envoyé à Google).'}
+                  {isWeb && !translationSupported()
+                    ? t('readerCloudErrorHint')
+                    : translationSupported()
+                      ? 'Vous pouvez réessayer, ou utiliser Google Traduction (le texte est alors envoyé à Google).'
+                      : 'La traduction intégrée nécessite Google Chrome 138 ou plus récent. Vous pouvez utiliser Google Traduction (le texte est alors envoyé à Google).'}
                 </p>
                 <div className="mt-2 flex gap-2">
                   <Button

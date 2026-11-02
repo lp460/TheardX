@@ -10,6 +10,7 @@ La version web partage **React 19, Vite, Dexie, le lecteur, les exports et le mo
 - Le bouton « Télécharger le ZIP » de l'accueil fournit `/downloads/threadshelf-extension.zip`, construit à partir de la même version de l'extension MV3 au cours de `npm run build:web`. **Ce n'est pas une installation automatique** : décompresser l'archive et charger son dossier en mode développeur sur un navigateur Chromium desktop (Chrome, Arc, Brave ou Edge).
 - Sur iPhone/iPad, utiliser plutôt la PWA via Safari → Partager → Sur l'écran d'accueil. L'extension Chromium desktop n'est pas installable telle quelle sur Safari iOS.
 - Les textes des posts et discussions ne sont pas traduits automatiquement quand on change la langue de l'interface.
+- Dans le lecteur Safari, « Réglages de lecture » → « Traduction automatique sur Safari » active, **sur consentement explicite**, la traduction des posts et articles via Vercel AI Gateway. La langue cible reste celle du lecteur. Le texte est envoyé à Vercel et au fournisseur IA ; les traductions sont enregistrées dans Dexie, réutilisées hors ligne, et ne remplacent jamais les originaux. Le bouton manuel « Traduire » demande le même consentement la première fois. L'extension garde la traduction locale Chrome et ne contacte jamais cette API.
 
 ## Installation et déploiement
 
@@ -29,6 +30,14 @@ La version web partage **React 19, Vite, Dexie, le lecteur, les exports et le mo
    | `SESSION_SECRET` | Secret fort aléatoire, au moins 32 caractères |
 
 4. Déployer d'abord une preview. La connexion OAuth requiert une callback configurée pour cette URL exacte ; utiliser l'alias stable de la branche, pas l'URL unique du build. Ne pas publier en production avant un test réel de connexion et de synchronisation.
+
+### Traduction web dans Safari (optionnelle)
+
+- Le lecteur utilise `POST /api/translate` uniquement si le navigateur ne dispose pas du `Translator` local **et** après consentement. L'API exige le cookie de session GitHub et une origine identique à `WEB_ORIGIN` ; elle refuse les requêtes trop longues. Le jeton GitHub n'est pas envoyé à AI Gateway. Les réponses sont `no-store` et exclues du cache du service worker.
+- Vercel fournit automatiquement `VERCEL_OIDC_TOKEN` à ses Functions, sans ajouter de variable secrète. `AI_GATEWAY_API_KEY` n'est qu'un repli facultatif pour le développement hors Vercel. Les quatre variables OAuth et session existantes restent inchangées.
+- Le modèle configuré est `google/gemini-2.5-flash-lite` via l'hébergement Google Vertex (politique *no training* et *ZDR*). Les textes sont traités sur le service distant, **pas localement**. La traduction n'est jamais lancée par défaut. Les données GitHub ne sont pas envoyées à ce service.
+- AI Gateway offre actuellement jusqu'à **5 $ de crédits par période de 30 jours** aux équipes éligibles, après validation du moyen de paiement. Les modèles admissibles et les plafonds peuvent évoluer. Configurer un **budget projet** dans AI Gateway pour bloquer les dépenses non souhaitées, laisser le rechargement automatique désactivé et contrôler les journaux d'utilisation. L'application limite chaque requête à 6 000 caractères et chaque article à 100 000 caractères ; ces limites ne remplacent pas un budget côté Vercel.
+- Si le compte Vercel n'est pas vérifié, que les crédits sont épuisés, ou que le modèle n'est pas accessible, le lecteur affiche une erreur sans modifier les articles. Une traduction déjà enregistrée reste accessible hors ligne.
 
 ## Utilisation
 

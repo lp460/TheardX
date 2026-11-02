@@ -100,3 +100,67 @@ test('the PWA reopens its local library with no network after first visit', asyn
   await expect(page.getByTestId('view-title')).toHaveText('Bibliothèque');
   await expect(page.getByText('Hors ligne')).toBeVisible();
 });
+
+test('Safari-style web reader auto-translates with consent and reuses cached text offline', async ({ page, context }) => {
+  await mockSignedIn(page);
+  await page.addInitScript(() => { delete (globalThis as { Translator?: unknown }).Translator; });
+  let requests = 0;
+  await page.route('**/api/translate', async (route) => {
+    requests++;
+    expect(route.request().method()).toBe('POST');
+    const body = route.request().postDataJSON() as { source: string; target: string; texts: string[] };
+    expect(body.source).toBe('en');
+    expect(body.target).toBe('fr');
+    return route.fulfill({ status: 200, contentType: 'application/json',
+      body: JSON.stringify({ translations: body.texts.map((t) => `FR : ${t}`) }) });
+  });
+  await page.goto('/');
+  await expect(page.getByTestId('view-title')).toHaveText('Bibliothèque');
+  await page.evaluate(async () => {
+    const handle = indexedDB.open('threadshelf');
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      handle.onsuccess = () => resolve(handle.result);
+      handle.onerror = () => reject(handle.error);
+    });
+    const tx = db.transaction(['entries', 'tweets'], 'readwrite');
+    tx.objectStore('tweets').put({
+      id: 'web-post-1', url: 'https://x.com/someone/status/1', author: { handle: 'someone' },
+      authorKey: 'someone', lang: 'en', text: [{ t: 'text', v: 'The weather is nice.' }],
+      media: [], linkedTweetIds: [], availability: 'available', context: 'full',
+      firstSeenAt: 1, lastSeenAt: 1,
+    });
+    tx.objectStore('entries').put({
+      id: 'web-entry-1', kind: 'thread', title: 'The weather is nice.', authorHandle: 'someone',
+      focalTweetId: 'web-post-1', tweetIds: ['web-post-1'], contextTweetIds: [],
+      referenceTweetIds: [], externalRefs: [], completeness: {
+        status: 'complete', startVerified: true, endVerified: true, gaps: 0, issues: [], checkedAt: 1,
+      }, sourceUrl: 'https://x.com/someone/status/1', savedAt: 1, updatedAt: 1,
+      readState: 'unread', readLater: false, favorite: false, readProgress: 0,
+      categoryId: null, tags: [], collectionIds: [], note: '', offline: 'full', searchText: '',
+    });
+    await new Promise<void>((resolve, reject) => {
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+    db.close();
+    localStorage.setItem('threadshelf.settings', JSON.stringify({
+      translateTo: 'fr', webTranslation: { automatic: true, consentAt: Date.now() },
+    }));
+  });
+
+  await page.goto('/reader/?id=web-entry-1');
+  await expect(page.getByTestId('reader-title')).toHaveText('FR : The weather is nice.');
+  await expect(page.getByTestId('reader-translation-note')).toContainText('Vercel AI Gateway');
+  expect(requests).toBe(1);
+
+  await expect.poll(() => page.evaluate(() => !!navigator.serviceWorker.controller)).toBe(true);
+  await page.unroute('**/api/translate');
+  await page.unroute('**/api/auth/me');
+  await context.setOffline(true);
+  await page.reload();
+  await expect(page.getByTestId('reader-title')).toHaveText('FR : The weather is nice.');
+  expect(requests).toBe(1);
+  await page.getByTestId('reader-translate').click();
+  await expect(page.getByTestId('reader-title')).toHaveText('The weather is nice.');
+  await expect(page.getByTestId('reader-translation-note')).not.toBeVisible();
+});
