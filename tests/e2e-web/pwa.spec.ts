@@ -30,12 +30,33 @@ test('the public home explains TheardX, signs in through GitHub and offers the r
   }));
   await page.goto('/');
   await expect(page.getByRole('main').getByRole('link', { name: /Se connecter avec GitHub/ })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Gardez les contenus qui comptent.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Sauvegardez l’essentiel. Lisez-le vraiment.' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'L’extension pour capturer. Le web pour lire.' })).toBeVisible();
+  await expect(page.getByTestId('demo-library-panel')).toBeVisible();
+  await expect(page.getByText('Aperçu avec des exemples fictifs.', { exact: false })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Télécharger le ZIP' })).toHaveAttribute('href', '/downloads/threadshelf-extension.zip');
   const response = await page.request.get('/downloads/threadshelf-extension.zip');
   expect(response.ok()).toBeTruthy();
   expect((await response.body()).subarray(0, 2).toString()).toBe('PK');
+});
+
+test('visitors can explore a realistic library and reader before signing in, including on iPhone', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.route('**/api/auth/me', (route) => route.fulfill({
+    status: 401, contentType: 'application/json', body: '{"error":"Connexion requise"}',
+  }));
+  await page.goto('/');
+  await expect(page.getByTestId('landing-demo')).toBeVisible();
+  await expect(page.getByTestId('demo-entry-0')).toContainText('Les idées qui méritent d’être relues');
+  await page.getByTestId('demo-entry-0').click();
+  await expect(page.getByTestId('demo-reader-panel')).toContainText('Les idées qui méritent d’être relues');
+  await page.getByTestId('demo-library-tab').click();
+  await expect(page.getByTestId('demo-library-panel')).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.getByRole('combobox', { name: 'Langue' }).selectOption('en');
+  await expect(page.getByTestId('demo-entry-0')).toContainText('Ideas worth revisiting');
+  await page.getByRole('combobox', { name: 'Language' }).selectOption('es');
+  await expect(page.getByTestId('demo-entry-0')).toContainText('Ideas que merecen una segunda lectura');
 });
 
 test('the library has a usable mobile navigation without horizontal overflow', async ({ page }) => {
@@ -60,7 +81,7 @@ test('signed-in users can return to the home page to download the extension', as
   await mockSignedIn(page);
   await page.goto('/');
   await page.getByRole('link', { name: 'Accueil' }).click();
-  await expect(page.getByRole('heading', { name: 'Gardez les contenus qui comptent.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Sauvegardez l’essentiel. Lisez-le vraiment.' })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Télécharger le ZIP' })).toBeVisible();
   await page.getByRole('link', { name: 'Accéder à ma bibliothèque' }).click();
   await expect(page.getByTestId('view-title')).toHaveText('Bibliothèque');
