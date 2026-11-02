@@ -85,7 +85,7 @@ test('signed-in users can return to the home page to download the extension', as
   await page.getByRole('link', { name: 'Accueil' }).click();
   await expect(page.getByRole('heading', { name: 'Sauvegardez l’essentiel. Lisez-le vraiment.' })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Télécharger le ZIP' })).toBeVisible();
-  await page.getByRole('link', { name: 'Accéder à ma bibliothèque' }).click();
+  await page.getByRole('main').getByRole('link', { name: 'Accéder à ma bibliothèque' }).click();
   await expect(page.getByTestId('view-title')).toHaveText('Bibliothèque');
 });
 
