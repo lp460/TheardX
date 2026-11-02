@@ -99,17 +99,17 @@ export function LandingPage({ status, loginAvailable, libraryAvailable = false }
         </header>
 
         <main>
-          <section className="relative mx-auto grid max-w-[1480px] items-center gap-10 px-5 pb-20 pt-12 sm:px-8 sm:pt-16 lg:grid-cols-[.8fr_1.2fr] lg:gap-12 lg:px-12 lg:pb-28 lg:pt-24 xl:gap-16">
+          <section className="relative mx-auto grid max-w-[1480px] items-center gap-7 px-5 pb-16 pt-6 sm:gap-10 sm:px-8 sm:pt-16 lg:grid-cols-[.8fr_1.2fr] lg:gap-12 lg:px-12 lg:pb-28 lg:pt-24 xl:gap-16">
             <div className="mx-auto w-full max-w-[640px] lg:mx-0">
               <span className="inline-flex items-center gap-2 rounded-full border border-violet-400/25 bg-violet-400/10 px-4 py-2 text-[11px] font-semibold tracking-wide text-violet-200 sm:text-xs">
                 <Sparkles size={14} />{t('homeEyebrow')}
               </span>
-              <h1 className="mt-7 max-w-3xl text-[clamp(3rem,5.4vw,5.7rem)] font-semibold leading-[1.07] tracking-[-0.065em]">
+              <h1 className="mt-5 max-w-3xl text-[clamp(2.35rem,5.4vw,5.7rem)] font-semibold leading-[1.07] tracking-[-0.065em] sm:mt-7">
                 {t('heroTitle')}
               </h1>
-              <p className="mt-7 max-w-lg text-[16px] leading-[1.75] text-[#b8bdd1] sm:text-lg">{t('heroDescription')}</p>
+              <p className="mt-4 max-w-lg text-[15px] leading-[1.65] text-[#b8bdd1] sm:mt-7 sm:text-lg sm:leading-[1.75]">{t('heroDescription')}</p>
               {status ? <p role="status" className="mt-4 rounded-xl border border-amber-400/30 bg-amber-400/10 p-3 text-sm text-amber-100">{status}</p> : null}
-              <div className="mt-8 flex flex-col gap-3 sm:flex-row lg:flex-col xl:flex-row">
+              <div className="mt-5 flex flex-col gap-3 sm:mt-8 sm:flex-row lg:flex-col xl:flex-row">
                 {loginAvailable || libraryAvailable ? (
                   <a href={libraryAvailable ? '/' : '/api/auth/login'} className="ts-focus inline-flex min-h-13 items-center justify-center gap-3 rounded-xl bg-[#b3a1ff] px-6 py-3.5 text-[14px] font-bold text-[#211a38] shadow-[0_14px_34px_rgba(124,92,255,.22)] transition hover:-translate-y-0.5 hover:bg-[#c8bcff]">
                     <GitBranch size={19} /> {libraryAvailable ? t('heroRead') : t('signIn')} <ArrowRight size={17} />
@@ -119,8 +119,8 @@ export function LandingPage({ status, loginAvailable, libraryAvailable = false }
                   <BookOpen size={18} />{t('demoDiscover')}
                 </a>
               </div>
-              <p className="mt-5 flex items-center gap-2 text-xs font-medium text-white/45"><LockKeyhole size={14} />{t('demoPrivacyLine')}</p>
-              <a href="#fonctionnement" className="mt-9 inline-flex items-center gap-2 text-sm text-white/50 transition hover:text-white">
+              <p className="mt-3 flex items-center gap-2 text-[11px] font-medium text-white/45 sm:mt-5 sm:text-xs"><LockKeyhole size={14} />{t('demoPrivacyLine')}</p>
+              <a href="#fonctionnement" className="mt-9 hidden items-center gap-2 text-sm text-white/50 transition hover:text-white sm:inline-flex">
                 <ArrowDown size={15} />{t('scrollDiscover')}
               </a>
             </div>

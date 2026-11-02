@@ -47,6 +47,8 @@ test('visitors can explore a realistic library and reader before signing in, inc
   }));
   await page.goto('/');
   await expect(page.getByTestId('landing-demo')).toBeVisible();
+  const previewPosition = await page.getByTestId('landing-demo').boundingBox();
+  expect(previewPosition?.y ?? Infinity).toBeLessThan(812);
   await expect(page.getByTestId('demo-entry-0')).toContainText('Les idées qui méritent d’être relues');
   await page.getByTestId('demo-entry-0').click();
   await expect(page.getByTestId('demo-reader-panel')).toContainText('Les idées qui méritent d’être relues');
