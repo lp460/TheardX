@@ -53,7 +53,7 @@ test('visitors can explore a realistic library and reader before signing in, inc
   await expect(page.getByTestId('demo-entry-0')).toContainText("I've released a free, open-source speech input app");
   await page.getByTestId('demo-entry-0').click();
   await expect(page.getByTestId('demo-reader-panel')).toContainText('OpenHinoVoice');
-  await expect(page.getByRole('link', { name: 'Voir la publication originale', exact: true })).toHaveAttribute('href', 'https://x.com/inoino65536/status/2116582365950832793');
+  await expect(page.getByTestId('demo-reader-panel').getByRole('link', { name: 'Voir la publication originale · X' })).toHaveAttribute('href', 'https://x.com/inoino65536/status/2116582365950832793');
   await page.getByTestId('demo-library-tab').click();
   await expect(page.getByTestId('demo-library-panel')).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
