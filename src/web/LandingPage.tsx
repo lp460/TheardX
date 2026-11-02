@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { ArrowRight, BookOpen, Check, Cloud, Download, GitBranch, LockKeyhole, MonitorDown, Puzzle, Smartphone, Sparkles, WifiOff } from 'lucide-react';
 import { LogoMark } from '@/components/Logo';
 import { LanguageSelector, useWebI18n } from './i18n';
@@ -9,6 +10,14 @@ const extensionDownload = '/downloads/threadshelf-extension.zip';
 
 export function LandingPage({ status, loginAvailable, libraryAvailable = false }: { status?: string; loginAvailable: boolean; libraryAvailable?: boolean }) {
   const { t } = useWebI18n();
+  useEffect(() => {
+    // The public landing page may render after the initial hash navigation.
+    // Restore deep links to the showcase and installation guide after mount.
+    const id = window.location.hash.slice(1);
+    if (!id) return;
+    const frame = window.requestAnimationFrame(() => document.getElementById(id)?.scrollIntoView());
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
   return (
     <div className="min-h-[100dvh] overflow-x-hidden bg-[#0c1020] text-white">
       <div className="relative isolate overflow-hidden">

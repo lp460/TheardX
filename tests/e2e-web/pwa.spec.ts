@@ -103,8 +103,9 @@ test('the installation guide stays on TheardX and gives official instructions fo
 
 test('the extension showcase compares X and Reddit before and after and exercises the actual ThreadShelf controls', async ({ page }) => {
   await page.route('**/api/auth/me', (route) => route.fulfill({ status: 401, contentType: 'application/json', body: '{}' }));
-  await page.goto('/');
+  await page.goto('/?home=1#sur-x-et-reddit');
   await expect(page.getByRole('heading', { name: 'Il s’ajoute directement à X et Reddit.' })).toBeVisible();
+  await expect.poll(() => page.locator('#sur-x-et-reddit').evaluate((element) => element.getBoundingClientRect().top)).toBeLessThan(100);
   await expect(page.getByTestId('extension-added-toolbar')).toBeVisible();
   await page.getByTestId('extension-before').click();
   await expect(page.getByTestId('extension-added-toolbar')).toHaveCount(0);
