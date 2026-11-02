@@ -90,16 +90,20 @@ export function LandingDemo() {
               <button type="button" data-testid="demo-library-tab" onClick={() => setScreen('library')} className="ts-focus flex items-center gap-2 text-xs font-semibold text-[#6d59c4]">
                 <ArrowLeft size={16}/>{t('demoBack')}
               </button>
-              <div className="mt-8 flex items-center gap-3">
+              <div className="mt-5 flex items-center gap-3">
                 <span className="flex size-10 items-center justify-center rounded-full bg-[#e0d9ff] text-sm font-semibold">{active.author.split(' ').map((p) => p[0]).join('')}</span>
                 <span><span className="block text-sm font-bold">{active.author}</span><span className="text-xs text-[#8a8c97]">{active.handle} · {active.source}</span></span>
               </div>
-              <h3 className="mt-6 font-serif text-[26px] font-semibold leading-tight tracking-tight sm:text-[38px]">{active.title}</h3>
-              <div className="my-6 h-px bg-[#e8e8ec]"/>
-              <p className="font-serif text-[17px] leading-[1.85] text-[#575861]">{active.description[locale]}</p>
-              <div className="my-7 h-[190px] overflow-hidden rounded-xl"><SourceMedia item={active} unavailable={labels.noImage}/></div>
-              <p className="text-[13px] leading-6 text-[#797588]">{labels.readerNote}</p>
-              <a href={active.sourceUrl} target="_blank" rel="noopener noreferrer" className="ts-focus mt-4 inline-flex items-center gap-2 rounded-lg border border-[#d9d2ee] bg-white px-4 py-3 text-sm font-semibold text-[#6852c1]"><ExternalLink size={16}/>{labels.sourceLink} · {active.source}</a>
+              <h3 className="mt-4 font-serif text-[25px] font-semibold leading-tight tracking-tight sm:text-[34px]">{active.title}</h3>
+              <div className="my-4 h-px bg-[#e8e8ec]"/>
+              <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_170px]">
+                <div>
+                  <p className="font-serif text-[15px] leading-[1.7] text-[#575861]">{active.description[locale]}</p>
+                  <a href={active.sourceUrl} target="_blank" rel="noopener noreferrer" className="ts-focus mt-3 inline-flex items-center gap-2 rounded-lg border border-[#d9d2ee] bg-white px-3 py-2 text-[12px] font-semibold text-[#6852c1]"><ExternalLink size={15}/>{labels.sourceLink} · {active.source}</a>
+                </div>
+                <div className="h-[110px] overflow-hidden rounded-xl sm:h-[135px]"><SourceMedia item={active} unavailable={labels.noImage}/></div>
+              </div>
+              <p className="mt-3 text-[12px] leading-5 text-[#797588]">{labels.readerNote}</p>
               <div className="mt-5 flex flex-wrap gap-3">
                 <button type="button" onClick={() => toggle(active.id, favorites, setFavorites)} className="ts-focus inline-flex items-center gap-2 rounded-lg border border-[#ded8f5] px-4 py-2 text-xs font-semibold text-[#6b55be]"><Star size={15} fill={favorites.includes(active.id) ? 'currentColor' : 'none'}/>{t('favorites')}</button>
                 <button type="button" onClick={() => toggle(active.id, later, setLater)} className="ts-focus inline-flex items-center gap-2 rounded-lg border border-[#ded8f5] px-4 py-2 text-xs font-semibold text-[#6b55be]"><Bookmark size={15}/>{labels.saved}</button>
