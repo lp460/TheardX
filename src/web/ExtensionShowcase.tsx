@@ -5,6 +5,7 @@ import {
   Repeat2, Save, Share2, SlidersHorizontal, Sparkles, ThumbsUp, X, ZoomIn,
 } from 'lucide-react';
 import { LogoMark } from '@/components/Logo';
+import { ExtractedThread, capturedThreadPlainText } from './ExtractedThread';
 import { useWebI18n, type WebLanguage } from './i18n';
 import { realRedditExample, realXExample, type PublicExample } from './realExamples';
 
@@ -24,9 +25,9 @@ const copy = {
     menuCopyPost: 'Copier cette publication', menuCopyText: 'Copier le thread (texte brut)',
     menuRead: 'Lire dans ThreadShelf', menuOptions: 'Collection, tags, note…', menuLibrary: 'Ouvrir la bibliothèque',
     example: 'Vraies publications publiques · commandes simulées, sans modification de votre bibliothèque',
-    saved: 'Publication enregistrée dans la simulation', copied: 'Extrait public copié', copyFailed: 'Copie impossible ici',
+    saved: 'Publication enregistrée dans la simulation', copied: 'Texte original extrait copié', copyFailed: 'Copie impossible ici',
     selection: 'Sélection disponible dans l’extension réelle', options: 'Collections et notes disponibles dans l’extension réelle', library: 'Votre vraie bibliothèque s’ouvre après connexion',
-    reader: 'Lecture dans ThreadShelf', back: 'Retour à la publication', readerNote: 'Dans l’extension réelle, ce bouton ouvre le lecteur avec la publication complète.',
+    reader: 'Lecture dans ThreadShelf', back: 'Retour à la publication', readerNote: 'Voici les textes originaux extraits et enregistrés depuis cette publication.',
     addedTitle: 'Ce que ThreadShelf ajoute', addedOneTitle: 'Une barre directement sous le post', addedOne: 'Enregistrer, copier ou ouvrir le lecteur en un clic, sans quitter X ou Reddit.',
     addedTwoTitle: 'Un menu de capture complet', addedTwo: 'Sauvegarde du fil, des citations et des liens ; copie Markdown ou texte brut ; collections et tags.',
     addedThreeTitle: 'Un suivi des fils', addedThree: 'Sur Reddit, la barre indique le nombre de messages capturés et l’état « complet » ou « incomplet ».',
@@ -48,9 +49,9 @@ const copy = {
     menuCopyThread: 'Copy thread (Markdown)', menuCopyDiscussion: 'Copy discussion (Markdown)', menuCopyPost: 'Copy this post', menuCopyText: 'Copy thread (plain text)',
     menuRead: 'Read in ThreadShelf', menuOptions: 'Collection, tags, note…', menuLibrary: 'Open library',
     example: 'Real public posts · simulated controls, no changes to your library',
-    saved: 'Post saved in this simulation', copied: 'Public excerpt copied', copyFailed: 'Clipboard unavailable here',
+    saved: 'Post saved in this simulation', copied: 'Original extracted text copied', copyFailed: 'Clipboard unavailable here',
     selection: 'Selections are available in the real extension', options: 'Collections and notes are available in the real extension', library: 'Your real library opens after sign-in',
-    reader: 'Read in ThreadShelf', back: 'Back to post', readerNote: 'In the real extension, this opens the reader with the full saved content.',
+    reader: 'Read in ThreadShelf', back: 'Back to post', readerNote: 'These are the original extracted texts saved from this post.',
     addedTitle: 'What ThreadShelf adds', addedOneTitle: 'A toolbar below each post', addedOne: 'Save, copy or open the reader in one click without leaving X or Reddit.',
     addedTwoTitle: 'A full capture menu', addedTwo: 'Save threads, quotes and links; copy Markdown or plain text; organize with collections and tags.',
     addedThreeTitle: 'Thread status at a glance', addedThree: 'On Reddit, the toolbar shows the captured message count and whether the discussion is complete or incomplete.',
@@ -72,9 +73,9 @@ const copy = {
     menuCopyThread: 'Copiar hilo (Markdown)', menuCopyDiscussion: 'Copiar conversación (Markdown)', menuCopyPost: 'Copiar publicación', menuCopyText: 'Copiar hilo (texto plano)',
     menuRead: 'Leer en ThreadShelf', menuOptions: 'Colección, etiquetas, nota…', menuLibrary: 'Abrir biblioteca',
     example: 'Publicaciones públicas reales · controles simulados, tu biblioteca no se modifica',
-    saved: 'Publicación guardada en la simulación', copied: 'Extracto público copiado', copyFailed: 'No se puede copiar aquí',
+    saved: 'Publicación guardada en la simulación', copied: 'Texto original extraído copiado', copyFailed: 'No se puede copiar aquí',
     selection: 'Las selecciones están en la extensión real', options: 'Las colecciones y notas están en la extensión real', library: 'Tu biblioteca se abre al iniciar sesión',
-    reader: 'Leer en ThreadShelf', back: 'Volver a la publicación', readerNote: 'En la extensión real, este botón abre el lector con el contenido completo.',
+    reader: 'Leer en ThreadShelf', back: 'Volver a la publicación', readerNote: 'Estos son los textos originales extraídos y guardados de esta publicación.',
     addedTitle: 'Lo que añade ThreadShelf', addedOneTitle: 'Una barra debajo de cada publicación', addedOne: 'Guarda, copia o abre el lector en un clic sin salir de X o Reddit.',
     addedTwoTitle: 'Un menú completo', addedTwo: 'Guarda hilos, citas y enlaces; copia Markdown o texto plano; organiza colecciones y etiquetas.',
     addedThreeTitle: 'Estado de las conversaciones', addedThree: 'En Reddit se muestra el número de mensajes capturados y si la conversación está completa o incompleta.',
@@ -149,7 +150,6 @@ export function ExtensionShowcase() {
   const isReddit = platform === 'reddit';
   const example = isReddit ? realRedditExample : realXExample;
   const heading = example.title;
-  const sample = `${example.title}\n\n${example.description[language]}\n\n${example.sourceUrl}`;
 
   useLayoutEffect(() => {
     if (!menuOpen || !menuTrigger.current || !menuPanel.current) return;
@@ -168,7 +168,10 @@ export function ExtensionShowcase() {
       setSaved((previous) => ({ ...previous, [platform]: true }));
       setNotice(labels.saved);
     } else if (action === 'copy-thread' || action === 'copy-post' || action === 'copy-text') {
-      try { await navigator.clipboard.writeText(sample); setNotice(labels.copied); }
+      try {
+        await navigator.clipboard.writeText(capturedThreadPlainText(example.id, action === 'copy-post', action === 'copy-thread'));
+        setNotice(labels.copied);
+      }
       catch { setNotice(labels.copyFailed); }
     } else if (action === 'read') {
       setReaderOpen(true); setNotice('');
@@ -206,7 +209,19 @@ export function ExtensionShowcase() {
         <div className="min-w-0 rounded-[25px] border border-[#e2e0ed] bg-[#f1f2f6] p-3 shadow-[0_25px_70px_#42376814] sm:p-5">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-2 px-1"><span className="text-[12px] font-bold text-[#77778b]">{isReddit?'Reddit':'X / Twitter'}</span><div aria-label={labels.switchLabel} className="flex items-center rounded-xl border border-[#dad9e5] bg-white p-1 text-[11px] font-semibold"><button type="button" data-testid="extension-before" aria-pressed={!enabled} onClick={()=>{setEnabled(false);setMenuOpen(false);setNotice('');setReaderOpen(false);}} className={`ts-focus rounded-lg px-3 py-2 ${!enabled?'bg-[#28263c] text-white':'text-[#878399]'}`}>{labels.without}</button><button type="button" data-testid="extension-after" aria-pressed={enabled} onClick={()=>setEnabled(true)} className={`ts-focus rounded-lg px-3 py-2 ${enabled?'bg-[#6d56ca] text-white':'text-[#878399]'}`}>{labels.with}</button></div></div>
           <div className="relative mx-auto w-full max-w-[675px] rounded-[20px] border border-[#e4e5e9] bg-white p-3 shadow-sm sm:p-4" data-testid="extension-post-preview">
-            {readerOpen ? <div data-testid="extension-reader" className="min-h-[495px]"><button type="button" className="ts-focus flex items-center gap-2 text-xs font-semibold text-[#6852c1]" onClick={()=>setReaderOpen(false)}><ArrowLeft size={17}/>{labels.back}</button><div className="mx-auto mt-8 max-w-[480px]"><span className="text-xs font-bold uppercase tracking-[.15em] text-[#8f7cbd]">{labels.reader}</span><h3 className="mt-3 font-serif text-[28px] font-semibold leading-tight sm:text-[36px]">{heading}</h3><div className="my-5 h-px bg-[#e9e7ed]"/><p className="font-serif text-[17px] leading-8 text-[#555468]">{example.description[language]}</p><div className="my-6"><Graphic key={example.id} example={example} openSource={labels.openSource}/></div><a href={example.sourceUrl} target="_blank" rel="noopener noreferrer" className="ts-focus inline-flex items-center gap-2 text-sm font-bold text-[#6d56ca]"><ExternalLink size={16}/>{labels.openSource}</a><p className="mt-7 rounded-xl bg-[#f1edfc] p-4 text-xs leading-6 text-[#6d5aaf]">{labels.readerNote}</p></div></div> : <>
+            {readerOpen ? <div data-testid="extension-reader" className="max-h-[680px] min-h-[495px] overflow-y-auto overscroll-contain pr-1">
+              <button type="button" className="ts-focus flex items-center gap-2 text-xs font-semibold text-[#6852c1]" onClick={() => setReaderOpen(false)}><ArrowLeft size={17}/>{labels.back}</button>
+              <div className="mx-auto mt-8 max-w-[480px]">
+                <span className="text-xs font-bold uppercase tracking-[.15em] text-[#8f7cbd]">{labels.reader}</span>
+                <h3 className="mt-3 font-serif text-[28px] font-semibold leading-tight sm:text-[36px]">{heading}</h3>
+                <div className="my-5 h-px bg-[#e9e7ed]"/>
+                <p className="font-serif text-[17px] leading-8 text-[#555468]">{example.description[language]}</p>
+                <div className="my-6"><Graphic key={example.id} example={example} openSource={labels.openSource}/></div>
+                <a href={example.sourceUrl} target="_blank" rel="noopener noreferrer" className="ts-focus inline-flex items-center gap-2 text-sm font-bold text-[#6d56ca]"><ExternalLink size={16}/>{labels.openSource}</a>
+                <p className="mt-5 rounded-xl bg-[#f1edfc] p-4 text-xs leading-6 text-[#6d5aaf]">{labels.readerNote}</p>
+                <ExtractedThread example={example} language={language as WebLanguage}/>
+              </div>
+            </div> : <>
               <div className="flex items-center gap-3"><div className={`flex size-10 shrink-0 items-center justify-center rounded-full text-sm font-bold ${isReddit?'bg-[#ffe9d8] text-[#ee6b31]':'bg-[#dfe1ff] text-[#6252c3]'}`}>{isReddit?'r/':example.author.slice(0, 2).toUpperCase()}</div><div className="min-w-0 flex-1"><span className="block truncate text-[13px] font-bold text-[#232433]">{isReddit?example.handle:example.author} <span className="font-normal text-[#9695a4]">· {example.source}</span></span><span className="block truncate text-[11px] text-[#8a8d9b]">{isReddit?example.author:example.handle}</span></div>{isReddit?<span className="rounded-full bg-[#19191f] px-3 py-1.5 text-[11px] font-bold text-white">{labels.join}</span>:<MoreHorizontal size={19} className="text-[#8c8fa0]"/>}</div>
               <h3 className="mt-3 text-[16px] font-bold leading-snug sm:text-[18px]">{example.title}</h3>
               <p className="mt-2 text-[13px] leading-6 text-[#696b77]">{example.description[language]}</p>

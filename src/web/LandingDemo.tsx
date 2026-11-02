@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { ArrowLeft, Bookmark, CheckCircle2, Clock3, ExternalLink, Folder, Grid2X2, ImageOff, List, Menu, Search, Star, X } from 'lucide-react';
 import { LogoMark } from '@/components/Logo';
 import { useWebI18n, type WebLanguage } from './i18n';
+import { ExtractedThread } from './ExtractedThread';
 import { realExamples, type PublicExample } from './realExamples';
 
 const entries = realExamples;
@@ -35,9 +36,9 @@ export function LandingDemo() {
   }).sort((a,b) => sort === 'oldest' ? entries.indexOf(b) - entries.indexOf(a) : entries.indexOf(a) - entries.indexOf(b)), [view, later, favorites, read, source, category, search, sort, locale]);
   const active = entries.find((entry) => entry.id === selected) || entries[0]!;
   const labels = {
-    fr: { preview: 'Vraies publications · interface interactive', posts: 'publications', verified: 'Complet et vérifié', source: 'Sources', newest: 'Enregistrés récemment', oldest: 'Plus anciens', clear: 'Réinitialiser', saved: 'Enregistrer pour plus tard', selection: 'Exemples publics', sourceLink: 'Voir la publication originale', readerNote: 'Extrait de la publication publique : le fil complet est disponible à sa source.', noImage: 'Aperçu indisponible' },
-    en: { preview: 'Real posts · interactive interface', posts: 'posts', verified: 'Complete & verified', source: 'Sources', newest: 'Recently saved', oldest: 'Oldest first', clear: 'Reset', saved: 'Save for later', selection: 'Public examples', sourceLink: 'View original post', readerNote: 'Preview of a public post: read the full thread at its source.', noImage: 'Preview unavailable' },
-    es: { preview: 'Publicaciones reales · interfaz interactiva', posts: 'publicaciones', verified: 'Completo y verificado', source: 'Fuentes', newest: 'Guardados recientemente', oldest: 'Más antiguos', clear: 'Restablecer', saved: 'Guardar para después', selection: 'Ejemplos públicos', sourceLink: 'Ver publicación original', readerNote: 'Vista previa de una publicación pública: consulta el hilo completo en su origen.', noImage: 'Vista previa no disponible' },
+    fr: { preview: 'Vraies publications · interface interactive', posts: 'publications', verified: 'Fil enregistré', source: 'Sources', newest: 'Enregistrés récemment', oldest: 'Plus anciens', clear: 'Réinitialiser', saved: 'Enregistrer pour plus tard', selection: 'Exemples publics', sourceLink: 'Voir la publication originale', readerNote: 'Retrouvez ci-dessous le texte original conservé au moment de l’enregistrement.', noImage: 'Aperçu indisponible' },
+    en: { preview: 'Real posts · interactive interface', posts: 'posts', verified: 'Saved thread', source: 'Sources', newest: 'Recently saved', oldest: 'Oldest first', clear: 'Reset', saved: 'Save for later', selection: 'Public examples', sourceLink: 'View original post', readerNote: 'Below is the original text saved when this thread was captured.', noImage: 'Preview unavailable' },
+    es: { preview: 'Publicaciones reales · interfaz interactiva', posts: 'publicaciones', verified: 'Hilo guardado', source: 'Fuentes', newest: 'Guardados recientemente', oldest: 'Más antiguos', clear: 'Restablecer', saved: 'Guardar para después', selection: 'Ejemplos públicos', sourceLink: 'Ver publicación original', readerNote: 'Aquí aparece el texto original guardado al capturar este hilo.', noImage: 'Vista previa no disponible' },
   }[locale];
   const toggle = (id: string, items: string[], update: (next: string[]) => void) => update(items.includes(id) ? items.filter((x) => x !== id) : [...items, id]);
   const navigate = (next: typeof view) => { setView(next); setScreen('library'); setMobileMenu(false); };
@@ -85,7 +86,26 @@ export function LandingDemo() {
               </div>}
             </div>
           </div> : <div role="tabpanel" aria-label={t('demoReader')} data-testid="demo-reader-panel" className="min-h-0 flex-1 overflow-y-auto bg-[#fafafc] px-4 py-5 sm:px-10 sm:py-8">
-            <div className="mx-auto max-w-[650px]"><button type="button" data-testid="demo-library-tab" onClick={()=>setScreen('library')} className="ts-focus flex items-center gap-2 text-xs font-semibold text-[#6d59c4]"><ArrowLeft size={16}/>{t('demoBack')}</button><div className="mt-8 flex items-center gap-3"><span className="flex size-10 items-center justify-center rounded-full bg-[#e0d9ff] text-sm font-semibold">{active.author.split(' ').map((p)=>p[0]).join('')}</span><span><span className="block text-sm font-bold">{active.author}</span><span className="text-xs text-[#8a8c97]">{active.handle} · {active.source}</span></span></div><h3 className="mt-6 font-serif text-[26px] font-semibold leading-tight tracking-tight sm:text-[38px]">{active.title}</h3><div className="my-6 h-px bg-[#e8e8ec]"/><p className="font-serif text-[17px] leading-[1.85] text-[#575861]">{active.description[locale]}</p><div className="my-7 h-[190px] overflow-hidden rounded-xl"><SourceMedia item={active} unavailable={labels.noImage}/></div><p className="font-serif text-base leading-loose text-[#575861]">{labels.readerNote}</p><a href={active.sourceUrl} target="_blank" rel="noopener noreferrer" className="ts-focus mt-4 inline-flex items-center gap-2 rounded-lg border border-[#d9d2ee] bg-white px-4 py-3 text-sm font-semibold text-[#6852c1]"><ExternalLink size={16}/>{labels.sourceLink} · {active.source}</a><div className="mt-7 flex flex-wrap gap-3"><button type="button" onClick={()=>toggle(active.id,favorites,setFavorites)} className="ts-focus inline-flex items-center gap-2 rounded-lg border border-[#ded8f5] px-4 py-2 text-xs font-semibold text-[#6b55be]"><Star size={15} fill={favorites.includes(active.id)?'currentColor':'none'}/>{t('favorites')}</button><button type="button" onClick={()=>toggle(active.id,later,setLater)} className="ts-focus inline-flex items-center gap-2 rounded-lg border border-[#ded8f5] px-4 py-2 text-xs font-semibold text-[#6b55be]"><Bookmark size={15}/>{labels.saved}</button></div></div>
+            <div className="mx-auto max-w-[650px]">
+              <button type="button" data-testid="demo-library-tab" onClick={() => setScreen('library')} className="ts-focus flex items-center gap-2 text-xs font-semibold text-[#6d59c4]">
+                <ArrowLeft size={16}/>{t('demoBack')}
+              </button>
+              <div className="mt-8 flex items-center gap-3">
+                <span className="flex size-10 items-center justify-center rounded-full bg-[#e0d9ff] text-sm font-semibold">{active.author.split(' ').map((p) => p[0]).join('')}</span>
+                <span><span className="block text-sm font-bold">{active.author}</span><span className="text-xs text-[#8a8c97]">{active.handle} · {active.source}</span></span>
+              </div>
+              <h3 className="mt-6 font-serif text-[26px] font-semibold leading-tight tracking-tight sm:text-[38px]">{active.title}</h3>
+              <div className="my-6 h-px bg-[#e8e8ec]"/>
+              <p className="font-serif text-[17px] leading-[1.85] text-[#575861]">{active.description[locale]}</p>
+              <div className="my-7 h-[190px] overflow-hidden rounded-xl"><SourceMedia item={active} unavailable={labels.noImage}/></div>
+              <p className="text-[13px] leading-6 text-[#797588]">{labels.readerNote}</p>
+              <a href={active.sourceUrl} target="_blank" rel="noopener noreferrer" className="ts-focus mt-4 inline-flex items-center gap-2 rounded-lg border border-[#d9d2ee] bg-white px-4 py-3 text-sm font-semibold text-[#6852c1]"><ExternalLink size={16}/>{labels.sourceLink} · {active.source}</a>
+              <div className="mt-5 flex flex-wrap gap-3">
+                <button type="button" onClick={() => toggle(active.id, favorites, setFavorites)} className="ts-focus inline-flex items-center gap-2 rounded-lg border border-[#ded8f5] px-4 py-2 text-xs font-semibold text-[#6b55be]"><Star size={15} fill={favorites.includes(active.id) ? 'currentColor' : 'none'}/>{t('favorites')}</button>
+                <button type="button" onClick={() => toggle(active.id, later, setLater)} className="ts-focus inline-flex items-center gap-2 rounded-lg border border-[#ded8f5] px-4 py-2 text-xs font-semibold text-[#6b55be]"><Bookmark size={15}/>{labels.saved}</button>
+              </div>
+              <ExtractedThread example={active} language={locale}/>
+            </div>
           </div>}
         </div>
       </div>

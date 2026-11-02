@@ -53,6 +53,9 @@ test('visitors can explore a realistic library and reader before signing in, inc
   await expect(page.getByTestId('demo-entry-0')).toContainText("I've released a free, open-source speech input app");
   await page.getByTestId('demo-entry-0').click();
   await expect(page.getByTestId('demo-reader-panel')).toContainText('OpenHinoVoice');
+  await expect(page.getByTestId('demo-reader-panel').getByTestId('captured-post')).toHaveCount(2);
+  await expect(page.getByTestId('demo-reader-panel')).toContainText('【Main Features】');
+  await expect(page.getByTestId('demo-reader-panel')).toContainText('speech.cpp for fully local speech recognition');
   await expect(page.getByTestId('demo-reader-panel').getByRole('link', { name: 'Voir la publication originale · X' })).toHaveAttribute('href', 'https://x.com/inoino65536/status/2116582365950832793');
   await page.getByTestId('demo-library-tab').click();
   await expect(page.getByTestId('demo-library-panel')).toBeVisible();
@@ -83,6 +86,20 @@ test('the public demo filters cards, searches, saves favorites and offers grid/l
   await expect(page.getByTestId('demo-entry-2')).toBeVisible();
   await expect(page.getByTestId('demo-entry-0')).toHaveCount(0);
   await expect(page.getByRole('link', { name: /Voir la publication originale : u\/Caf_fein/ })).toHaveAttribute('href', /reddit\.com\/r\/macgaming/);
+});
+
+test('the public reader shows all saved Reddit comments and flags truncated X captures', async ({ page }) => {
+  await page.route('**/api/auth/me', (route) => route.fulfill({ status: 401, contentType: 'application/json', body: '{}' }));
+  await page.goto('/');
+  await page.getByTestId('demo-entry-2').click();
+  await expect(page.getByTestId('demo-reader-panel').getByTestId('captured-post')).toHaveCount(22);
+  await expect(page.getByTestId('demo-reader-panel')).toContainText('thermal throttling');
+  await expect(page.getByTestId('demo-reader-panel')).toContainText('Why is no one targeting tears of the kingdom?');
+  await page.getByTestId('demo-library-tab').click();
+  await page.getByTestId('demo-entry-3').click();
+  await expect(page.getByTestId('demo-reader-panel').getByTestId('captured-post')).toHaveCount(5);
+  await expect(page.getByTestId('demo-reader-panel')).toContainText('The skill walks the agent through how I');
+  await expect(page.getByTestId('demo-reader-panel')).toContainText('Certains messages étaient déjà tronqués');
 });
 
 test('the installation guide stays on TheardX and gives official instructions for four browsers', async ({ page }) => {
@@ -123,10 +140,16 @@ test('the extension showcase compares X and Reddit before and after and exercise
   await expect(page.getByRole('status').last()).toContainText('Publication enregistrée dans la simulation');
   await page.getByRole('button', { name: 'Lire', exact: true }).click();
   await expect(page.getByTestId('extension-reader')).toBeVisible();
+  await expect(page.getByTestId('extension-reader').getByTestId('captured-post')).toHaveCount(2);
+  await expect(page.getByTestId('extension-reader')).toContainText('Full FP16 weights, dataset and technical report');
   await page.getByRole('button', { name: 'Retour à la publication' }).click();
   await page.getByTestId('extension-platform-reddit').click();
   await expect(page.getByTestId('extension-post-preview')).toContainText('Zelda BOTW Native port');
   await expect(page.getByTestId('extension-post-preview')).toContainText('22 messages · complet');
+  await page.getByRole('button', { name: 'Lire', exact: true }).click();
+  await expect(page.getByTestId('extension-reader').getByTestId('captured-post')).toHaveCount(22);
+  await expect(page.getByTestId('extension-reader')).toContainText('Finally tried the Zelda port on my Mac');
+  await page.getByRole('button', { name: 'Retour à la publication' }).click();
   await page.getByTestId('extension-more').click();
   await expect(page.getByTestId('extension-action-menu')).toContainText('Enregistrer la discussion');
   await expect(page.getByTestId('extension-action-menu')).not.toContainText('Enregistrer avec citations et liens');
