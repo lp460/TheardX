@@ -101,6 +101,32 @@ test('the installation guide stays on TheardX and gives official instructions fo
   await expect(page.getByRole('link', { name: 'Guide d’installation' })).not.toHaveAttribute('href', /github\.com/);
 });
 
+test('the extension showcase compares X and Reddit before and after and exercises the actual ThreadShelf controls', async ({ page }) => {
+  await page.route('**/api/auth/me', (route) => route.fulfill({ status: 401, contentType: 'application/json', body: '{}' }));
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: 'Il s’ajoute directement à X et Reddit.' })).toBeVisible();
+  await expect(page.getByTestId('extension-added-toolbar')).toBeVisible();
+  await page.getByTestId('extension-before').click();
+  await expect(page.getByTestId('extension-added-toolbar')).toHaveCount(0);
+  await page.getByTestId('extension-after').click();
+  await page.getByTestId('extension-more').click();
+  await expect(page.getByTestId('extension-action-menu')).toContainText('Enregistrer avec citations et liens');
+  await page.getByRole('menuitem', { name: 'Enregistrer avec citations et liens' }).click();
+  await expect(page.getByRole('status').last()).toContainText('Publication enregistrée dans la simulation');
+  await page.getByRole('button', { name: 'Lire', exact: true }).click();
+  await expect(page.getByTestId('extension-reader')).toBeVisible();
+  await page.getByRole('button', { name: 'Retour à la publication' }).click();
+  await page.getByTestId('extension-platform-reddit').click();
+  await expect(page.getByTestId('extension-post-preview')).toContainText('101 messages · incomplet');
+  await page.getByTestId('extension-more').click();
+  await expect(page.getByTestId('extension-action-menu')).toContainText('Enregistrer la discussion');
+  await expect(page.getByTestId('extension-action-menu')).not.toContainText('Enregistrer avec citations et liens');
+  await page.getByRole('combobox', { name: 'Langue' }).selectOption('en');
+  await expect(page.getByRole('heading', { name: 'It works right inside X and Reddit.' })).toBeVisible();
+  await page.getByRole('combobox', { name: 'Language' }).selectOption('es');
+  await expect(page.getByRole('heading', { name: 'Se integra directamente en X y Reddit.' })).toBeVisible();
+});
+
 test('the library has a usable mobile navigation without horizontal overflow', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 760 });
   await mockSignedIn(page);

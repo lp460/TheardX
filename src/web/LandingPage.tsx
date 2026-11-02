@@ -3,6 +3,7 @@ import { LogoMark } from '@/components/Logo';
 import { LanguageSelector, useWebI18n } from './i18n';
 import { LandingDemo } from './LandingDemo';
 import { InstallGuide } from './InstallGuide';
+import { ExtensionShowcase } from './ExtensionShowcase';
 
 const extensionDownload = '/downloads/threadshelf-extension.zip';
 
@@ -19,6 +20,7 @@ export function LandingPage({ status, loginAvailable, libraryAvailable = false }
           </a>
           <nav className="hidden items-center gap-7 text-[13px] font-semibold text-white/65 lg:flex" aria-label="Site">
             <a href="#apercu" className="hover:text-white">{t('demoDiscover')}</a>
+            <a href="#sur-x-et-reddit" className="hover:text-white">X &amp; Reddit</a>
             <a href="#fonctionnement" className="hover:text-white">{t('scrollDiscover')}</a>
             <a href="#extension" className="hover:text-white">{t('getExtension')}</a>
           </nav>
@@ -58,6 +60,8 @@ export function LandingPage({ status, loginAvailable, libraryAvailable = false }
           </div>
         </main>
       </div>
+
+      <ExtensionShowcase />
 
       <section id="decouvrir" className="bg-[#f9f8fc] px-5 py-20 text-[#24223b] sm:px-8 sm:py-24">
         <div className="mx-auto max-w-7xl">
