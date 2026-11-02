@@ -33,7 +33,7 @@ test('the public home explains TheardX, signs in through GitHub and offers the r
   await expect(page.getByRole('heading', { name: 'Sauvegardez l’essentiel. Lisez-le vraiment.' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'L’extension pour capturer. Le web pour lire.' })).toBeVisible();
   await expect(page.getByTestId('demo-library-panel')).toBeVisible();
-  await expect(page.getByText('Aperçu avec des exemples fictifs.', { exact: false })).toBeVisible();
+  await expect(page.getByText('Exemples réels tirés de publications publiques de la bibliothèque.', { exact: false })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Télécharger le ZIP' })).toHaveAttribute('href', '/downloads/threadshelf-extension.zip');
   await expect(page.getByRole('link', { name: 'Guide d’installation' })).toHaveAttribute('href', '#installation');
   const response = await page.request.get('/downloads/threadshelf-extension.zip');
@@ -50,23 +50,26 @@ test('visitors can explore a realistic library and reader before signing in, inc
   await expect(page.getByTestId('landing-demo')).toBeVisible();
   const previewPosition = await page.getByTestId('landing-demo').boundingBox();
   expect(previewPosition?.y ?? Infinity).toBeLessThan(812);
-  await expect(page.getByTestId('demo-entry-0')).toContainText('Une application vocale libre');
+  await expect(page.getByTestId('demo-entry-0')).toContainText("I've released a free, open-source speech input app");
   await page.getByTestId('demo-entry-0').click();
-  await expect(page.getByTestId('demo-reader-panel')).toContainText('Une application vocale libre');
+  await expect(page.getByTestId('demo-reader-panel')).toContainText('OpenHinoVoice');
+  await expect(page.getByRole('link', { name: 'Voir la publication originale', exact: true })).toHaveAttribute('href', 'https://x.com/inoino65536/status/2116582365950832793');
   await page.getByTestId('demo-library-tab').click();
   await expect(page.getByTestId('demo-library-panel')).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.getByRole('combobox', { name: 'Langue' }).selectOption('en');
-  await expect(page.getByTestId('demo-entry-0')).toContainText('An open-source voice app');
+  await expect(page.getByTestId('demo-entry-0')).toContainText("I've released a free, open-source speech input app");
+  await expect(page.getByTestId('demo-entry-0')).toContainText('Windows speech input app');
   await page.getByRole('combobox', { name: 'Language' }).selectOption('es');
-  await expect(page.getByTestId('demo-entry-0')).toContainText('Una aplicación de voz libre');
+  await expect(page.getByTestId('demo-entry-0')).toContainText("I've released a free, open-source speech input app");
+  await expect(page.getByTestId('demo-entry-0')).toContainText('aplicación de dictado');
 });
 
 test('the public demo filters cards, searches, saves favorites and offers grid/list layouts', async ({ page }) => {
   await page.route('**/api/auth/me', (route) => route.fulfill({ status: 401, contentType: 'application/json', body: '{}' }));
   await page.goto('/');
   await expect(page.getByTestId('demo-library-panel')).toBeVisible();
-  await page.getByTestId('demo-search').fill('Maya');
+  await page.getByTestId('demo-search').fill('Benji');
   await expect(page.getByTestId('demo-entry-3')).toBeVisible();
   await expect(page.getByTestId('demo-entry-0')).toHaveCount(0);
   await page.getByTestId('demo-search').fill('');
@@ -79,6 +82,7 @@ test('the public demo filters cards, searches, saves favorites and offers grid/l
   await page.getByRole('combobox', { name: 'Sources' }).selectOption('Reddit');
   await expect(page.getByTestId('demo-entry-2')).toBeVisible();
   await expect(page.getByTestId('demo-entry-0')).toHaveCount(0);
+  await expect(page.getByRole('link', { name: /Voir la publication originale : u\/Caf_fein/ })).toHaveAttribute('href', /reddit\.com\/r\/macgaming/);
 });
 
 test('the installation guide stays on TheardX and gives official instructions for four browsers', async ({ page }) => {
@@ -107,6 +111,8 @@ test('the extension showcase compares X and Reddit before and after and exercise
   await expect(page.getByRole('heading', { name: 'Il s’ajoute directement à X et Reddit.' })).toBeVisible();
   await expect.poll(() => page.locator('#sur-x-et-reddit').evaluate((element) => element.getBoundingClientRect().top)).toBeLessThan(100);
   await expect(page.getByTestId('extension-added-toolbar')).toBeVisible();
+  await expect(page.getByTestId('extension-post-preview')).toContainText('Oliver');
+  await expect(page.getByTestId('extension-post-preview')).toContainText('Three.js');
   await page.getByTestId('extension-before').click();
   await expect(page.getByTestId('extension-added-toolbar')).toHaveCount(0);
   await page.getByTestId('extension-after').click();
@@ -119,7 +125,8 @@ test('the extension showcase compares X and Reddit before and after and exercise
   await expect(page.getByTestId('extension-reader')).toBeVisible();
   await page.getByRole('button', { name: 'Retour à la publication' }).click();
   await page.getByTestId('extension-platform-reddit').click();
-  await expect(page.getByTestId('extension-post-preview')).toContainText('101 messages · incomplet');
+  await expect(page.getByTestId('extension-post-preview')).toContainText('Zelda BOTW Native port');
+  await expect(page.getByTestId('extension-post-preview')).toContainText('22 messages · complet');
   await page.getByTestId('extension-more').click();
   await expect(page.getByTestId('extension-action-menu')).toContainText('Enregistrer la discussion');
   await expect(page.getByTestId('extension-action-menu')).not.toContainText('Enregistrer avec citations et liens');
