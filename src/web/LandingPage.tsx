@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowRight, BookOpen, Check, Cloud, Download, GitBranch, LockKeyhole, MonitorDown, Puzzle, Smartphone, Sparkles, WifiOff } from 'lucide-react';
+import { ArrowRight, BookOpen, Check, Cloud, Download, GitBranch, LockKeyhole, MonitorDown, Puzzle, Smartphone, Sparkles, WifiOff } from 'lucide-react';
 import { LogoMark } from '@/components/Logo';
 import { LanguageSelector, useWebI18n } from './i18n';
 import { LandingDemo } from './LandingDemo';
@@ -29,17 +29,17 @@ export function LandingPage({ status, loginAvailable, libraryAvailable = false }
         </header>
 
         <main>
-          <section className="relative mx-auto max-w-[1480px] px-5 pb-8 pt-4 sm:px-8 sm:pb-12 sm:pt-10 lg:px-12 lg:pb-12 lg:pt-14">
+          <section className="relative mx-auto max-w-[1480px] px-5 pb-4 pt-2 sm:px-8 sm:pb-5 sm:pt-5 lg:px-12 lg:pb-5 lg:pt-6">
             <div className="mx-auto w-full max-w-[900px] text-center">
               <span className="inline-flex items-center gap-2 rounded-full border border-violet-400/25 bg-violet-400/10 px-4 py-2 text-[11px] font-semibold tracking-wide text-violet-200 sm:text-xs">
                 <Sparkles size={14} />{t('homeEyebrow')}
               </span>
-              <h1 className="mt-5 max-w-4xl text-[clamp(2.25rem,4.6vw,4.8rem)] font-semibold leading-[1.07] tracking-[-0.065em] sm:mt-7">
+              <h1 className="mx-auto mt-3 max-w-4xl text-[clamp(2.15rem,4vw,3.9rem)] font-semibold leading-[1.07] tracking-[-0.065em]">
                 {t('heroTitle')}
               </h1>
-              <p className="mx-auto mt-4 max-w-[690px] text-[15px] leading-[1.65] text-[#b8bdd1] sm:mt-7 sm:text-lg sm:leading-[1.75]">{t('heroDescription')}</p>
+              <p className="mx-auto mt-3 max-w-[690px] text-[14px] leading-[1.55] text-[#b8bdd1] sm:text-[16px] sm:leading-[1.6]">{t('heroDescription')}</p>
               {status ? <p role="status" className="mt-4 rounded-xl border border-amber-400/30 bg-amber-400/10 p-3 text-sm text-amber-100">{status}</p> : null}
-              <div className="mt-5 flex flex-col justify-center gap-3 sm:mt-7 sm:flex-row">
+              <div className="mt-4 flex flex-col justify-center gap-3 sm:flex-row">
                 {loginAvailable || libraryAvailable ? (
                   <a href={libraryAvailable ? '/' : '/api/auth/login'} className="ts-focus inline-flex min-h-13 items-center justify-center gap-3 rounded-xl bg-[#b3a1ff] px-6 py-3.5 text-[14px] font-bold text-[#211a38] shadow-[0_14px_34px_rgba(124,92,255,.22)] transition hover:-translate-y-0.5 hover:bg-[#c8bcff]">
                     <GitBranch size={19} /> {libraryAvailable ? t('heroRead') : t('signIn')} <ArrowRight size={17} />
@@ -49,10 +49,7 @@ export function LandingPage({ status, loginAvailable, libraryAvailable = false }
                   <BookOpen size={18} />{t('demoDiscover')}
                 </a>
               </div>
-              <p className="mt-3 flex items-center justify-center gap-2 text-[11px] font-medium text-white/45 sm:mt-5 sm:text-xs"><LockKeyhole size={14} />{t('demoPrivacyLine')}</p>
-              <a href="#fonctionnement" className="mt-6 hidden items-center gap-2 text-sm text-white/50 transition hover:text-white sm:inline-flex">
-                <ArrowDown size={15} />{t('scrollDiscover')}
-              </a>
+              <p className="mt-3 flex items-center justify-center gap-2 text-[11px] font-medium text-white/45 sm:text-xs"><LockKeyhole size={14} />{t('demoPrivacyLine')}</p>
             </div>
           </section>
           <div className="relative mx-auto max-w-[1570px] px-3 pb-16 sm:px-8 lg:px-12 lg:pb-24">
