@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { clearSessionCookie, matchesState, readSession, sameOrigin, setSessionCookie } from '../../server/session';
+import { clearSessionCookie, matchesState, readSession, sameOrigin, setSessionCookie, webOrigin } from '../../server/session';
+import login from '../../api/auth/login';
 import me from '../../api/auth/me';
 import logout from '../../api/auth/logout';
 import sync from '../../api/sync';
@@ -28,11 +29,15 @@ describe('Web session and GitHub proxy', () => {
   beforeEach(() => {
     process.env.SESSION_SECRET = 'this-is-a-test-only-server-session-secret-with-32chars';
     process.env.WEB_ORIGIN = ORIGIN;
+    process.env.GITHUB_WEB_CLIENT_ID = 'test-client-id';
+    process.env.GITHUB_WEB_CLIENT_SECRET = 'test-client-secret';
   });
   afterEach(() => {
     vi.unstubAllGlobals();
     delete process.env.SESSION_SECRET;
     delete process.env.WEB_ORIGIN;
+    delete process.env.GITHUB_WEB_CLIENT_ID;
+    delete process.env.GITHUB_WEB_CLIENT_SECRET;
   });
 
   it('encrypts cookies and never exposes GitHub tokens to the client', async () => {
@@ -58,6 +63,32 @@ describe('Web session and GitHub proxy', () => {
     expect(matchesState('abcdefghijkl', 'abcdefghijkm')).toBe(false);
     expect(matchesState(undefined, 'abcdefghijkl')).toBe(false);
     expect(matchesState('abc', 'ab')).toBe(false);
+  });
+
+  it('sets OAuth state on the canonical host before redirecting to GitHub', () => {
+    const aliasRequest = new Request('https://preview.example/api/auth/login');
+    const aliasResponse = login.fetch(aliasRequest);
+    expect(aliasResponse.status).toBe(302);
+    expect(aliasResponse.headers.get('Location')).toBe(`${ORIGIN}/api/auth/login`);
+    expect(aliasResponse.headers.get('Set-Cookie')).toBeNull();
+
+    const canonicalResponse = login.fetch(request('/api/auth/login'));
+    expect(canonicalResponse.status).toBe(302);
+    expect(canonicalResponse.headers.get('Set-Cookie')).toContain('__Host-theardx-oauth-state=');
+    const url = new URL(canonicalResponse.headers.get('Location')!);
+    expect(url.origin).toBe('https://github.com');
+    expect(url.searchParams.get('redirect_uri')).toBe(`${ORIGIN}/api/auth/callback`);
+  });
+
+  it('uses the local origin for development cookies even when WEB_ORIGIN points to production', () => {
+    const local = new Request('http://localhost:3000/api/auth/login');
+    expect(webOrigin(local)).toBe('http://localhost:3000');
+    const response = login.fetch(local);
+    expect(response.headers.get('Set-Cookie')).toContain('theardx-oauth-state=');
+    expect(response.headers.get('Set-Cookie')).not.toContain('Secure');
+    expect(new URL(response.headers.get('Location')!).searchParams.get('redirect_uri'))
+      .toBe('http://localhost:3000/api/auth/callback');
+    expect(webOrigin(new Request('http://127.0.0.1:3000/'))).toBe('http://127.0.0.1:3000');
   });
 
   it('blocks cross-origin writes and logout', async () => {

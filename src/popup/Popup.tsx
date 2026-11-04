@@ -3,6 +3,7 @@ import {
   BookOpen,
   Copy,
   ExternalLink,
+  FileInput,
   Layers3,
   Library,
   Loader2,
@@ -114,6 +115,11 @@ export function Popup() {
       <header className="flex h-12 items-center justify-between border-b border-line px-3.5">
         <Logo />
         <div className="flex items-center gap-0.5">
+          <Button variant="ghost" size="icon-sm" aria-label="Importer mes favoris"
+            title="Importer mes favoris X et Reddit"
+            onClick={() => open('library/index.html?import=1')}>
+            <FileInput size={15}/>
+          </Button>
           <Button
             variant="ghost"
             size="icon-sm"
@@ -244,6 +250,26 @@ export function Popup() {
           </p>
         )}
       </section>
+
+      {state?.savedImport ? (
+        <section className="border-b border-line px-3.5 py-3" aria-label="Importer les favoris">
+          <p className="text-[13px] font-semibold">Importer mes favoris {isReddit ? 'Reddit' : 'X'}</p>
+          <p className="mt-1 text-[12px] text-muted">
+            {state.savedImport.seen} éléments chargés · {state.savedImport.imported} importés
+            {state.savedImport.failed ? ` · ${state.savedImport.failed} erreurs` : ''}
+          </p>
+          <Button size="sm" variant={state.savedImport.running ? 'outline' : 'primary'}
+            className="mt-2 w-full"
+            onClick={() => void run('import-saved-visible', state.savedImport?.running ? 'Arrêt…' : 'Import…')}>
+            {state.savedImport.running ? 'Arrêter l’import' : 'Importer les favoris chargés'}
+          </Button>
+          <p className="mt-1 text-[11px] text-faint">
+            {state.savedImport.running
+              ? 'Faites défiler cette page pour importer aussi les anciens favoris. Aucune navigation automatique.'
+              : 'Démarrez, puis faites défiler la page. Vous pouvez interrompre à tout moment.'}
+          </p>
+        </section>
+      ) : null}
 
       {redditAccess === false ? (
         <section

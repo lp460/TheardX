@@ -1,12 +1,12 @@
 /**
  * Deletion markers ("tombstones"). Needed for multi-device sync: without them an entry deleted on
- * one PC would come back from another PC's copy. Keys: `entry:<id>`, `collection:<id>`, `category:<id>`.
+ * one PC would come back from another PC's copy. Includes personal annotation deletions.
  */
 import type { ThreadShelfDB } from './db';
 
 export const TOMBSTONES_KEY = 'tombstones';
 
-export type TombstoneKind = 'entry' | 'collection' | 'category';
+export type TombstoneKind = 'entry' | 'collection' | 'category' | 'annotation';
 export type Tombstones = Record<string, number>;
 
 export function tombstoneKey(kind: TombstoneKind, id: string): string {
@@ -20,7 +20,7 @@ export async function readTombstones(db: ThreadShelfDB): Promise<Tombstones> {
   const out: Tombstones = {};
   for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
     if (
-      /^(entry|collection|category):[\w-]{1,100}$/.test(k) &&
+      /^(entry|collection|category|annotation):[\w-]{1,100}$/.test(k) &&
       typeof v === 'number' &&
       Number.isFinite(v)
     )

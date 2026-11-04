@@ -17,11 +17,13 @@ import {
   Moon,
   Plus,
   Printer,
+  Share2,
   Star,
   Sun,
   Type,
   WifiOff,
   Languages,
+  Highlighter,
 } from 'lucide-react';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CompletenessBadge } from '@/components/CompletenessBadge';
@@ -58,6 +60,8 @@ import { languageName, TARGET_LANGUAGES } from '@/translate/languages';
 import { copyText } from '@/utils/clipboard';
 import { toast } from '@/components/ToastNotification';
 import { useWebI18n } from '@/web/i18n';
+import { ShareDialog, type ShareTarget } from '@/share/ShareDialog';
+import { useReaderAnnotations } from '@/annotations/ReaderAnnotations';
 
 const params = new URLSearchParams(location.search);
 const ENTRY_ID = params.get('id') ?? '';
@@ -333,6 +337,7 @@ export function ThreadReader() {
   );
   const [active, setActive] = useState(0);
   const [exportOpen, setExportOpen] = useState(false);
+  const [shareTarget, setShareTarget] = useState<ShareTarget | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
   const [selecting, setSelecting] = useState(false);
   const [selection, setSelection] = useState<Set<string>>(new Set());
@@ -350,6 +355,8 @@ export function ThreadReader() {
   const postRefs = useRef<(HTMLElement | null)[]>([]);
   const markedRead = useRef(false);
   const endRef = useRef<HTMLDivElement>(null);
+  const articleRef = useRef<HTMLElement>(null);
+  const annotationTools = useReaderAnnotations(ENTRY_ID, articleRef, !showTranslation && !PRINT);
 
   // What is displayed: the saved posts, or their translation.
   const view = useMemo(
@@ -573,13 +580,17 @@ export function ThreadReader() {
       f: () => void toggleFavorite(),
       p: () => window.print(),
       escape: () => {
+        if (shareTarget) {
+          setShareTarget(null);
+          return;
+        }
         if (helpOpen || exportOpen) return;
         location.href = libraryUrl();
       },
       '?': () => setHelpOpen(true),
       l: () => void translate(),
     },
-    [active, settings, bundle, helpOpen, exportOpen, jump, toggleFavorite, dark, translate],
+    [active, settings, bundle, helpOpen, exportOpen, shareTarget, jump, toggleFavorite, dark, translate],
   );
 
   if (bundle === undefined) {
@@ -688,6 +699,29 @@ export function ThreadReader() {
                 <Clock size={16} />
               </Button>
             </Tooltip>
+            {!PRINT ? <Tooltip label={`Mes annotations (${annotationTools.count})`}>
+              <Button variant="ghost" size="icon" data-testid="reader-annotations"
+                aria-label="Mes annotations" aria-pressed={annotationTools.panelOpen}
+                onClick={annotationTools.togglePanel}
+                className={annotationTools.panelOpen ? 'text-accent' : undefined}>
+                <Highlighter size={16}/>
+              </Button>
+            </Tooltip> : null}
+            {isWeb && !PRINT ? (
+              <Tooltip label={t('shareEntry')}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  aria-label={t('shareEntry')}
+                  data-testid="reader-share"
+                  onClick={() => setShareTarget({ type: 'article', entry })}
+                  className="shrink-0 text-accent"
+                >
+                  <Share2 size={16} />
+                  <span className="hidden lg:inline">{t('shareAction')}</span>
+                </Button>
+              </Tooltip>
+            ) : null}
             <div className={isWeb ? 'hidden sm:block' : undefined}><Menu>
               <MenuTrigger asChild>
                 <Button variant="ghost" size="icon" aria-label={t('readerCopy')}>
@@ -802,10 +836,16 @@ export function ThreadReader() {
             <Toc posts={posts} active={active} onJump={jump} />
           ) : null}
           <article
-            className="min-w-0 flex-1 print:max-w-none"
+            ref={articleRef}
+            onMouseUp={annotationTools.onSelection}
+            onTouchEnd={() => window.setTimeout(annotationTools.onSelection, 120)}
+            onKeyUp={annotationTools.onSelection}
+            onClick={annotationTools.onClick}
+            className="relative min-w-0 flex-1 print:max-w-none"
             style={{ maxWidth: settings.reader.width }}
             data-testid="reader-article"
           >
+            {annotationTools.overlay}
             <header className="mb-10 font-sans">
               {first ? <AuthorLine tweet={first} size={44} showDate={false} /> : null}
               <h1
@@ -1034,19 +1074,21 @@ export function ThreadReader() {
                       {t.createdAt ? formatDateTime(t.createdAt) : `Voir sur ${siteName}`}
                     </a>
                   </div>
-                  <TweetCard
-                    tweet={t}
-                    showAuthor={false}
-                    hideArticleTitle={!!t.article?.title && t.article.title === entry.title}
-                    textClassName={cn('text-fg', fontClass)}
-                    textStyle={{
-                      fontSize:
-                        t.reddit?.kind === 'comment'
-                          ? Math.round(settings.reader.fontSize * 0.88)
-                          : settings.reader.fontSize,
-                      lineHeight: 1.7,
-                    }}
-                  />
+                  <div data-annotation-tweet={t.id}>
+                    <TweetCard
+                      tweet={t}
+                      showAuthor={false}
+                      hideArticleTitle={!!t.article?.title && t.article.title === entry.title}
+                      textClassName={cn('text-fg', fontClass)}
+                      textStyle={{
+                        fontSize:
+                          t.reddit?.kind === 'comment'
+                            ? Math.round(settings.reader.fontSize * 0.88)
+                            : settings.reader.fontSize,
+                        lineHeight: 1.7,
+                      }}
+                    />
+                  </div>
                 </section>
               ))}
             </div>
@@ -1100,7 +1142,10 @@ export function ThreadReader() {
                 : `Contenu publié par @${entry.authorHandle} sur X.`}
             </footer>
           </article>
+          {annotationTools.panel}
         </div>
+
+        {annotationTools.toolbar}
 
         {selecting ? (
           <div
@@ -1129,6 +1174,7 @@ export function ThreadReader() {
         ) : null}
 
         <ExportDialog entryIds={[entry.id]} open={exportOpen} onOpenChange={setExportOpen} />
+        {isWeb ? <ShareDialog target={shareTarget} onClose={() => setShareTarget(null)} /> : null}
         <Dialog open={helpOpen} onOpenChange={setHelpOpen} title={t('readerShortcuts')}>
           <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-[13px]">
             {SHORTCUTS.map(([k, v]) => (

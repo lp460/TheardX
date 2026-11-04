@@ -4,6 +4,7 @@ import {
   Command as CommandIcon,
   Database,
   Download,
+  FileInput,
   Folder,
   Hash,
   Inbox,
@@ -38,6 +39,7 @@ import { copyEntry, openReader } from './actions';
 import { LibraryView } from './LibraryView';
 import { parseHash, useLibrary, type View } from './store';
 import { useWebI18n } from '@/web/i18n';
+import { SavedImportDialog } from '@/import/SavedImportDialog';
 
 function NavItem({
   active,
@@ -160,6 +162,7 @@ export function LibraryApp() {
   useThemeClass(settings.theme);
   const s = useLibrary();
   const [manageOpen, setManageOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(() => new URLSearchParams(location.search).get('import') === '1');
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const isWeb = typeof chrome === 'undefined' || !chrome.runtime?.id;
 
@@ -394,6 +397,8 @@ export function LibraryApp() {
               icon={<SettingsIcon size={15} />}
               label={t('settings')}
             />
+            <NavItem active={false} onClick={() => { setImportOpen(true); setMobileNavOpen(false); }}
+              icon={<FileInput size={15}/>} label="Importer mes favoris" />
           </div>
         </aside>
 
@@ -454,6 +459,7 @@ export function LibraryApp() {
         collections={collections}
         categories={categories}
       />
+      <SavedImportDialog open={importOpen} onOpenChange={setImportOpen} />
       <ToastNotification />
     </TooltipProvider>
   );

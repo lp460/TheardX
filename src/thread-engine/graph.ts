@@ -69,6 +69,10 @@ export function mergeTweet(old: Tweet | undefined, next: Tweet): Tweet {
   };
   // A post that was fully rendered once and is now partially rendered keeps its full text.
   if (!preferNext && old.textTruncated === undefined) delete merged.textTruncated;
+  // A link-only import is deliberately marked truncated. A subsequent real capture must clear
+  // that marker, even when the new record simply omits `textTruncated`.
+  if (primary.context === 'full' && primary.text.length && !primary.textTruncated)
+    delete merged.textTruncated;
   if (
     primary.textTruncated &&
     secondary.context === 'full' &&

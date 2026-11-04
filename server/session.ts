@@ -11,7 +11,12 @@ export interface WebSession {
 }
 
 export function webOrigin(request: Request): string {
-  return process.env.WEB_ORIGIN?.replace(/\/$/, '') || new URL(request.url).origin;
+  const incoming = new URL(request.url);
+  // `vercel dev` may load the production WEB_ORIGIN. OAuth state cookies belong
+  // to the browser's localhost host, not to the configured production domain.
+  const localHost = ['localhost', '127.0.0.1', '[::1]'].includes(incoming.hostname);
+  if (localHost && process.env.VERCEL_ENV !== 'production') return incoming.origin;
+  return process.env.WEB_ORIGIN?.replace(/\/$/, '') || incoming.origin;
 }
 
 export function cookie(request: Request, name: string): string | undefined {

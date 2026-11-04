@@ -2,7 +2,7 @@
 import 'fake-indexeddb/auto';
 import Dexie from 'dexie';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { ThreadShelfDB, setDb, SCHEMA_VERSIONS } from '@/storage/db';
+import { ThreadShelfDB, setDb, SCHEMA_VERSIONS, SCHEMA_VERSION } from '@/storage/db';
 import { Repository } from '@/storage/repository';
 import { cacheEntryMedia } from '@/storage/media-cache';
 import { searchEntries } from '@/storage/search';
@@ -291,8 +291,9 @@ describe('schema migrations', () => {
     v1.close();
     const current = new ThreadShelfDB(name);
     await current.open();
-    expect(current.verno).toBe(3);
+    expect(current.verno).toBe(SCHEMA_VERSION);
     expect(current.tables.map((t) => t.name)).toContain('translations');
+    expect(current.tables.map((t) => t.name)).toContain('annotations');
     const e = await current.entries.get('e1');
     expect(e).toMatchObject({
       title: 'Old',

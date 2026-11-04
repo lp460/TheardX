@@ -76,6 +76,7 @@ export function canonicalData(data: Partial<Backup['data']>): unknown {
     relations: [...(data.relations ?? [])].sort(byId),
     collections: [...(data.collections ?? [])].sort(byId),
     categories: [...(data.categories ?? [])].sort(byId),
+    annotations: [...(data.annotations ?? [])].sort(byId),
     tombstones: data.tombstones ?? {},
   };
 }

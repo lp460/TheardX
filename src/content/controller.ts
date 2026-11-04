@@ -51,6 +51,13 @@ export class ContentController {
   private liveTimer: ReturnType<typeof setTimeout> | null = null;
   private liveStartedAt = 0;
   private liveSignature = '';
+  /** User-started import on the saved/bookmarks page: no background scraping or auto-scrolling. */
+  private savedImportRunning = false;
+  private savedImportBusy = false;
+  private readonly savedPageIds = new Set<string>();
+  private readonly savedImportProcessed = new Set<string>();
+  private savedImportDone = 0;
+  private savedImportFailed = 0;
   private dead = false;
   private offSettings: (() => void) | null = null;
   readonly stats = { scans: 0, mutations: 0 };
@@ -113,6 +120,7 @@ export class ContentController {
     this.dead = true;
     this.disconnect();
     this.stopLive();
+    this.savedImportRunning = false;
     if (this.statusTimer) clearTimeout(this.statusTimer);
     this.statusTimer = null;
     this.removeInjected();
@@ -209,6 +217,12 @@ export class ContentController {
     if (location.href !== this.lastUrl) this.onRouteChange();
     const scan = this.adapter.scan(document, location.href);
     this.session.ingest(scan);
+    if (this.onSavedPage()) {
+      for (const cell of scan.cells) {
+        if (cell.tweet && cell.tweet.context !== 'quote') this.savedPageIds.add(cell.tweet.id);
+      }
+      if (this.savedImportRunning) void this.drainSavedImport();
+    }
     const tone = this.detectTone();
     if (useContent.getState().tone !== tone) useContent.getState().set({ tone });
     if (scan.layout !== 'unknown') {
@@ -222,6 +236,13 @@ export class ContentController {
 
   private onRouteChange(): void {
     this.lastUrl = location.href;
+    if (!this.onSavedPage()) {
+      this.savedImportRunning = false;
+      this.savedPageIds.clear();
+      this.savedImportProcessed.clear();
+      this.savedImportDone = 0;
+      this.savedImportFailed = 0;
+    }
     const st = useContent.getState();
     const routeId = this.adapter.routeId(location.href);
     // Keep the live session only while we stay inside the same thread.
@@ -1002,6 +1023,52 @@ export class ContentController {
 
   /* ------------------------------------------------------------------ messages ------------------------------------------------------------------ */
 
+  private onSavedPage(): boolean {
+    const path = location.pathname.replace(/\/$/, '');
+    return this.adapter.id === 'x'
+      ? path === '/i/bookmarks'
+      : /^\/(?:u|user)\/[^/]+\/saved$/i.test(path);
+  }
+
+  private async drainSavedImport(): Promise<void> {
+    if (this.savedImportBusy || !this.savedImportRunning) return;
+    this.savedImportBusy = true;
+    try {
+      for (const id of this.savedPageIds) {
+        if (!this.savedImportRunning || !this.onSavedPage()) break;
+        if (this.savedImportProcessed.has(id)) continue;
+        const tweet = this.session.graph.tweets.get(id);
+        if (!tweet) continue;
+        this.savedImportProcessed.add(id);
+        try {
+          const result = await send({
+            type: 'capture.save',
+            payload: { mode: 'tweet', focalId: id, tweets: [tweet], relations: [],
+              pageUrl: location.href, pageKind: 'home',
+              options: { tags: [`import-${this.adapter.id}`], readLater: true } },
+          });
+          this.saved.set(id, result.entry.id);
+          this.savedImportDone++;
+        } catch {
+          this.savedImportFailed++;
+        }
+      }
+    } finally {
+      this.savedImportBusy = false;
+    }
+  }
+
+  private toggleSavedImport(): RunResult {
+    if (!this.onSavedPage()) return { ok: false, error: 'Ouvrez la page Favoris de X ou Enregistrés de Reddit.' };
+    this.scan();
+    this.savedImportRunning = !this.savedImportRunning;
+    if (this.savedImportRunning) {
+      void this.drainSavedImport();
+      return { ok: true, message: 'Import lancé. Faites défiler la liste pour charger vos anciens favoris.' };
+    }
+    return { ok: true, message: `${this.savedImportDone} favoris importés, ${this.savedImportFailed} erreurs. Import arrêté.` };
+  }
+
   state(): ContentState {
     const scan = this.session.lastScan ?? (this.active ? this.scan() : null);
     const focalId = scan?.focalId;
@@ -1012,6 +1079,12 @@ export class ContentController {
       layout: scan?.layout ?? 'unknown',
       route: scan?.route.kind ?? 'other',
       detected: scan?.cells.filter((c) => c.tweet).length ?? 0,
+      ...(this.onSavedPage() ? { savedImport: {
+        running: this.savedImportRunning,
+        seen: this.savedPageIds.size,
+        imported: this.savedImportDone,
+        failed: this.savedImportFailed,
+      } } : {}),
       debug: this.debugInfo(),
     };
     if (focalId) {
@@ -1091,6 +1164,8 @@ export class ContentController {
       case 'rescan':
         this.scan();
         return { ok: true };
+      case 'import-saved-visible':
+        return this.toggleSavedImport();
     }
   }
 

@@ -3,7 +3,7 @@
  */
 import { z } from 'zod';
 import { mergeTweet } from '@/thread-engine';
-import type { Category, Collection, Entry, MediaRecord, Relation, Tweet } from '@/types/model';
+import type { Annotation, Category, Collection, Entry, MediaRecord, Relation, Tweet } from '@/types/model';
 import { parseSettings, type Settings } from '@/settings/schema';
 import { fromStoredTweet, getDb, SCHEMA_VERSION, toStoredTweet, type ThreadShelfDB } from './db';
 import { buildSearchText } from './search';
@@ -26,7 +26,7 @@ import {
 } from './tombstones';
 
 export const BACKUP_FORMAT = 'threadshelf.backup';
-export const BACKUP_VERSION = 1;
+export const BACKUP_VERSION = 2;
 const MAX_IMPORT_BYTES = 300 * 1024 * 1024;
 
 export interface BackupMedia {
@@ -49,6 +49,7 @@ export interface Backup {
     relations: Relation[];
     collections: Collection[];
     categories: Category[];
+    annotations: Annotation[];
     settings?: Settings;
     media?: BackupMedia[];
     /** Deletion markers (`entry:<id>` → time), so deletions propagate between devices. */
@@ -108,6 +109,9 @@ export async function exportLibrary(
       relations,
       collections: await db.collections.toArray(),
       categories: await db.categories.toArray(),
+      annotations: opts.entryIds
+        ? (await db.annotations.toArray()).filter((a) => opts.entryIds!.includes(a.entryId))
+        : await db.annotations.toArray(),
     },
   };
   if (!opts.entryIds) {
@@ -165,11 +169,12 @@ const envelopeSchema = z.object({
     relations: z.array(z.unknown()).max(2_000_000).default([]),
     collections: z.array(z.unknown()).max(10_000).default([]),
     categories: z.array(z.unknown()).max(10_000).default([]),
+    annotations: z.array(z.unknown()).max(200_000).default([]),
     settings: z.unknown().optional(),
     media: z.array(z.unknown()).max(200_000).optional(),
     tombstones: z
       .record(
-        z.string().regex(/^(entry|collection|category):[\w-]{1,100}$/),
+        z.string().regex(/^(entry|collection|category|annotation):[\w-]{1,100}$/),
         z.number().nonnegative(),
       )
       .optional(),
@@ -186,6 +191,22 @@ const mediaSchema = z.object({
     .max(70_000_000)
     .regex(/^[A-Za-z0-9+/=]*$/),
 });
+
+const annotationSchema = z.object({
+  id: z.string().regex(/^a_[\w-]{1,100}$/),
+  entryId: z.string().min(1).max(120),
+  tweetId: z.string().min(1).max(100),
+  exact: z.string().min(1).max(12_000),
+  prefix: z.string().max(150),
+  suffix: z.string().max(150),
+  start: z.number().int().min(0),
+  end: z.number().int().min(1),
+  color: z.enum(['yellow', 'green', 'pink', 'blue']),
+  comment: z.string().max(20_000),
+  resolved: z.boolean(),
+  createdAt: z.number().nonnegative(),
+  updatedAt: z.number().nonnegative(),
+}).refine((a) => a.end > a.start);
 
 function validItems<T>(
   items: unknown[],
@@ -273,6 +294,7 @@ export async function importLibrary(
     report,
     'catégorie(s)',
   ) as Category[];
+  const annotations = validItems(backup.data.annotations, annotationSchema, report, 'annotation(s)') as Annotation[];
   let entries = validItems(backup.data.entries, entrySchema, report, 'entrée(s)') as Entry[];
   const media = backup.data.media
     ? (validItems(backup.data.media, mediaSchema, report, 'média(s)') as BackupMedia[])
@@ -283,7 +305,7 @@ export async function importLibrary(
   const sync = strategy === 'sync';
   await db.transaction(
     'rw',
-    [db.entries, db.tweets, db.relations, db.collections, db.categories, db.media, db.meta],
+    [db.entries, db.tweets, db.relations, db.collections, db.categories, db.media, db.meta, db.annotations],
     async () => {
       // Deletion markers.
       // - sync: union of both sides, then remove locally what another device deleted;
@@ -323,6 +345,12 @@ export async function importLibrary(
             report.deleted += 1;
           }
         }
+        for (const a of await db.annotations.toArray()) {
+          if (isDeleted(tombstones, 'annotation', a.id, a.updatedAt) ||
+            isDeleted(tombstones, 'entry', a.entryId, a.updatedAt)) {
+            await db.annotations.delete(a.id);
+          }
+        }
       }
       if (strategy === 'replace') {
         await Promise.all([
@@ -332,6 +360,7 @@ export async function importLibrary(
           db.collections.clear(),
           db.categories.clear(),
           db.media.clear(),
+          db.annotations.clear(),
         ]);
       }
 
@@ -448,6 +477,7 @@ export async function importLibrary(
         finalEntries.push(e);
       }
       entries = finalEntries;
+      const entryIdMap = new Map<string, string>();
       for (const e of entries) {
         const sameId = await db.entries.get(e.id);
         const sameContent =
@@ -468,6 +498,7 @@ export async function importLibrary(
           // The same content saved on two devices under two IDs converges to the smaller ID.
           const canonicalId =
             sync && sameContent.id !== e.id && e.id < sameContent.id ? e.id : sameContent.id;
+          entryIdMap.set(e.id, canonicalId);
           const remoteWins = e.updatedAt > sameContent.updatedAt;
           report.conflicts += 1;
           if (remoteWins || canonicalId !== sameContent.id) {
@@ -483,7 +514,10 @@ export async function importLibrary(
                   : [...new Set([...sameContent.collectionIds, ...e.collectionIds])],
             };
             merged.searchText = buildSearchText(merged, tweetsForSearch);
-            if (canonicalId !== sameContent.id) await db.entries.delete(sameContent.id);
+            if (canonicalId !== sameContent.id) {
+              await db.annotations.where('entryId').equals(sameContent.id).modify({ entryId: canonicalId });
+              await db.entries.delete(sameContent.id);
+            }
             await db.entries.put(merged);
             report.entries.updated += 1;
             report.changedEntryIds.push(merged.id);
@@ -493,8 +527,23 @@ export async function importLibrary(
           continue;
         }
         await db.entries.put({ ...e, searchText: buildSearchText(e, tweetsForSearch) });
+        entryIdMap.set(e.id, e.id);
         report.entries.added += 1;
         report.changedEntryIds.push(e.id);
+      }
+
+      // Each annotation has an independent identity and update clock. Concurrent edits to
+      // different highlights cannot overwrite each other when GitHub sync merges the library.
+      for (const original of annotations) {
+        if (isDeleted(tombstones, 'annotation', original.id, original.updatedAt)) continue;
+        const remappedEntryId = entryIdMap.get(original.entryId) ?? original.entryId;
+        const entry = await db.entries.get(remappedEntryId);
+        if (!entry || !entry.tweetIds.includes(original.tweetId)) continue;
+        const a = reviveKey(tombstoneKey('annotation', original.id))
+          ? { ...original, entryId: remappedEntryId, updatedAt: reviveTime }
+          : { ...original, entryId: remappedEntryId };
+        const previous = await db.annotations.get(a.id);
+        if (!previous || a.updatedAt > previous.updatedAt) await db.annotations.put(a);
       }
 
       if (revive && revived) await db.meta.put({ key: TOMBSTONES_KEY, value: revive });
@@ -526,7 +575,9 @@ export async function importLibrary(
   return report;
 }
 
-/** Single entry export in the backup format (useful for sharing one thread with its structure). */
+/** Single-entry export is safe to hand to another person: personal notes stay private. */
 export async function exportEntries(entryIds: string[], db?: ThreadShelfDB): Promise<Backup> {
-  return exportLibrary({ entryIds, db, includeMedia: false });
+  const backup = await exportLibrary({ entryIds, db, includeMedia: false });
+  backup.data.annotations = [];
+  return backup;
 }

@@ -130,6 +130,7 @@ export const contentMessageSchema = z.discriminatedUnion('type', [
       'open-panel',
       'open-reader',
       'rescan',
+      'import-saved-visible',
     ]),
     tweetId: tweetId.optional(),
   }),
@@ -154,6 +155,7 @@ export interface ContentState {
     savedEntryId?: string;
   };
   detected: number;
+  savedImport?: { running: boolean; seen: number; imported: number; failed: number };
   /** Diagnostics: scan counters, observer state. */
   debug?: {
     scans: number;

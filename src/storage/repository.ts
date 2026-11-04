@@ -6,6 +6,7 @@ import { planCapture, ThreadGraph, mergeTweet, type CaptureMode } from '@/thread
 import { captureSummary } from '@/thread-engine/labels';
 import type { RedditDiscussionState } from '@/extraction/types';
 import type {
+  Annotation,
   Category,
   Collection,
   Entry,
@@ -152,6 +153,13 @@ export class Repository {
             );
           }
         }
+        // An archive import first creates a link-only single-post entry. When the user later
+        // captures its full thread, enrich that placeholder instead of creating a duplicate.
+        if (!target && input.mode === 'thread') {
+          target = (await db.entries.where('focalTweetId').equals(input.focalId).toArray())
+            .find((e) => e.kind === 'tweet' && e.completeness.status === 'manual' &&
+              e.tags.some((tag) => /^import-(x|reddit)$/.test(tag)));
+        }
 
         // 4. Persist the posts the entry needs (never other people's replies that are not part of it).
         const needed = [
@@ -272,6 +280,56 @@ export class Repository {
   }
 
   /* ------------------------------------------------------------------ reading ------------------------------------------------------------------ */
+
+  /** Reader highlights/comments are private and do not alter the captured source text. */
+  async listAnnotations(entryId: string): Promise<Annotation[]> {
+    return this.db.annotations.where('entryId').equals(entryId).sortBy('createdAt');
+  }
+
+  async saveAnnotation(
+    input: Pick<Annotation, 'entryId' | 'tweetId' | 'exact' | 'prefix' | 'suffix' | 'start' | 'end' | 'color' | 'comment'>,
+  ): Promise<Annotation> {
+    const db = this.db;
+    const now = Date.now();
+    if (!input.exact.trim() || input.exact.length > 12_000 || input.comment.length > 20_000)
+      throw new Error('Sélection ou commentaire invalide.');
+    return db.transaction('rw', [db.entries, db.annotations], async () => {
+      const entry = await db.entries.get(input.entryId);
+      if (!entry || !entry.tweetIds.includes(input.tweetId))
+        throw new Error('Cette publication ne fait plus partie de la bibliothèque.');
+      const annotation: Annotation = {
+        ...input,
+        id: uid('a'),
+        resolved: false,
+        createdAt: now,
+        updatedAt: now,
+      };
+      await db.annotations.add(annotation);
+      return annotation;
+    });
+  }
+
+  async updateAnnotation(id: string, patch: Partial<Pick<Annotation, 'comment' | 'color' | 'resolved'>>): Promise<void> {
+    if (patch.comment !== undefined && patch.comment.length > 20_000)
+      throw new Error('Commentaire trop long.');
+    const db = this.db;
+    await db.transaction('rw', db.annotations, async () => {
+      const row = await db.annotations.get(id);
+      if (!row) return;
+      // Two quick edits can land in the same millisecond; sync needs a strict order.
+      await db.annotations.put({ ...row, ...patch, updatedAt: Math.max(Date.now(), row.updatedAt + 1) });
+    });
+  }
+
+  async deleteAnnotation(id: string): Promise<void> {
+    const db = this.db;
+    await db.transaction('rw', [db.annotations, db.meta], async () => {
+      const row = await db.annotations.get(id);
+      if (!row) return;
+      await db.annotations.delete(id);
+      await addTombstones(db, 'annotation', [id], Math.max(Date.now(), row.updatedAt + 1));
+    });
+  }
 
   async listEntries(): Promise<Entry[]> {
     return this.db.entries.orderBy('savedAt').reverse().toArray();
@@ -407,11 +465,12 @@ export class Repository {
     const db = this.db;
     return db.transaction(
       'rw',
-      [db.entries, db.tweets, db.relations, db.media, db.meta, db.translations],
+      [db.entries, db.tweets, db.relations, db.media, db.meta, db.translations, db.annotations],
       async () => {
         const removed = (await db.entries.bulkGet(ids)).filter((e): e is Entry => !!e);
         if (!removed.length) return 0;
         await db.entries.bulkDelete(removed.map((e) => e.id));
+        await db.annotations.where('entryId').anyOf(removed.map((e) => e.id)).delete();
         await addTombstones(
           db,
           'entry',

@@ -293,3 +293,21 @@ export interface EntryBundle {
   relations: Relation[];
   media: Record<string, MediaRecord>;
 }
+
+/** Private reader annotation anchored to text within one saved post (including its article). */
+export interface Annotation {
+  id: string;
+  entryId: string;
+  tweetId: TweetId;
+  /** Original selected text; never replaced by a translated copy. */
+  exact: string;
+  prefix: string;
+  suffix: string;
+  start: number;
+  end: number;
+  color: 'yellow' | 'green' | 'pink' | 'blue';
+  comment: string;
+  resolved: boolean;
+  createdAt: number;
+  updatedAt: number;
+}
