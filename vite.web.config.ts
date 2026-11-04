@@ -18,6 +18,7 @@ export default defineConfig({
       input: {
         index: fileURLToPath(new URL('./web/index.html', import.meta.url)),
         reader: fileURLToPath(new URL('./web/reader/index.html', import.meta.url)),
+        share: fileURLToPath(new URL('./web/share/index.html', import.meta.url)),
       },
     },
   },
