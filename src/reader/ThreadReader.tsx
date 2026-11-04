@@ -17,6 +17,7 @@ import {
   Moon,
   Plus,
   Printer,
+  Share2,
   Star,
   Sun,
   Type,
@@ -58,6 +59,7 @@ import { languageName, TARGET_LANGUAGES } from '@/translate/languages';
 import { copyText } from '@/utils/clipboard';
 import { toast } from '@/components/ToastNotification';
 import { useWebI18n } from '@/web/i18n';
+import { ShareDialog, type ShareTarget } from '@/share/ShareDialog';
 
 const params = new URLSearchParams(location.search);
 const ENTRY_ID = params.get('id') ?? '';
@@ -333,6 +335,7 @@ export function ThreadReader() {
   );
   const [active, setActive] = useState(0);
   const [exportOpen, setExportOpen] = useState(false);
+  const [shareTarget, setShareTarget] = useState<ShareTarget | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
   const [selecting, setSelecting] = useState(false);
   const [selection, setSelection] = useState<Set<string>>(new Set());
@@ -573,13 +576,17 @@ export function ThreadReader() {
       f: () => void toggleFavorite(),
       p: () => window.print(),
       escape: () => {
+        if (shareTarget) {
+          setShareTarget(null);
+          return;
+        }
         if (helpOpen || exportOpen) return;
         location.href = libraryUrl();
       },
       '?': () => setHelpOpen(true),
       l: () => void translate(),
     },
-    [active, settings, bundle, helpOpen, exportOpen, jump, toggleFavorite, dark, translate],
+    [active, settings, bundle, helpOpen, exportOpen, shareTarget, jump, toggleFavorite, dark, translate],
   );
 
   if (bundle === undefined) {
@@ -688,6 +695,21 @@ export function ThreadReader() {
                 <Clock size={16} />
               </Button>
             </Tooltip>
+            {isWeb && !PRINT ? (
+              <Tooltip label={t('shareEntry')}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  aria-label={t('shareEntry')}
+                  data-testid="reader-share"
+                  onClick={() => setShareTarget({ type: 'article', entry })}
+                  className="shrink-0 text-accent"
+                >
+                  <Share2 size={16} />
+                  <span className="hidden lg:inline">{t('shareAction')}</span>
+                </Button>
+              </Tooltip>
+            ) : null}
             <div className={isWeb ? 'hidden sm:block' : undefined}><Menu>
               <MenuTrigger asChild>
                 <Button variant="ghost" size="icon" aria-label={t('readerCopy')}>
@@ -1129,6 +1151,7 @@ export function ThreadReader() {
         ) : null}
 
         <ExportDialog entryIds={[entry.id]} open={exportOpen} onOpenChange={setExportOpen} />
+        {isWeb ? <ShareDialog target={shareTarget} onClose={() => setShareTarget(null)} /> : null}
         <Dialog open={helpOpen} onOpenChange={setHelpOpen} title={t('readerShortcuts')}>
           <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-[13px]">
             {SHORTCUTS.map(([k, v]) => (
