@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
-import { ArrowLeft, Bookmark, CheckCircle2, Clock3, ExternalLink, Folder, Grid2X2, ImageOff, List, Menu, Search, Star, X } from 'lucide-react';
+import { Bookmark, CheckCircle2, Clock3, ExternalLink, Folder, Grid2X2, ImageOff, List, Menu, Search, Star, X } from 'lucide-react';
 import { LogoMark } from '@/components/Logo';
 import { useWebI18n, type WebLanguage } from './i18n';
-import { ExtractedThread } from './ExtractedThread';
+import { LandingReader } from './LandingReader';
 import { realExamples, type PublicExample } from './realExamples';
 
 const entries = realExamples;
@@ -51,6 +51,16 @@ export function LandingDemo() {
     <div data-testid="landing-demo" className="overflow-hidden rounded-[18px] border border-[#e2e3ea] bg-white text-[#292c35] shadow-[0_30px_80px_rgba(3,6,23,.38)] sm:rounded-[22px]">
       <div className="flex h-10 items-center gap-3 border-b border-[#e9eaf0] bg-[#fafafd] px-4"><div className="flex gap-1.5"><span className="size-2.5 rounded-full bg-[#f1a7a7]" /><span className="size-2.5 rounded-full bg-[#e9cc83]" /><span className="size-2.5 rounded-full bg-[#98d9ba]" /></div><span className="mx-auto rounded-md border border-[#e9e9f1] bg-white px-7 py-1 text-[10px] text-[#83869a]">theard-x.vercel.app</span><span className="w-9" /></div>
       <div className="relative flex h-[590px] min-w-0 sm:h-[650px]">
+        {screen === 'reader' ? <LandingReader
+          key={active.id}
+          example={active}
+          language={locale}
+          favorite={favorites.includes(active.id)}
+          later={later.includes(active.id)}
+          onBack={() => setScreen('library')}
+          onFavorite={() => toggle(active.id, favorites, setFavorites)}
+          onLater={() => toggle(active.id, later, setLater)}
+        /> : <>
         <aside aria-label={t('demoNavigation')} className={`${mobileMenu ? 'absolute inset-y-0 left-0 z-20 flex w-[205px] shadow-xl' : 'hidden'} shrink-0 flex-col border-r border-[#e8e9ed] bg-[#f9f9fb] p-3 md:flex md:w-[190px] lg:w-[205px]`}>
           <div className="mb-5 flex items-center gap-2 px-1 pt-1 text-[13px] font-bold"><LogoMark size={22} />TheardX<button type="button" aria-label={t('closeMenu')} onClick={() => setMobileMenu(false)} className="ml-auto md:hidden"><X size={17} /></button></div>
           <div className="mb-3 flex items-center gap-2 rounded-md border border-[#e7e7ed] bg-white px-2 py-2 text-[11px] text-[#9696a3]"><Search size={13} /><span>{t('search')}</span></div>
@@ -61,10 +71,10 @@ export function LandingDemo() {
         </aside>
         <div className="flex min-w-0 flex-1 flex-col">
           <div className="flex min-h-[60px] items-center justify-between gap-2 border-b border-[#e9eaee] px-3 sm:px-5">
-            <div className="flex items-center gap-2"><button type="button" aria-label={t('menu')} onClick={() => setMobileMenu((v)=>!v)} className="ts-focus rounded-lg p-1.5 text-[#616379] md:hidden"><Menu size={20}/></button><h3 className="text-[16px] font-bold tracking-tight sm:text-lg">{screen==='reader' ? t('demoReader') : t('library')} <span className="ml-1 text-xs font-normal text-[#a9aab3]">{screen==='library' ? filtered.length : ''}</span></h3></div>
+            <div className="flex items-center gap-2"><button type="button" aria-label={t('menu')} onClick={() => setMobileMenu((v)=>!v)} className="ts-focus rounded-lg p-1.5 text-[#616379] md:hidden"><Menu size={20}/></button><h3 className="text-[16px] font-bold tracking-tight sm:text-lg">{t('library')} <span className="ml-1 text-xs font-normal text-[#a9aab3]">{filtered.length}</span></h3></div>
             <div className="flex items-center gap-1 rounded-lg border border-[#ececf0] p-1"><button type="button" aria-label={t('cards')} aria-pressed={layout==='grid'} onClick={()=>setLayout('grid')} className={`ts-focus rounded-md p-1.5 ${layout==='grid'?'bg-[#f0eff6] text-[#6252c5]':'text-[#9a9ba6]'}`}><Grid2X2 size={16}/></button><button type="button" aria-label={t('list')} aria-pressed={layout==='list'} onClick={()=>setLayout('list')} className={`ts-focus rounded-md p-1.5 ${layout==='list'?'bg-[#f0eff6] text-[#6252c5]':'text-[#9a9ba6]'}`}><List size={16}/></button></div>
           </div>
-          {screen==='library' ? <div role="tabpanel" aria-label={t('library')} data-testid="demo-library-panel" className="flex min-h-0 flex-1 flex-col">
+          <div role="tabpanel" aria-label={t('library')} data-testid="demo-library-panel" className="flex min-h-0 flex-1 flex-col">
             <div className="flex flex-wrap items-center gap-2 border-b border-[#ebebef] px-3 py-3 sm:px-5">
               <label className="flex min-w-[155px] flex-1 items-center gap-2 rounded-lg border border-[#e6e6ed] bg-white px-3 py-2 text-[#9c9ca9] lg:max-w-[280px]"><Search size={14}/><input data-testid="demo-search" aria-label={t('searchLibrary')} value={search} onChange={(e)=>setSearch(e.target.value)} placeholder={t('search')} className="w-full min-w-0 bg-transparent text-[12px] text-[#32343d] outline-none placeholder:text-[#a4a5ae]" /></label>
               <select aria-label={labels.source} value={source} onChange={(e)=>setSource(e.target.value)} className="ts-focus max-w-[125px] rounded-lg border border-[#e6e6ed] bg-white px-2 py-2 text-[11px]"><option value="all">{t('allSources')}</option><option value="X">X</option><option value="Reddit">Reddit</option></select>
@@ -85,33 +95,9 @@ export function LandingDemo() {
                 </article>)}
               </div>}
             </div>
-          </div> : <div role="tabpanel" aria-label={t('demoReader')} data-testid="demo-reader-panel" className="min-h-0 flex-1 overflow-y-auto bg-[#fafafc] px-4 py-5 sm:px-10 sm:py-8">
-            <div className="mx-auto max-w-[650px]">
-              <button type="button" data-testid="demo-library-tab" onClick={() => setScreen('library')} className="ts-focus flex items-center gap-2 text-xs font-semibold text-[#6d59c4]">
-                <ArrowLeft size={16}/>{t('demoBack')}
-              </button>
-              <div className="mt-5 flex items-center gap-3">
-                <span className="flex size-10 items-center justify-center rounded-full bg-[#e0d9ff] text-sm font-semibold">{active.author.split(' ').map((p) => p[0]).join('')}</span>
-                <span><span className="block text-sm font-bold">{active.author}</span><span className="text-xs text-[#8a8c97]">{active.handle} · {active.source}</span></span>
-              </div>
-              <h3 className="mt-4 font-serif text-[25px] font-semibold leading-tight tracking-tight sm:text-[34px]">{active.title}</h3>
-              <div className="my-4 h-px bg-[#e8e8ec]"/>
-              <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_170px]">
-                <div>
-                  <p className="font-serif text-[15px] leading-[1.7] text-[#575861]">{active.description[locale]}</p>
-                  <a href={active.sourceUrl} target="_blank" rel="noopener noreferrer" className="ts-focus mt-3 inline-flex items-center gap-2 rounded-lg border border-[#d9d2ee] bg-white px-3 py-2 text-[12px] font-semibold text-[#6852c1]"><ExternalLink size={15}/>{labels.sourceLink} · {active.source}</a>
-                </div>
-                <div className="h-[110px] overflow-hidden rounded-xl sm:h-[135px]"><SourceMedia item={active} unavailable={labels.noImage}/></div>
-              </div>
-              <p className="mt-3 text-[12px] leading-5 text-[#797588]">{labels.readerNote}</p>
-              <div className="mt-5 flex flex-wrap gap-3">
-                <button type="button" onClick={() => toggle(active.id, favorites, setFavorites)} className="ts-focus inline-flex items-center gap-2 rounded-lg border border-[#ded8f5] px-4 py-2 text-xs font-semibold text-[#6b55be]"><Star size={15} fill={favorites.includes(active.id) ? 'currentColor' : 'none'}/>{t('favorites')}</button>
-                <button type="button" onClick={() => toggle(active.id, later, setLater)} className="ts-focus inline-flex items-center gap-2 rounded-lg border border-[#ded8f5] px-4 py-2 text-xs font-semibold text-[#6b55be]"><Bookmark size={15}/>{labels.saved}</button>
-              </div>
-              <ExtractedThread example={active} language={locale}/>
-            </div>
-          </div>}
+          </div>
         </div>
+        </>}
       </div>
     </div>
     <p className="mt-4 text-center text-xs text-[#b7b9d0]">{t('demoDisclaimer')}</p>
