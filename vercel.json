@@ -11,7 +11,10 @@
         { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
         { "key": "X-Frame-Options", "value": "DENY" },
         { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=()" },
-        { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://pbs.twimg.com https://abs.twimg.com https://video.twimg.com https://i.redd.it https://preview.redd.it https://cf.preview.redd.it https://external-preview.redd.it https://styles.redditmedia.com https://www.redditstatic.com; connect-src 'self' https://pbs.twimg.com https://abs.twimg.com https://video.twimg.com https://i.redd.it https://preview.redd.it https://cf.preview.redd.it https://external-preview.redd.it https://styles.redditmedia.com https://www.redditstatic.com; font-src 'self' data:; frame-ancestors 'none'; base-uri 'self'; object-src 'none'" }
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://pbs.twimg.com https://abs.twimg.com https://video.twimg.com https://i.redd.it https://preview.redd.it https://cf.preview.redd.it https://external-preview.redd.it https://styles.redditmedia.com https://www.redditstatic.com; connect-src 'self' https://pbs.twimg.com https://abs.twimg.com https://video.twimg.com https://i.redd.it https://preview.redd.it https://cf.preview.redd.it https://external-preview.redd.it https://styles.redditmedia.com https://www.redditstatic.com; font-src 'self' data:; frame-ancestors 'none'; base-uri 'self'; object-src 'none'"
+        }
       ]
     },
     {
@@ -20,6 +23,7 @@
     }
   ],
   "rewrites": [
+    { "source": "/s/:id", "destination": "/share/index.html" },
     { "source": "/reader", "destination": "/reader/index.html" },
     { "source": "/reader/", "destination": "/reader/index.html" }
   ]

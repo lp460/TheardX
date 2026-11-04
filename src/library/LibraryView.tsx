@@ -15,6 +15,7 @@ import {
   Trash2,
   X,
   Layers3,
+  Share2,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { ThreadCard, ThreadCardSkeleton, type EntryActions } from '@/components/ThreadCard';
@@ -35,8 +36,14 @@ import { useLibrary, type View } from './store';
 import { copyEntry, openReader, safely } from './actions';
 import { entryAuthorLabel } from '@/utils/text';
 import { useWebI18n, type WebMessageKey } from '@/web/i18n';
+import { ShareDialog, type ShareTarget } from '@/share/ShareDialog';
 
-function viewTitle(view: View, collections: Collection[], categories: Category[], t: (key: WebMessageKey) => string): string {
+function viewTitle(
+  view: View,
+  collections: Collection[],
+  categories: Category[],
+  t: (key: WebMessageKey) => string,
+): string {
   switch (view.kind) {
     case 'later':
       return t('later');
@@ -363,8 +370,11 @@ export function LibraryView({
   const [exportIds, setExportIds] = useState<string[] | null>(null);
   const [deleteIds, setDeleteIds] = useState<string[] | null>(null);
   const [tagEntry, setTagEntry] = useState<Entry | null>(null);
+  const [shareTarget, setShareTarget] = useState<ShareTarget | null>(null);
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
-  const [mobile, setMobile] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches);
+  const [mobile, setMobile] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches,
+  );
   useEffect(() => {
     if (!webExperience) return;
     const query = window.matchMedia('(max-width: 767px)');
@@ -460,6 +470,9 @@ export function LibraryView({
         repository.updateEntry(e.id, { categoryId: c?.id ?? null }),
       ),
     editTags: (e) => setTagEntry(e),
+    ...(webExperience
+      ? { share: (entry: Entry) => setShareTarget({ type: 'article' as const, entry }) }
+      : {}),
   };
   const selectedIds = [...s.selected].filter((id) => filtered?.some((e) => e.id === id));
   const selectMode = selectedIds.length > 0;
@@ -474,6 +487,30 @@ export function LibraryView({
           {viewTitle(s.view, collections, categories, t)}
         </h1>
         {filtered ? <span className="text-[13px] text-faint">{filtered.length}</span> : null}
+        {webExperience &&
+        s.view.kind === 'collection' &&
+        collections.some((item) => item.id === (s.view.kind === 'collection' ? s.view.id : '')) ? (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => {
+              if (s.view.kind !== 'collection') return;
+              const collectionId = s.view.id;
+              const collection = collections.find((item) => item.id === collectionId);
+              if (collection)
+                setShareTarget({
+                  type: 'collection',
+                  collection,
+                  entries: (entries ?? []).filter((entry) =>
+                    entry.collectionIds.includes(collection.id),
+                  ),
+                });
+            }}
+          >
+            <Share2 size={15} />
+            {t('shareCollection')}
+          </Button>
+        ) : null}
         <div className="ml-auto flex w-full min-w-0 items-center gap-2 sm:w-auto">
           <div className="relative min-w-0 flex-1 sm:flex-none">
             <Search
@@ -498,14 +535,27 @@ export function LibraryView({
             </button>
           </div>
           {webExperience ? (
-            <button type="button" onClick={() => setMobileFiltersOpen(!mobileFiltersOpen)}
-              aria-expanded={mobileFiltersOpen} aria-controls="library-filters"
-              className={cn('ts-focus inline-flex h-11 shrink-0 items-center gap-2 rounded-xl border border-line bg-surface px-3 text-sm font-medium text-fg md:hidden',mobileFiltersOpen && 'border-accent text-accent')}>
-              <SlidersHorizontal size={19}/><span className="hidden min-[360px]:inline">{mobileFiltersOpen ? t('hideFilters') : t('filter')}</span>
+            <button
+              type="button"
+              onClick={() => setMobileFiltersOpen(!mobileFiltersOpen)}
+              aria-expanded={mobileFiltersOpen}
+              aria-controls="library-filters"
+              className={cn(
+                'ts-focus inline-flex h-11 shrink-0 items-center gap-2 rounded-xl border border-line bg-surface px-3 text-sm font-medium text-fg md:hidden',
+                mobileFiltersOpen && 'border-accent text-accent',
+              )}
+            >
+              <SlidersHorizontal size={19} />
+              <span className="hidden min-[360px]:inline">
+                {mobileFiltersOpen ? t('hideFilters') : t('filter')}
+              </span>
             </button>
           ) : null}
           <div
-            className={cn('inline-flex rounded-lg bg-subtle p-0.5', webExperience && 'hidden md:inline-flex')}
+            className={cn(
+              'inline-flex rounded-lg bg-subtle p-0.5',
+              webExperience && 'hidden md:inline-flex',
+            )}
             role="radiogroup"
             aria-label={t('display')}
           >
@@ -539,7 +589,15 @@ export function LibraryView({
         </div>
       </div>
       {s.view.kind !== 'duplicates' ? (
-        <div id="library-filters" className={cn('mt-3 flex flex-wrap items-center gap-2', webExperience && !mobileFiltersOpen && 'hidden md:flex',webExperience && 'max-md:rounded-2xl max-md:border max-md:border-line max-md:bg-surface max-md:p-3')}>
+        <div
+          id="library-filters"
+          className={cn(
+            'mt-3 flex flex-wrap items-center gap-2',
+            webExperience && !mobileFiltersOpen && 'hidden md:flex',
+            webExperience &&
+              'max-md:rounded-2xl max-md:border max-md:border-line max-md:bg-surface max-md:p-3',
+          )}
+        >
           <Select
             value={s.author}
             onChange={(e) => s.setAuthor(e.target.value)}
@@ -697,7 +755,12 @@ export function LibraryView({
         ) : webExperience ? (
           <div className="max-w-md space-y-3">
             <p>{t('emptyWebHint')}</p>
-            <a className="ts-focus inline-flex min-h-11 items-center rounded-xl bg-accent px-4 text-sm font-semibold text-accent-fg" href="/?home=1#extension">{t('getExtension')}</a>
+            <a
+              className="ts-focus inline-flex min-h-11 items-center rounded-xl bg-accent px-4 text-sm font-semibold text-accent-fg"
+              href="/?home=1#extension"
+            >
+              {t('getExtension')}
+            </a>
           </div>
         ) : (
           <>
@@ -756,6 +819,9 @@ export function LibraryView({
         <ExportDialog entryIds={exportIds} open onOpenChange={(o) => !o && setExportIds(null)} />
       ) : null}
       <TagsNoteDialog entry={tagEntry} onClose={() => setTagEntry(null)} />
+      {webExperience ? (
+        <ShareDialog target={shareTarget} onClose={() => setShareTarget(null)} />
+      ) : null}
       <ConfirmDialog
         open={!!deleteIds}
         onOpenChange={(o) => !o && setDeleteIds(null)}

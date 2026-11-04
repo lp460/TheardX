@@ -9,6 +9,7 @@ import {
   FolderPlus,
   MoreHorizontal,
   Star,
+  Share2,
   Tag,
   Trash2,
   Clock,
@@ -46,6 +47,8 @@ export interface EntryActions {
   toggleCollection: (e: Entry, c: Collection) => void;
   setCategory: (e: Entry, c: Category | null) => void;
   editTags: (e: Entry) => void;
+  /** Web-only: extension builds never expose publishing controls. */
+  share?: (e: Entry) => void;
 }
 
 function Thumb({ tweet }: { tweet?: Tweet }) {
@@ -105,6 +108,11 @@ export function EntryMenu({
         <MenuItem icon={<Download size={14} />} onSelect={() => actions.export(entry)}>
           {t('export')}
         </MenuItem>
+        {actions.share ? (
+          <MenuItem icon={<Share2 size={14} />} onSelect={() => actions.share?.(entry)}>
+            {t('shareEntry')}
+          </MenuItem>
+        ) : null}
         <MenuSeparator />
         <MenuItem
           icon={<Star size={14} />}
@@ -270,7 +278,9 @@ export function ThreadCard({
         selected
           ? 'border-accent bg-accent text-accent-fg'
           : 'border-line bg-surface text-transparent',
-        !selectMode && !selected && 'opacity-100 sm:opacity-0 sm:group-hover:opacity-100 focus-visible:opacity-100',
+        !selectMode &&
+          !selected &&
+          'opacity-100 sm:opacity-0 sm:group-hover:opacity-100 focus-visible:opacity-100',
       )}
     >
       <Check size={12} strokeWidth={3} />
@@ -355,7 +365,7 @@ export function ThreadCard({
         selected ? 'border-accent ring-2 ring-accent/25' : 'border-line',
       )}
     >
-        <div className="flex items-start gap-3 px-4 pt-4 sm:px-4">
+      <div className="flex items-start gap-3 px-4 pt-4 sm:px-4">
         <Avatar url={first?.author.avatarUrl} handle={entry.authorHandle} size={36} />
         <div className="min-w-0 flex-1 leading-tight">
           <div className="truncate text-[14.5px] font-semibold text-fg sm:text-[13.5px]">
@@ -388,7 +398,9 @@ export function ThreadCard({
           {entry.title}
         </h3>
         {preview && preview !== entry.title ? (
-          <p className="mt-2 line-clamp-4 text-[14px] leading-relaxed text-muted sm:mt-1.5 sm:line-clamp-3 sm:text-[13px]">{preview}</p>
+          <p className="mt-2 line-clamp-4 text-[14px] leading-relaxed text-muted sm:mt-1.5 sm:line-clamp-3 sm:text-[13px]">
+            {preview}
+          </p>
         ) : null}
       </div>
       {first?.media.length || first?.quoted?.media?.length || first?.article?.coverUrl ? (
@@ -409,7 +421,7 @@ export function ThreadCard({
         <div className="flex shrink-0 items-center" onClick={(e) => e.stopPropagation()}>
           <button
             type="button"
-          aria-label={entry.favorite ? t('removeFavorites') : t('addFavorites')}
+            aria-label={entry.favorite ? t('removeFavorites') : t('addFavorites')}
             onClick={() => actions.update(entry, { favorite: !entry.favorite })}
             className={cn(
               'ts-focus rounded-md p-2.5 transition-colors sm:p-1.5',
