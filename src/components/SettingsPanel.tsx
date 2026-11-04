@@ -21,11 +21,13 @@ import { formatBytes, isoDay } from '@/utils/format';
 import { useSettings } from './hooks';
 import { RedditSettings } from './RedditSettings';
 import { SyncSettings } from './SyncSettings';
+import { WebSyncSettings } from '@/web/WebSyncSettings';
 import { toast } from './ToastNotification';
 import { Button } from './ui/Button';
 import { cn } from './ui/cn';
 import { ConfirmDialog } from './ui/Dialog';
 import { Kbd, Switch } from './ui/primitives';
+import { useWebI18n } from '@/web/i18n';
 
 declare const __APP_VERSION__: string;
 const VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'dev';
@@ -95,12 +97,12 @@ function Row({
   children: ReactNode;
 }) {
   return (
-    <div className="flex items-center justify-between gap-4 py-2.5">
-      <div>
+    <div className="flex flex-col items-stretch justify-between gap-2 py-3 sm:flex-row sm:items-center sm:gap-4 sm:py-2.5">
+      <div className="min-w-0">
         <div className="text-[13.5px] font-medium text-fg">{label}</div>
         {description ? <div className="mt-0.5 text-[12.5px] text-muted">{description}</div> : null}
       </div>
-      <div className="shrink-0">{children}</div>
+      <div className="min-w-0 sm:shrink-0">{children}</div>
     </div>
   );
 }
@@ -140,6 +142,7 @@ export function StorageMeter() {
 }
 
 export function SettingsPanel() {
+  const { t } = useWebI18n();
   const [s, update, loaded] = useSettings();
   const fileRef = useRef<HTMLInputElement>(null);
   const [strategy, setStrategy] = useState<'merge' | 'replace'>('merge');
@@ -147,6 +150,7 @@ export function SettingsPanel() {
   const [confirmClear, setConfirmClear] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const caps = detectCapabilities();
+  const isWeb = typeof chrome === 'undefined' || !chrome.runtime?.id;
 
   if (!loaded)
     return (
@@ -199,7 +203,7 @@ export function SettingsPanel() {
 
   return (
     <div className="space-y-4" data-testid="settings-panel">
-      <Section title="Général" icon={<Monitor size={15} />}>
+      {!isWeb ? <Section title="Général" icon={<Monitor size={15} />}>
         <Switch
           id="set-enabled"
           checked={s.enabled}
@@ -268,24 +272,24 @@ export function SettingsPanel() {
             ))}
           </div>
         </Row>
-      </Section>
+      </Section> : null}
 
-      <Section title="Apparence et lecture" icon={<Sun size={15} />}>
-        <Row label="Thème">
+      <Section title={t('appearance')} icon={<Sun size={15} />}>
+        <Row label={t('theme')}>
           <Segmented
-            label="Thème"
+            label={t('theme')}
             value={s.theme}
             onChange={(v) => update({ theme: v })}
             options={[
-              { value: 'system', label: 'Système', icon: <Monitor size={13} /> },
-              { value: 'light', label: 'Clair', icon: <Sun size={13} /> },
-              { value: 'dark', label: 'Sombre', icon: <Moon size={13} /> },
+              { value: 'system', label: t('system'), icon: <Monitor size={13} /> },
+              { value: 'light', label: t('light'), icon: <Sun size={13} /> },
+              { value: 'dark', label: t('dark'), icon: <Moon size={13} /> },
             ]}
           />
         </Row>
-        <Row label="Police du lecteur">
+        <Row label={t('readerFont')}>
           <Segmented
-            label="Police"
+            label={t('font')}
             value={s.reader.font}
             onChange={(v) => update({ reader: { font: v } })}
             options={[
@@ -294,18 +298,18 @@ export function SettingsPanel() {
             ]}
           />
         </Row>
-        <Row label="Taille du texte" description={`${s.reader.fontSize} px`}>
+        <Row label={t('fontSize')} description={`${s.reader.fontSize} px`}>
           <input
             type="range"
             min={14}
             max={26}
             value={s.reader.fontSize}
             onChange={(e) => update({ reader: { fontSize: Number(e.target.value) } })}
-            aria-label="Taille du texte"
-            className="w-40 accent-[hsl(var(--ts-accent))]"
+            aria-label={t('fontSize')}
+            className="w-full accent-[hsl(var(--ts-accent))] sm:w-40"
           />
         </Row>
-        <Row label="Largeur de lecture" description={`${s.reader.width} px`}>
+        <Row label={t('readerWidth')} description={`${s.reader.width} px`}>
           <input
             type="range"
             min={520}
@@ -313,58 +317,58 @@ export function SettingsPanel() {
             step={20}
             value={s.reader.width}
             onChange={(e) => update({ reader: { width: Number(e.target.value) } })}
-            aria-label="Largeur de lecture"
-            className="w-40 accent-[hsl(var(--ts-accent))]"
+            aria-label={t('readerWidth')}
+            className="w-full accent-[hsl(var(--ts-accent))] sm:w-40"
           />
         </Row>
       </Section>
 
-      <Section title="Copie" icon={<Keyboard size={15} />}>
-        <Row label="Format par défaut">
+      <Section title={t('copy')} icon={<Keyboard size={15} />}>
+        <Row label={t('defaultFormat')}>
           <Segmented
-            label="Format de copie"
+            label={t('copyFormat')}
             value={s.copy.format}
             onChange={(v) => update({ copy: { format: v } })}
             options={[
               { value: 'markdown', label: 'Markdown' },
-              { value: 'text', label: 'Texte' },
+              { value: 'text', label: t('text') },
             ]}
           />
         </Row>
         <Switch
           checked={s.copy.includeUrls}
           onChange={(v) => update({ copy: { includeUrls: v } })}
-          label="Inclure l’URL de chaque publication"
+          label={t('includeUrls')}
         />
       </Section>
 
-      <Section title="Hors ligne" icon={<HardDrive size={15} />}>
+      <Section title={t('offlineSettings')} icon={<HardDrive size={15} />}>
         <Switch
           checked={s.cacheMedia}
           onChange={(v) => update({ cacheMedia: v })}
-          label="Conserver les images enregistrées"
-          description="Les images des publications enregistrées sont copiées localement. Les vidéos restent des liens vers X."
+          label={t('cacheImages')}
+          description={t('cacheImagesHint')}
         />
-        <Row label="Taille maximale par image" description={`${s.maxMediaMB} Mo`}>
+        <Row label={t('maxImage')} description={`${s.maxMediaMB} Mo`}>
           <input
             type="range"
             min={1}
             max={50}
             value={s.maxMediaMB}
             onChange={(e) => update({ maxMediaMB: Number(e.target.value) })}
-            aria-label="Taille maximale par image"
-            className="w-40 accent-[hsl(var(--ts-accent))]"
+            aria-label={t('maxImage')}
+            className="w-full accent-[hsl(var(--ts-accent))] sm:w-40"
           />
         </Row>
         <StorageMeter />
       </Section>
 
-      <SyncSettings />
+      {isWeb ? <WebSyncSettings /> : <SyncSettings />}
 
-      <Section title="Données" icon={<Database size={15} />} id="data">
+      <Section title={t('data')} icon={<Database size={15} />} id="data">
         <Row
-          label="Exporter la bibliothèque"
-          description="Fichier JSON complet : entrées, publications, relations, collections, préférences."
+          label={t('exportLibrary')}
+          description={t('exportHint')}
         >
           <div className="flex gap-2">
             <Button
@@ -381,26 +385,26 @@ export function SettingsPanel() {
               onClick={() => onExport(true)}
               loading={busy === 'export-media'}
             >
-              avec images
+              {t('withImages')}
             </Button>
           </div>
         </Row>
         <Row
-          label="Importer une sauvegarde"
-          description="Le fichier est validé ; en cas d’erreur, rien n’est modifié."
+          label={t('importBackup')}
+          description={t('importHint')}
         >
           <div className="flex items-center gap-2">
             <select
               value={strategy}
               onChange={(e) => setStrategy(e.target.value as 'merge' | 'replace')}
-              aria-label="Mode d’import"
+              aria-label={t('importMode')}
               className="h-7 rounded-md border border-line bg-surface px-1.5 text-[12.5px]"
             >
-              <option value="merge">Fusionner</option>
-              <option value="replace">Remplacer</option>
+              <option value="merge">{t('merge')}</option>
+              <option value="replace">{t('replace')}</option>
             </select>
             <Button size="sm" onClick={() => fileRef.current?.click()} loading={busy === 'import'}>
-              <Upload size={13} /> Choisir…
+              <Upload size={13} /> {t('chooseFile')}
             </Button>
             <input
               ref={fileRef}
@@ -426,8 +430,8 @@ export function SettingsPanel() {
           </div>
         ) : null}
         <Row
-          label="Effacer toute la bibliothèque"
-          description="Supprime définitivement les entrées, publications et images enregistrées."
+          label={t('clearLibrary')}
+          description={t('clearLibraryHint')}
         >
           <Button
             size="sm"
@@ -435,12 +439,12 @@ export function SettingsPanel() {
             className="text-danger hover:bg-danger/10"
             onClick={() => setConfirmClear(true)}
           >
-            <Trash2 size={13} /> Effacer…
+            <Trash2 size={13} /> {t('clear')}
           </Button>
         </Row>
       </Section>
 
-      <Section title="Raccourcis clavier" icon={<Keyboard size={15} />}>
+      {!isWeb ? <Section title="Raccourcis clavier" icon={<Keyboard size={15} />}>
         <div className="grid grid-cols-[1fr_auto] gap-y-2 py-2.5 text-[13px]">
           <span>Ouvrir ThreadShelf</span>
           <span>
@@ -463,7 +467,7 @@ export function SettingsPanel() {
           Modifiables dans{' '}
           <code className="rounded bg-subtle px-1">{shortcutsUrl(caps.browser)}</code>.
         </p>
-      </Section>
+      </Section> : null}
 
       <Section title="Fonctions IA (facultatives)" icon={<Sparkles size={15} />}>
         <p className="py-2.5 text-[12.5px] leading-relaxed text-muted">
@@ -474,16 +478,15 @@ export function SettingsPanel() {
       </Section>
 
       <p className="px-1 text-[12px] text-faint">
-        ThreadShelf {VERSION} · navigateur détecté : {caps.browser} · panneau latéral natif :{' '}
-        {caps.sidePanel ? 'disponible' : 'non disponible'} · aucune télémétrie.
+        TheardX {VERSION} · {isWeb ? 'PWA web' : `navigateur ${caps.browser}`} · {t('noTelemetry')}.
       </p>
 
       <ConfirmDialog
         open={confirmClear}
         onOpenChange={setConfirmClear}
-        title="Effacer toute la bibliothèque ?"
-        description="Cette action est définitive. Pensez à exporter une sauvegarde avant."
-        confirmLabel="Tout effacer"
+        title={t('clearConfirm')}
+        description={t('clearConfirmHint')}
+        confirmLabel={t('clearAll')}
         destructive
         onConfirm={async () => {
           await repository.clearAll();

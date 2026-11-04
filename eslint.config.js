@@ -5,7 +5,7 @@ import globals from 'globals';
 
 export default tseslint.config(
   {
-    ignores: ['dist', 'node_modules', 'playwright-report', 'test-results', 'artifacts', 'coverage'],
+    ignores: ['dist', 'dist-web', 'node_modules', 'playwright-report', 'test-results', 'artifacts', 'coverage', 'web/service-worker.template.js'],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,
@@ -35,6 +35,10 @@ export default tseslint.config(
   {
     files: ['scripts/**/*.{js,mjs}', 'src/manifest.mjs', '*.config.{js,ts}', 'tailwind.*.js'],
     languageOptions: { globals: { ...globals.node } },
+  },
+  {
+    files: ['api/**/*.ts', 'server/**/*.ts'],
+    languageOptions: { globals: { ...globals.node, ...globals.browser } },
   },
   {
     files: ['tests/**/*.{ts,tsx}'],

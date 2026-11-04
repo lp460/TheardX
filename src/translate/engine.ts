@@ -17,7 +17,7 @@ export interface PostTranslation {
   /** Aligned with `tweet.article.blocks`: translated text for text blocks, null for code / images / dividers. List items are joined with "\n". */
   blocks: (string | null)[];
   articleTitle?: string;
-  provider: 'on-device';
+  provider: 'on-device' | 'cloud';
   createdAt: number;
 }
 

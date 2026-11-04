@@ -9,6 +9,7 @@ import {
   FolderPlus,
   MoreHorizontal,
   Star,
+  Share2,
   Tag,
   Trash2,
   Clock,
@@ -35,6 +36,7 @@ import {
 } from './ui/Menu';
 import { Badge } from './ui/primitives';
 import { Tooltip } from './ui/Tooltip';
+import { useWebI18n } from '@/web/i18n';
 
 export interface EntryActions {
   open: (e: Entry, newTab?: boolean) => void;
@@ -45,6 +47,8 @@ export interface EntryActions {
   toggleCollection: (e: Entry, c: Collection) => void;
   setCategory: (e: Entry, c: Category | null) => void;
   editTags: (e: Entry) => void;
+  /** Web-only: extension builds never expose publishing controls. */
+  share?: (e: Entry) => void;
 }
 
 function Thumb({ tweet }: { tweet?: Tweet }) {
@@ -78,13 +82,14 @@ export function EntryMenu({
   collections: Collection[];
   categories: Category[];
 }) {
+  const { t } = useWebI18n();
   return (
     <Menu>
       <MenuTrigger asChild>
         <Button
           variant="ghost"
           size="icon-sm"
-          aria-label="Plus d’actions"
+          aria-label={t('moreActions')}
           onClick={(e) => e.stopPropagation()}
         >
           <MoreHorizontal size={15} />
@@ -92,29 +97,34 @@ export function EntryMenu({
       </MenuTrigger>
       <MenuContent>
         <MenuItem icon={<BookOpen size={14} />} onSelect={() => actions.open(entry)}>
-          Lire
+          {t('readEntry')}
         </MenuItem>
         <MenuItem icon={<Copy size={14} />} onSelect={() => actions.copy(entry, 'markdown')}>
-          Copier en Markdown
+          {t('copiedMarkdown')}
         </MenuItem>
         <MenuItem icon={<Copy size={14} />} onSelect={() => actions.copy(entry, 'text')}>
-          Copier en texte brut
+          {t('copiedText')}
         </MenuItem>
         <MenuItem icon={<Download size={14} />} onSelect={() => actions.export(entry)}>
-          Exporter…
+          {t('export')}
         </MenuItem>
+        {actions.share ? (
+          <MenuItem icon={<Share2 size={14} />} onSelect={() => actions.share?.(entry)}>
+            {t('shareEntry')}
+          </MenuItem>
+        ) : null}
         <MenuSeparator />
         <MenuItem
           icon={<Star size={14} />}
           onSelect={() => actions.update(entry, { favorite: !entry.favorite })}
         >
-          {entry.favorite ? 'Retirer des favoris' : 'Ajouter aux favoris'}
+          {entry.favorite ? t('removeFavorites') : t('addFavorites')}
         </MenuItem>
         <MenuItem
           icon={<Clock size={14} />}
           onSelect={() => actions.update(entry, { readLater: !entry.readLater })}
         >
-          {entry.readLater ? 'Retirer de « À lire »' : 'À lire plus tard'}
+          {entry.readLater ? t('removeLater') : t('addLater')}
         </MenuItem>
         <MenuItem
           icon={<Check size={14} />}
@@ -122,9 +132,9 @@ export function EntryMenu({
             actions.update(entry, { readState: entry.readState === 'read' ? 'unread' : 'read' })
           }
         >
-          {entry.readState === 'read' ? 'Marquer non lu' : 'Marquer lu'}
+          {entry.readState === 'read' ? t('markUnread') : t('markRead')}
         </MenuItem>
-        <MenuSub label="Collections" icon={<FolderPlus size={14} />}>
+        <MenuSub label={t('collections')} icon={<FolderPlus size={14} />}>
           {collections.length ? (
             collections.map((c) => (
               <MenuCheckItem
@@ -136,15 +146,15 @@ export function EntryMenu({
               </MenuCheckItem>
             ))
           ) : (
-            <div className="px-2 py-1.5 text-[12px] text-muted">Aucune collection</div>
+            <div className="px-2 py-1.5 text-[12px] text-muted">{t('noCollection')}</div>
           )}
         </MenuSub>
-        <MenuSub label="Catégorie" icon={<Bookmark size={14} />}>
+        <MenuSub label={t('categories')} icon={<Bookmark size={14} />}>
           <MenuCheckItem
             checked={!entry.categoryId}
             onCheckedChange={() => actions.setCategory(entry, null)}
           >
-            Aucune
+            {t('noCategory')}
           </MenuCheckItem>
           {categories.map((c) => (
             <MenuCheckItem
@@ -157,17 +167,17 @@ export function EntryMenu({
           ))}
         </MenuSub>
         <MenuItem icon={<Tag size={14} />} onSelect={() => actions.editTags(entry)}>
-          Tags et note…
+          {t('tagsNote')}
         </MenuItem>
         <MenuItem
           icon={<ExternalLink size={14} />}
           onSelect={() => window.open(entry.sourceUrl, '_blank', 'noopener')}
         >
-          Ouvrir sur {entry.platform === 'reddit' ? 'Reddit' : 'X'}
+          {t('openSource')} {entry.platform === 'reddit' ? 'Reddit' : 'X'}
         </MenuItem>
         <MenuSeparator />
         <MenuItem icon={<Trash2 size={14} />} destructive onSelect={() => actions.remove(entry)}>
-          Supprimer…
+          {t('delete')}
         </MenuItem>
       </MenuContent>
     </Menu>
@@ -235,6 +245,7 @@ export function ThreadCard({
   onToggleSelect: () => void;
   layout: 'cards' | 'list';
 }) {
+  const { t } = useWebI18n();
   const category = categories.find((c) => c.id === entry.categoryId);
   const preview = first ? truncate(postPreviewText(first).replace(/\s+/g, ' '), 280) : '';
   const onClick = (e: MouseEvent) => {
@@ -267,7 +278,9 @@ export function ThreadCard({
         selected
           ? 'border-accent bg-accent text-accent-fg'
           : 'border-line bg-surface text-transparent',
-        !selectMode && !selected && 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100',
+        !selectMode &&
+          !selected &&
+          'opacity-100 sm:opacity-0 sm:group-hover:opacity-100 focus-visible:opacity-100',
       )}
     >
       <Check size={12} strokeWidth={3} />
@@ -316,7 +329,7 @@ export function ThreadCard({
         </span>
         <button
           type="button"
-          aria-label={entry.favorite ? 'Retirer des favoris' : 'Ajouter aux favoris'}
+          aria-label={entry.favorite ? t('removeFavorites') : t('addFavorites')}
           onClick={(e) => {
             e.stopPropagation();
             actions.update(entry, { favorite: !entry.favorite });
@@ -330,6 +343,21 @@ export function ThreadCard({
         >
           <Star size={14} fill={entry.favorite ? 'currentColor' : 'none'} />
         </button>
+        {actions.share ? (
+          <button
+            type="button"
+            aria-label={t('shareEntry')}
+            data-testid="entry-share"
+            onClick={(event) => {
+              event.stopPropagation();
+              actions.share?.(entry);
+            }}
+            className="ts-focus inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-2 text-[12.5px] font-semibold text-accent hover:bg-accent-soft"
+          >
+            <Share2 size={15} />
+            {t('shareAction')}
+          </button>
+        ) : null}
         <div onClick={(e) => e.stopPropagation()}>
           <EntryMenu
             entry={entry}
@@ -352,13 +380,13 @@ export function ThreadCard({
         selected ? 'border-accent ring-2 ring-accent/25' : 'border-line',
       )}
     >
-      <div className="flex items-start gap-3 px-4 pt-4">
+      <div className="flex items-start gap-3 px-4 pt-4 sm:px-4">
         <Avatar url={first?.author.avatarUrl} handle={entry.authorHandle} size={36} />
         <div className="min-w-0 flex-1 leading-tight">
-          <div className="truncate text-[13.5px] font-semibold text-fg">
+          <div className="truncate text-[14.5px] font-semibold text-fg sm:text-[13.5px]">
             {entry.authorName ?? entry.authorHandle}
           </div>
-          <div className="truncate text-[12px] text-muted">
+          <div className="truncate text-[13px] text-muted sm:text-[12px]">
             {first?.reddit?.subreddit ? `r/${first.reddit.subreddit} · ` : ''}
             {entryAuthorLabel(entry)}
             {entry.publishedAt ? ` · ${formatDate(entry.publishedAt)}` : ''}
@@ -371,7 +399,7 @@ export function ThreadCard({
       <div className="px-4 pb-3 pt-3">
         <h3
           className={cn(
-            'line-clamp-2 text-[14.5px] leading-snug text-fg',
+            'line-clamp-3 text-[16.5px] leading-snug text-fg sm:line-clamp-2 sm:text-[14.5px]',
             entry.readState === 'unread' ? 'font-semibold' : 'font-medium',
           )}
         >
@@ -385,11 +413,13 @@ export function ThreadCard({
           {entry.title}
         </h3>
         {preview && preview !== entry.title ? (
-          <p className="mt-1.5 line-clamp-3 text-[13px] leading-relaxed text-muted">{preview}</p>
+          <p className="mt-2 line-clamp-4 text-[14px] leading-relaxed text-muted sm:mt-1.5 sm:line-clamp-3 sm:text-[13px]">
+            {preview}
+          </p>
         ) : null}
       </div>
       {first?.media.length || first?.quoted?.media?.length || first?.article?.coverUrl ? (
-        <div className="mx-4 mb-3 h-36 overflow-hidden rounded-xl bg-subtle">
+        <div className="mx-4 mb-3 h-44 overflow-hidden rounded-xl bg-subtle sm:h-36">
           <Thumb tweet={first} />
         </div>
       ) : null}
@@ -406,10 +436,10 @@ export function ThreadCard({
         <div className="flex shrink-0 items-center" onClick={(e) => e.stopPropagation()}>
           <button
             type="button"
-            aria-label={entry.favorite ? 'Retirer des favoris' : 'Ajouter aux favoris'}
+            aria-label={entry.favorite ? t('removeFavorites') : t('addFavorites')}
             onClick={() => actions.update(entry, { favorite: !entry.favorite })}
             className={cn(
-              'ts-focus rounded-md p-1.5 transition-colors',
+              'ts-focus rounded-md p-2.5 transition-colors sm:p-1.5',
               entry.favorite ? 'text-warning' : 'text-faint hover:text-fg',
             )}
           >
@@ -428,6 +458,23 @@ export function ThreadCard({
           />
         </div>
       </div>
+      {actions.share ? (
+        <div className="flex justify-end border-t border-line/70 px-3 py-1.5">
+          <button
+            type="button"
+            aria-label={t('shareEntry')}
+            data-testid="entry-share"
+            onClick={(event) => {
+              event.stopPropagation();
+              actions.share?.(entry);
+            }}
+            className="ts-focus inline-flex min-h-10 items-center gap-2 rounded-lg px-3 text-[13px] font-semibold text-accent transition-colors hover:bg-accent-soft"
+          >
+            <Share2 size={16} />
+            {t('shareAction')}
+          </button>
+        </div>
+      ) : null}
     </article>
   );
 }

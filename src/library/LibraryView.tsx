@@ -9,13 +9,15 @@ import {
   LayoutGrid,
   List,
   Search,
+  SlidersHorizontal,
   Star,
   Tag,
   Trash2,
   X,
   Layers3,
+  Share2,
 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ThreadCard, ThreadCardSkeleton, type EntryActions } from '@/components/ThreadCard';
 import { toast } from '@/components/ToastNotification';
 import { Button } from '@/components/ui/Button';
@@ -33,25 +35,32 @@ import { applyFilters } from './filters';
 import { useLibrary, type View } from './store';
 import { copyEntry, openReader, safely } from './actions';
 import { entryAuthorLabel } from '@/utils/text';
+import { useWebI18n, type WebMessageKey } from '@/web/i18n';
+import { ShareDialog, type ShareTarget } from '@/share/ShareDialog';
 
-function viewTitle(view: View, collections: Collection[], categories: Category[]): string {
+function viewTitle(
+  view: View,
+  collections: Collection[],
+  categories: Category[],
+  t: (key: WebMessageKey) => string,
+): string {
   switch (view.kind) {
     case 'later':
-      return 'À lire plus tard';
+      return t('later');
     case 'unread':
-      return 'Non lus';
+      return t('unread');
     case 'favorites':
-      return 'Favoris';
+      return t('favorites');
     case 'duplicates':
-      return 'Doublons';
+      return t('duplicates');
     case 'collection':
-      return collections.find((c) => c.id === view.id)?.name ?? 'Collection';
+      return collections.find((c) => c.id === view.id)?.name ?? t('collections');
     case 'category':
-      return categories.find((c) => c.id === view.id)?.name ?? 'Catégorie';
+      return categories.find((c) => c.id === view.id)?.name ?? t('categories');
     case 'tag':
       return `#${view.tag}`;
     default:
-      return 'Bibliothèque';
+      return t('library');
   }
 }
 
@@ -156,7 +165,7 @@ function BulkBar({
       role="toolbar"
       aria-label="Actions groupées"
       data-testid="bulk-bar"
-      className="sticky bottom-4 z-20 mx-auto mt-4 flex w-fit items-center gap-1 rounded-2xl border border-line bg-elevated/95 px-2 py-1.5 shadow-float backdrop-blur animate-ts-in"
+      className="sticky bottom-16 z-20 mx-auto mt-4 flex w-fit max-w-[calc(100vw-1rem)] items-center gap-1 overflow-x-auto rounded-2xl border border-line bg-elevated/95 px-2 py-1.5 shadow-float backdrop-blur animate-ts-in md:bottom-4"
     >
       <span className="px-2 text-[13px] font-medium text-fg">
         {ids.length} sélectionnée{ids.length > 1 ? 's' : ''}
@@ -347,18 +356,35 @@ export function LibraryView({
   categories,
   settings,
   updateSettings,
+  webExperience = false,
 }: {
   entries: Entry[] | undefined;
   collections: Collection[];
   categories: Category[];
   settings: Settings;
   updateSettings: (p: { library: Partial<Settings['library']> }) => void;
+  webExperience?: boolean;
 }) {
+  const { t } = useWebI18n();
   const s = useLibrary();
   const [exportIds, setExportIds] = useState<string[] | null>(null);
   const [deleteIds, setDeleteIds] = useState<string[] | null>(null);
   const [tagEntry, setTagEntry] = useState<Entry | null>(null);
-  const layout = settings.library.view;
+  const [shareTarget, setShareTarget] = useState<ShareTarget | null>(null);
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+  const [mobile, setMobile] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches,
+  );
+  useEffect(() => {
+    if (!webExperience) return;
+    const query = window.matchMedia('(max-width: 767px)');
+    const update = () => setMobile(query.matches);
+    update();
+    query.addEventListener('change', update);
+    return () => query.removeEventListener('change', update);
+  }, [webExperience]);
+  // Web mobile always uses readable full-width cards; desktop retains the saved preference.
+  const layout = webExperience && mobile ? 'cards' : settings.library.view;
   const catMap = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories]);
 
   const filtered = useMemo(
@@ -444,22 +470,49 @@ export function LibraryView({
         repository.updateEntry(e.id, { categoryId: c?.id ?? null }),
       ),
     editTags: (e) => setTagEntry(e),
+    ...(webExperience
+      ? { share: (entry: Entry) => setShareTarget({ type: 'article' as const, entry }) }
+      : {}),
   };
   const selectedIds = [...s.selected].filter((id) => filtered?.some((e) => e.id === id));
   const selectMode = selectedIds.length > 0;
 
   const header = (
-    <header className="sticky top-0 z-10 border-b border-line bg-bg/85 px-6 pb-3 pt-5 backdrop-blur-md">
-      <div className="flex items-center gap-3">
+    <header className="sticky top-0 z-10 border-b border-line bg-bg/95 px-3 pb-3 pt-3 backdrop-blur-md sm:px-6 sm:pt-5">
+      <div className="flex flex-wrap items-center gap-3 sm:flex-nowrap">
         <h1
-          className="text-[20px] font-semibold tracking-[-0.015em] text-fg"
+          className="text-[22px] font-semibold tracking-[-0.025em] text-fg sm:text-[20px]"
           data-testid="view-title"
         >
-          {viewTitle(s.view, collections, categories)}
+          {viewTitle(s.view, collections, categories, t)}
         </h1>
         {filtered ? <span className="text-[13px] text-faint">{filtered.length}</span> : null}
-        <div className="ml-auto flex items-center gap-2">
-          <div className="relative">
+        {webExperience &&
+        s.view.kind === 'collection' &&
+        collections.some((item) => item.id === (s.view.kind === 'collection' ? s.view.id : '')) ? (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => {
+              if (s.view.kind !== 'collection') return;
+              const collectionId = s.view.id;
+              const collection = collections.find((item) => item.id === collectionId);
+              if (collection)
+                setShareTarget({
+                  type: 'collection',
+                  collection,
+                  entries: (entries ?? []).filter((entry) =>
+                    entry.collectionIds.includes(collection.id),
+                  ),
+                });
+            }}
+          >
+            <Share2 size={15} />
+            {t('shareCollection')}
+          </Button>
+        ) : null}
+        <div className="ml-auto flex w-full min-w-0 items-center gap-2 sm:w-auto">
+          <div className="relative min-w-0 flex-1 sm:flex-none">
             <Search
               size={14}
               className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-faint"
@@ -467,30 +520,50 @@ export function LibraryView({
             <Input
               value={s.query}
               onChange={(e) => s.setQuery(e.target.value)}
-              placeholder="Rechercher…"
-              aria-label="Rechercher dans la bibliothèque"
-              className="h-8 w-64 pl-8 pr-12"
+              placeholder={t('search')}
+              aria-label={t('searchLibrary')}
+              className="h-11 w-full pl-9 pr-3 text-base sm:h-8 sm:w-64 sm:pl-8 sm:pr-12 sm:text-[13px]"
               data-testid="library-search"
             />
             <button
               type="button"
               onClick={() => s.setCommandOpen(true)}
-              className="absolute right-1.5 top-1/2 -translate-y-1/2"
-              aria-label="Ouvrir la palette de recherche"
+              className="absolute right-1.5 top-1/2 hidden -translate-y-1/2 sm:block"
+              aria-label={t('openSearch')}
             >
               <Kbd>⌘K</Kbd>
             </button>
           </div>
+          {webExperience ? (
+            <button
+              type="button"
+              onClick={() => setMobileFiltersOpen(!mobileFiltersOpen)}
+              aria-expanded={mobileFiltersOpen}
+              aria-controls="library-filters"
+              className={cn(
+                'ts-focus inline-flex h-11 shrink-0 items-center gap-2 rounded-xl border border-line bg-surface px-3 text-sm font-medium text-fg md:hidden',
+                mobileFiltersOpen && 'border-accent text-accent',
+              )}
+            >
+              <SlidersHorizontal size={19} />
+              <span className="hidden min-[360px]:inline">
+                {mobileFiltersOpen ? t('hideFilters') : t('filter')}
+              </span>
+            </button>
+          ) : null}
           <div
-            className="inline-flex rounded-lg bg-subtle p-0.5"
+            className={cn(
+              'inline-flex rounded-lg bg-subtle p-0.5',
+              webExperience && 'hidden md:inline-flex',
+            )}
             role="radiogroup"
-            aria-label="Affichage"
+            aria-label={t('display')}
           >
             <button
               type="button"
               role="radio"
               aria-checked={layout === 'cards'}
-              aria-label="Cartes"
+              aria-label={t('cards')}
               onClick={() => updateSettings({ library: { view: 'cards' } })}
               className={cn(
                 'ts-focus rounded-md p-1.5',
@@ -503,7 +576,7 @@ export function LibraryView({
               type="button"
               role="radio"
               aria-checked={layout === 'list'}
-              aria-label="Liste"
+              aria-label={t('list')}
               onClick={() => updateSettings({ library: { view: 'list' } })}
               className={cn(
                 'ts-focus rounded-md p-1.5',
@@ -516,15 +589,23 @@ export function LibraryView({
         </div>
       </div>
       {s.view.kind !== 'duplicates' ? (
-        <div className="mt-3 flex flex-wrap items-center gap-2">
+        <div
+          id="library-filters"
+          className={cn(
+            'mt-3 flex flex-wrap items-center gap-2',
+            webExperience && !mobileFiltersOpen && 'hidden md:flex',
+            webExperience &&
+              'max-md:rounded-2xl max-md:border max-md:border-line max-md:bg-surface max-md:p-3',
+          )}
+        >
           <Select
             value={s.author}
             onChange={(e) => s.setAuthor(e.target.value)}
-            aria-label="Filtrer par auteur"
-            className="h-7 text-[12.5px]"
+            aria-label={t('allAuthors')}
+            className="h-11 w-full text-base sm:h-7 sm:w-auto sm:text-[12.5px]"
             data-testid="filter-author"
           >
-            <option value="">Tous les auteurs</option>
+            <option value="">{t('allAuthors')}</option>
             {authors.map(([a, label]) => (
               <option key={a} value={a}>
                 {label}
@@ -535,11 +616,11 @@ export function LibraryView({
             <Select
               value={s.platformFilter}
               onChange={(e) => s.setPlatformFilter(e.target.value as '' | 'x' | 'reddit')}
-              aria-label="Filtrer par source"
-              className="h-7 text-[12.5px]"
+              aria-label={t('allSources')}
+              className="h-11 w-full text-base sm:h-7 sm:w-auto sm:text-[12.5px]"
               data-testid="filter-platform"
             >
-              <option value="">X et Reddit</option>
+              <option value="">{t('allSources')}</option>
               <option value="x">X</option>
               <option value="reddit">Reddit</option>
             </Select>
@@ -547,10 +628,10 @@ export function LibraryView({
           <Select
             value={s.categoryFilter}
             onChange={(e) => s.setCategoryFilter(e.target.value)}
-            aria-label="Filtrer par catégorie"
-            className="h-7 text-[12.5px]"
+            aria-label={t('allCategories')}
+            className="h-11 w-full text-base sm:h-7 sm:w-auto sm:text-[12.5px]"
           >
-            <option value="">Toutes catégories</option>
+            <option value="">{t('allCategories')}</option>
             {categories.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
@@ -560,39 +641,39 @@ export function LibraryView({
           <Select
             value={s.readFilter}
             onChange={(e) => s.setReadFilter(e.target.value as typeof s.readFilter)}
-            aria-label="Filtrer par état de lecture"
-            className="h-7 text-[12.5px]"
+            aria-label={t('readAndUnread')}
+            className="h-11 w-full text-base sm:h-7 sm:w-auto sm:text-[12.5px]"
           >
-            <option value="all">Lus et non lus</option>
-            <option value="unread">Non lus</option>
-            <option value="read">Lus</option>
+            <option value="all">{t('readAndUnread')}</option>
+            <option value="unread">{t('unread')}</option>
+            <option value="read">{t('read')}</option>
           </Select>
           <button
             type="button"
             aria-pressed={s.favoritesOnly}
             onClick={() => s.setFavoritesOnly(!s.favoritesOnly)}
             className={cn(
-              'ts-focus inline-flex h-7 items-center gap-1.5 rounded-lg border px-2.5 text-[12.5px] transition-colors',
+              'ts-focus inline-flex h-11 items-center gap-1.5 rounded-lg border px-3 text-sm transition-colors sm:h-7 sm:px-2.5 sm:text-[12.5px]',
               s.favoritesOnly
                 ? 'border-warning/40 bg-warning/10 text-warning'
                 : 'border-line text-muted hover:text-fg',
             )}
           >
-            <Star size={13} fill={s.favoritesOnly ? 'currentColor' : 'none'} /> Favoris
+            <Star size={13} fill={s.favoritesOnly ? 'currentColor' : 'none'} /> {t('favorites')}
           </button>
           <Select
             value={settings.library.sort}
             onChange={(e) =>
               updateSettings({ library: { sort: e.target.value as Settings['library']['sort'] } })
             }
-            aria-label="Trier"
-            className="ml-auto h-7 text-[12.5px]"
+            aria-label={t('sort')}
+            className="ml-auto h-11 w-full text-base sm:h-7 sm:w-auto sm:text-[12.5px]"
             data-testid="sort"
           >
-            <option value="saved-desc">Enregistrés récemment</option>
-            <option value="saved-asc">Enregistrés anciennement</option>
-            <option value="published-desc">Publiés récemment</option>
-            <option value="published-asc">Publiés anciennement</option>
+            <option value="saved-desc">{t('savedNewest')}</option>
+            <option value="saved-asc">{t('savedOldest')}</option>
+            <option value="published-desc">{t('publishedNewest')}</option>
+            <option value="published-asc">{t('publishedOldest')}</option>
           </Select>
           {filtered?.length ? (
             <Button
@@ -602,7 +683,7 @@ export function LibraryView({
                 selectMode ? s.clearSelection() : s.setSelected(filtered.map((e) => e.id))
               }
             >
-              <Check size={13} /> {selectMode ? 'Aucun' : 'Tout sélectionner'}
+              <Check size={13} /> {selectMode ? t('selectNone') : t('selectAll')}
             </Button>
           ) : null}
         </div>
@@ -625,7 +706,7 @@ export function LibraryView({
       <div
         className={
           layout === 'cards'
-            ? 'grid gap-4 p-6 [grid-template-columns:repeat(auto-fill,minmax(300px,1fr))]'
+            ? 'grid gap-3 p-3 sm:gap-4 sm:p-6 [grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr))]'
             : 'py-2'
         }
       >
@@ -645,7 +726,7 @@ export function LibraryView({
     body = searching ? (
       <EmptyState
         icon={<Search size={20} />}
-        title="Aucun résultat"
+        title={t('noResults')}
         action={
           <Button
             size="sm"
@@ -658,19 +739,29 @@ export function LibraryView({
               s.setPlatformFilter('');
             }}
           >
-            Effacer les filtres
+            {t('clearFilters')}
           </Button>
         }
       >
-        Essayez d’autres mots, un <code>@auteur</code> ou un <code>#tag</code>.
+        {t('noResultsHint')}
       </EmptyState>
     ) : (
       <EmptyState
         icon={<BookmarkPlus size={20} />}
-        title={entries?.length ? 'Rien dans cette vue' : 'Votre bibliothèque est vide'}
+        title={entries?.length ? t('emptyView') : t('emptyLibrary')}
       >
         {entries?.length ? (
-          'Les entrées apparaîtront ici dès qu’elles correspondront à cette vue.'
+          t('emptyViewHint')
+        ) : webExperience ? (
+          <div className="max-w-md space-y-3">
+            <p>{t('emptyWebHint')}</p>
+            <a
+              className="ts-focus inline-flex min-h-11 items-center rounded-xl bg-accent px-4 text-sm font-semibold text-accent-fg"
+              href="/?home=1#extension"
+            >
+              {t('getExtension')}
+            </a>
+          </div>
         ) : (
           <>
             Ouvrez une publication sur X (ou un post Reddit) puis cliquez sur{' '}
@@ -684,10 +775,10 @@ export function LibraryView({
     body = (
       <div
         role="list"
-        aria-label="Entrées"
+        aria-label={t('entries')}
         className={
           layout === 'cards'
-            ? 'grid gap-4 p-6 [grid-template-columns:repeat(auto-fill,minmax(300px,1fr))]'
+            ? 'grid gap-3 p-3 sm:gap-4 sm:p-6 [grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr))]'
             : 'py-1'
         }
       >
@@ -728,6 +819,9 @@ export function LibraryView({
         <ExportDialog entryIds={exportIds} open onOpenChange={(o) => !o && setExportIds(null)} />
       ) : null}
       <TagsNoteDialog entry={tagEntry} onClose={() => setTagEntry(null)} />
+      {webExperience ? (
+        <ShareDialog target={shareTarget} onClose={() => setShareTarget(null)} />
+      ) : null}
       <ConfirmDialog
         open={!!deleteIds}
         onOpenChange={(o) => !o && setDeleteIds(null)}

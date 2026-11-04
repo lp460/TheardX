@@ -13,9 +13,11 @@ import {
   ListOrdered,
   Minus,
   Monitor,
+  MoreHorizontal,
   Moon,
   Plus,
   Printer,
+  Share2,
   Star,
   Sun,
   Type,
@@ -52,26 +54,32 @@ import {
   type PostTranslation,
   type TranslateProgress,
 } from '@/translate/engine';
+import { translateCloudBundle } from '@/translate/cloud';
 import { languageName, TARGET_LANGUAGES } from '@/translate/languages';
 import { copyText } from '@/utils/clipboard';
 import { toast } from '@/components/ToastNotification';
+import { useWebI18n } from '@/web/i18n';
+import { ShareDialog, type ShareTarget } from '@/share/ShareDialog';
 
 const params = new URLSearchParams(location.search);
 const ENTRY_ID = params.get('id') ?? '';
 const PRINT = params.get('print') === '1';
 
 function libraryUrl(): string {
-  return chrome.runtime.getURL('library/index.html');
+  return typeof chrome !== 'undefined' && chrome.runtime?.getURL
+    ? chrome.runtime.getURL('library/index.html')
+    : '/';
 }
 
-function ReaderSettings() {
+function ReaderSettings({ isWeb }: { isWeb: boolean }) {
+  const { t } = useWebI18n();
   const [s, update] = useSettings();
   const btn =
     'ts-focus inline-flex h-8 flex-1 items-center justify-center gap-1.5 rounded-lg text-[12.5px] font-medium transition-colors';
   return (
     <Popover.Root>
       <Popover.Trigger asChild>
-        <Button variant="ghost" size="icon" aria-label="Réglages de lecture">
+        <Button variant="ghost" size="icon" aria-label={t('readerOptions')}>
           <Type size={16} />
         </Button>
       </Popover.Trigger>
@@ -84,14 +92,14 @@ function ReaderSettings() {
           <div className="space-y-3">
             <div>
               <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-faint">
-                Thème
+                {t('theme')}
               </div>
               <div className="flex gap-1 rounded-xl bg-subtle p-1">
                 {(
                   [
-                    ['light', Sun, 'Clair'],
-                    ['dark', Moon, 'Sombre'],
-                    ['system', Monitor, 'Système'],
+                    ['light', Sun, t('light')],
+                    ['dark', Moon, t('dark')],
+                    ['system', Monitor, t('system')],
                   ] as const
                 ).map(([v, Icon, label]) => (
                   <button
@@ -112,7 +120,7 @@ function ReaderSettings() {
             </div>
             <div>
               <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-faint">
-                Police
+                {t('font')}
               </div>
               <div className="flex gap-1 rounded-xl bg-subtle p-1">
                 <button
@@ -141,12 +149,12 @@ function ReaderSettings() {
               </div>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-[13px] text-fg">Taille</span>
+              <span className="text-[13px] text-fg">{t('fontSize')}</span>
               <div className="flex items-center gap-1">
                 <Button
                   size="icon-sm"
                   variant="outline"
-                  aria-label="Réduire le texte"
+                  aria-label={t('readerDecrease')}
                   onClick={() =>
                     update({ reader: { fontSize: Math.max(14, s.reader.fontSize - 1) } })
                   }
@@ -159,7 +167,7 @@ function ReaderSettings() {
                 <Button
                   size="icon-sm"
                   variant="outline"
-                  aria-label="Agrandir le texte"
+                  aria-label={t('readerIncrease')}
                   onClick={() =>
                     update({ reader: { fontSize: Math.min(26, s.reader.fontSize + 1) } })
                   }
@@ -169,7 +177,7 @@ function ReaderSettings() {
               </div>
             </div>
             <div className="flex items-center justify-between gap-3">
-              <span className="text-[13px] text-fg">Largeur</span>
+              <span className="text-[13px] text-fg">{t('readerWidth')}</span>
               <input
                 type="range"
                 min={520}
@@ -177,16 +185,16 @@ function ReaderSettings() {
                 step={20}
                 value={s.reader.width}
                 onChange={(e) => update({ reader: { width: Number(e.target.value) } })}
-                aria-label="Largeur de lecture"
+                aria-label={t('readerWidth')}
                 className="w-36 accent-[hsl(var(--ts-accent))]"
               />
             </div>
             <div className="flex items-center justify-between gap-3">
-              <span className="text-[13px] text-fg">Traduire en</span>
+              <span className="text-[13px] text-fg">{t('readerTranslateTo')}</span>
               <select
                 value={s.translateTo}
                 onChange={(e) => update({ translateTo: e.target.value })}
-                aria-label="Langue de traduction"
+                aria-label={t('readerTranslationLanguage')}
                 className="h-7 rounded-md border border-line bg-surface px-1.5 text-[12.5px]"
               >
                 {TARGET_LANGUAGES.map((l) => (
@@ -196,6 +204,23 @@ function ReaderSettings() {
                 ))}
               </select>
             </div>
+            {isWeb && !translationSupported() ? (
+              <label className="block rounded-xl border border-line bg-subtle/60 p-3">
+                <span className="flex items-center justify-between gap-3">
+                  <span className="text-[13px] font-medium text-fg">{t('readerAutoTranslate')}</span>
+                  <input type="checkbox" checked={s.webTranslation.automatic}
+                    data-testid="reader-auto-translate"
+                    onChange={(event) => void update({ webTranslation: {
+                      automatic: event.target.checked,
+                      consentAt: event.target.checked ? Date.now() : s.webTranslation.consentAt,
+                    } })}
+                    className="h-4 w-4 shrink-0 accent-[hsl(var(--ts-accent))]" />
+                </span>
+                <span className="mt-2 block text-[11px] leading-relaxed text-muted">
+                  {t('readerAutoTranslateHint')}
+                </span>
+              </label>
+            ) : null}
           </div>
         </Popover.Content>
       </Popover.Portal>
@@ -226,13 +251,14 @@ function Toc({
   active: number;
   onJump: (i: number) => void;
 }) {
+  const { t } = useWebI18n();
   return (
     <nav
-      aria-label="Table des matières"
+      aria-label={t('readerContents')}
       className="sticky top-20 hidden max-h-[calc(100vh-7rem)] w-56 shrink-0 overflow-y-auto pr-2 xl:block print:hidden"
     >
       <div className="mb-2 flex items-center gap-1.5 px-2 text-[11px] font-semibold uppercase tracking-wide text-faint">
-        <ListOrdered size={12} /> Sommaire
+        <ListOrdered size={12} /> {t('readerContents')}
       </div>
       <ol className="space-y-px">
         {posts.map((t, i) => (
@@ -297,6 +323,8 @@ function NoteEditor({ bundle }: { bundle: EntryBundle }) {
 }
 
 export function ThreadReader() {
+  const { t } = useWebI18n();
+  const isWeb = typeof chrome === 'undefined' || !chrome.runtime?.id;
   const [settings, update] = useSettings();
   const dark = useThemeClass(PRINT ? 'light' : settings.theme);
   const online = useOnline();
@@ -307,6 +335,7 @@ export function ThreadReader() {
   );
   const [active, setActive] = useState(0);
   const [exportOpen, setExportOpen] = useState(false);
+  const [shareTarget, setShareTarget] = useState<ShareTarget | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
   const [selecting, setSelecting] = useState(false);
   const [selection, setSelection] = useState<Set<string>>(new Set());
@@ -315,7 +344,12 @@ export function ThreadReader() {
   const [showTranslation, setShowTranslation] = useState(false);
   const [trProgress, setTrProgress] = useState<TranslateProgress | null>(null);
   const [trError, setTrError] = useState<string | null>(null);
+  const [translationsReady, setTranslationsReady] = useState(false);
+  const translationPending = useRef(false);
+  const manuallyViewingOriginal = useRef(false);
+  const currentTarget = useRef(settings.translateTo);
   const target = settings.translateTo;
+  currentTarget.current = target;
   const postRefs = useRef<(HTMLElement | null)[]>([]);
   const markedRead = useRef(false);
   const endRef = useRef<HTMLDivElement>(null);
@@ -371,35 +405,72 @@ export function ThreadReader() {
   // Cached translations for the chosen language (available offline).
   useEffect(() => {
     if (!allIds.length) return;
-    void repository.getTranslations(allIds, target).then(setTranslations);
+    let active = true;
+    setTranslationsReady(false);
+    void repository.getTranslations(allIds, target).then((cached) => {
+      if (!active) return;
+      setTranslations(cached);
+      setTranslationsReady(true);
+    });
     setShowTranslation(false);
+    manuallyViewingOriginal.current = false;
     setTrError(null);
+    return () => { active = false; };
   }, [allIds, target]);
 
   const translate = useCallback(async () => {
-    if (!bundle) return;
+    if (!bundle || translationPending.current) return;
     if (showTranslation) {
+      manuallyViewingOriginal.current = true;
       setShowTranslation(false);
       return;
     }
+    manuallyViewingOriginal.current = false;
+    const cloud = isWeb && !translationSupported();
+    if (cloud && !settings.webTranslation.consentAt) {
+      if (!window.confirm(t('readerCloudConfirm'))) return;
+      await update({ webTranslation: { consentAt: Date.now() } });
+    }
+    translationPending.current = true;
     setTrError(null);
     try {
       setTrProgress({ done: 0, total: 1 });
-      const fresh = await translateBundle(bundle, target, {
+      const fresh = await (cloud ? translateCloudBundle : translateBundle)(bundle, target, {
         existing: translations,
         onProgress: setTrProgress,
       });
       await repository.saveTranslations(fresh);
       const next = { ...translations };
       for (const r of fresh) next[r.key] = r;
-      setTranslations(next);
-      setShowTranslation(true);
+      if (currentTarget.current === target) {
+        setTranslations(next);
+        setShowTranslation(true);
+      }
     } catch (e) {
       setTrError(e instanceof Error ? e.message : String(e));
     } finally {
       setTrProgress(null);
+      translationPending.current = false;
     }
-  }, [bundle, showTranslation, target, translations]);
+  }, [bundle, showTranslation, target, translations, isWeb, settings.webTranslation.consentAt, t, update]);
+
+  // Opt-in translation starts in Safari when a missing translation is opened online. Cached
+  // translations always remain readable offline, without any request to the provider.
+  useEffect(() => {
+    if (!isWeb || !settings.webTranslation.automatic || !settings.webTranslation.consentAt ||
+      !translationsReady || !bundle ||
+      !needsTranslation || translationSupported() || trProgress || trError || showTranslation ||
+      manuallyViewingOriginal.current) return;
+    const missing = allIds.some((id) => {
+      const tweet = bundle.tweets[id];
+      return tweet && sourceLanguage(tweet) !== target && !translations[`${id}:${target}`];
+    });
+    if (!missing) { setShowTranslation(true); return; }
+    if (online) void translate();
+    else if (Object.keys(translations).length) setShowTranslation(true);
+  }, [allIds, bundle, isWeb, needsTranslation, online, settings.webTranslation.automatic,
+    settings.webTranslation.consentAt,
+    showTranslation, t, target, trError, trProgress, translate, translations, translationsReady]);
 
   const copyTranslation = useCallback(async () => {
     if (!view) return;
@@ -505,13 +576,17 @@ export function ThreadReader() {
       f: () => void toggleFavorite(),
       p: () => window.print(),
       escape: () => {
+        if (shareTarget) {
+          setShareTarget(null);
+          return;
+        }
         if (helpOpen || exportOpen) return;
         location.href = libraryUrl();
       },
       '?': () => setHelpOpen(true),
       l: () => void translate(),
     },
-    [active, settings, bundle, helpOpen, exportOpen, jump, toggleFavorite, dark, translate],
+    [active, settings, bundle, helpOpen, exportOpen, shareTarget, jump, toggleFavorite, dark, translate],
   );
 
   if (bundle === undefined) {
@@ -538,14 +613,14 @@ export function ThreadReader() {
     return (
       <EmptyState
         icon={<AlertTriangle size={20} />}
-        title="Entrée introuvable"
+        title={t('readerMissing')}
         action={
           <Button variant="primary" onClick={() => (location.href = libraryUrl())}>
-            Retour à la bibliothèque
+            {t('readerBack')}
           </Button>
         }
       >
-        Cette entrée a peut-être été supprimée.
+        {t('readerMissingHint')}
       </EmptyState>
     );
   }
@@ -565,20 +640,21 @@ export function ThreadReader() {
           className={cn(
             'sticky top-0 z-20 border-b bg-[hsl(var(--ts-reader-bg)/0.85)] backdrop-blur-md transition-colors print:hidden',
             scrolled ? 'border-line' : 'border-transparent',
+            isWeb && 'max-sm:[&_button]:min-h-11 max-sm:[&_button]:min-w-11',
           )}
         >
-          <div className="mx-auto flex h-14 max-w-6xl items-center gap-2 px-4">
+          <div className={cn('mx-auto flex h-14 max-w-6xl items-center gap-1 px-2 sm:gap-2 sm:px-4', isWeb ? 'overflow-x-hidden sm:overflow-x-auto' : 'overflow-x-auto')}>
             <Button
               variant="ghost"
               size="sm"
               onClick={() => (location.href = libraryUrl())}
-              aria-label="Retour à la bibliothèque"
+              aria-label={t('readerBack')}
             >
-              <ArrowLeft size={15} /> Bibliothèque
+              <ArrowLeft size={15} /> <span className="hidden sm:inline">{t('library')}</span>
             </Button>
             <div
               className={cn(
-                'min-w-0 flex-1 truncate text-center text-[13px] font-medium text-fg transition-opacity',
+                'hidden min-w-0 flex-1 truncate text-center text-[13px] font-medium text-fg transition-opacity sm:block',
                 scrolled ? 'opacity-100' : 'opacity-0',
               )}
               aria-hidden={!scrolled}
@@ -586,12 +662,12 @@ export function ThreadReader() {
               {entry.title}
             </div>
             {!online ? (
-              <Tooltip label="Hors ligne — les images enregistrées restent disponibles">
+              <Tooltip label={t('offlineImagesHint')}>
                 <span
                   tabIndex={0}
                   className="flex items-center gap-1 rounded-md bg-subtle px-2 py-1 text-[11.5px] text-muted"
                 >
-                  <WifiOff size={12} /> Hors ligne
+                  <WifiOff size={12} /> <span className={isWeb ? 'hidden sm:inline' : undefined}>{t('readerOffline')}</span>
                 </span>
               </Tooltip>
             ) : null}
@@ -619,9 +695,24 @@ export function ThreadReader() {
                 <Clock size={16} />
               </Button>
             </Tooltip>
-            <Menu>
+            {isWeb && !PRINT ? (
+              <Tooltip label={t('shareEntry')}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  aria-label={t('shareEntry')}
+                  data-testid="reader-share"
+                  onClick={() => setShareTarget({ type: 'article', entry })}
+                  className="shrink-0 text-accent"
+                >
+                  <Share2 size={16} />
+                  <span className="hidden lg:inline">{t('shareAction')}</span>
+                </Button>
+              </Tooltip>
+            ) : null}
+            <div className={isWeb ? 'hidden sm:block' : undefined}><Menu>
               <MenuTrigger asChild>
-                <Button variant="ghost" size="icon" aria-label="Copier">
+                <Button variant="ghost" size="icon" aria-label={t('readerCopy')}>
                   <Copy size={16} />
                 </Button>
               </MenuTrigger>
@@ -631,14 +722,14 @@ export function ThreadReader() {
                   shortcut="c"
                   onSelect={() => copyEntry(entry.id, 'markdown')}
                 >
-                  Copier le thread (Markdown)
+                  {t('readerCopyThreadMarkdown')}
                 </MenuItem>
                 <MenuItem icon={<Copy size={14} />} onSelect={() => copyEntry(entry.id, 'text')}>
-                  Copier le thread (texte brut)
+                  {t('readerCopyThreadText')}
                 </MenuItem>
                 {showTranslation ? (
                   <MenuItem icon={<Languages size={14} />} onSelect={() => void copyTranslation()}>
-                    Copier la traduction (Markdown)
+                    {t('readerCopyTranslation')}
                   </MenuItem>
                 ) : null}
                 <MenuItem
@@ -648,36 +739,36 @@ export function ThreadReader() {
                     setSelection(new Set());
                   }}
                 >
-                  Copier une sélection…
+                  {t('readerCopySelection')}
                 </MenuItem>
               </MenuContent>
-            </Menu>
-            <Tooltip label="Exporter">
+            </Menu></div>
+            <div className={isWeb ? 'hidden sm:block' : undefined}><Tooltip label={t('readerExport')}>
               <Button
                 variant="ghost"
                 size="icon"
-                aria-label="Exporter"
+                aria-label={t('readerExport')}
                 onClick={() => setExportOpen(true)}
               >
                 <Download size={16} />
               </Button>
-            </Tooltip>
-            <Tooltip label="Imprimer / PDF (p)">
+            </Tooltip></div>
+            <div className={isWeb ? 'hidden sm:block' : undefined}><Tooltip label={`${t('readerPrint')} / PDF (p)`}>
               <Button
                 variant="ghost"
                 size="icon"
-                aria-label="Imprimer"
+                aria-label={t('readerPrint')}
                 onClick={() => window.print()}
               >
                 <Printer size={16} />
               </Button>
-            </Tooltip>
+            </Tooltip></div>
             {needsTranslation || showTranslation ? (
               <Tooltip
                 label={
                   showTranslation
-                    ? 'Afficher l’original (l)'
-                    : `Traduire en ${languageName(target)} (l)`
+                    ? `${t('readerOriginal')} (l)`
+                    : `${t('readerTranslateTo')} ${languageName(target)} (l)`
                 }
               >
                 <Button
@@ -692,25 +783,39 @@ export function ThreadReader() {
                   <Languages size={15} />
                   {trProgress
                     ? trProgress.download !== undefined && trProgress.download < 1
-                      ? `Modèle ${Math.round(trProgress.download * 100)} %`
+                      ? `${t('readerDownloadModel')} ${Math.round(trProgress.download * 100)} %`
                       : `${trProgress.done}/${trProgress.total}`
                     : showTranslation
-                      ? 'Original'
-                      : 'Traduire'}
+                      ? t('readerOriginal')
+                      : t('readerTranslate')}
                 </Button>
               </Tooltip>
             ) : null}
-            <ReaderSettings />
-            <Tooltip label="Raccourcis (?)">
+            {isWeb ? <div className="sm:hidden"><Menu>
+              <MenuTrigger asChild>
+                <Button variant="ghost" size="icon" aria-label={t('readerMore')}><MoreHorizontal size={20} /></Button>
+              </MenuTrigger>
+              <MenuContent align="end">
+                <MenuItem icon={<Copy size={14} />} onSelect={() => copyEntry(entry.id, 'markdown')}>{t('readerCopyThreadMarkdown')}</MenuItem>
+                <MenuItem icon={<Copy size={14} />} onSelect={() => copyEntry(entry.id, 'text')}>{t('readerCopyThreadText')}</MenuItem>
+                {showTranslation ? <MenuItem icon={<Languages size={14} />} onSelect={() => void copyTranslation()}>{t('readerCopyTranslation')}</MenuItem> : null}
+                <MenuItem icon={<CheckSquare size={14} />} onSelect={() => { setSelecting(true); setSelection(new Set()); }}>{t('readerCopySelection')}</MenuItem>
+                <MenuItem icon={<Download size={14} />} onSelect={() => setExportOpen(true)}>{t('readerExport')}</MenuItem>
+                <MenuItem icon={<Printer size={14} />} onSelect={() => window.print()}>{t('readerPrint')} / PDF</MenuItem>
+                <MenuItem icon={<Keyboard size={14} />} onSelect={() => setHelpOpen(true)}>{t('readerShortcuts')}</MenuItem>
+              </MenuContent>
+            </Menu></div> : null}
+            <ReaderSettings isWeb={isWeb} />
+            <div className={isWeb ? 'hidden sm:block' : undefined}><Tooltip label={`${t('readerShortcuts')} (?)`}>
               <Button
                 variant="ghost"
                 size="icon"
-                aria-label="Raccourcis clavier"
+                aria-label={t('readerShortcuts')}
                 onClick={() => setHelpOpen(true)}
               >
                 <Keyboard size={16} />
               </Button>
-            </Tooltip>
+            </Tooltip></div>
           </div>
         </header>
 
@@ -804,11 +909,13 @@ export function ThreadReader() {
                   .filter((l) => l !== target)
                   .map(languageName)
                   .join(', ')}{' '}
-                en {languageName(target)} · sur votre appareil, rien n’est envoyé.
+                en {languageName(target)} ·{' '}
+                {Object.values(translations).some((record) => record.provider === 'cloud')
+                  ? t('readerCloudNote') : t('readerLocalNote')}
                 <button
                   type="button"
                   className="ml-auto font-medium text-accent hover:underline"
-                  onClick={() => setShowTranslation(false)}
+                  onClick={() => { manuallyViewingOriginal.current = true; setShowTranslation(false); }}
                 >
                   Afficher l’original
                 </button>
@@ -822,9 +929,11 @@ export function ThreadReader() {
               >
                 <p>{trError}</p>
                 <p className="mt-1 text-muted">
-                  {translationSupported()
-                    ? 'Vous pouvez réessayer, ou utiliser Google Traduction (le texte est alors envoyé à Google).'
-                    : 'La traduction intégrée nécessite Google Chrome 138 ou plus récent. Vous pouvez utiliser Google Traduction (le texte est alors envoyé à Google).'}
+                  {isWeb && !translationSupported()
+                    ? t('readerCloudErrorHint')
+                    : translationSupported()
+                      ? 'Vous pouvez réessayer, ou utiliser Google Traduction (le texte est alors envoyé à Google).'
+                      : 'La traduction intégrée nécessite Google Chrome 138 ou plus récent. Vous pouvez utiliser Google Traduction (le texte est alors envoyé à Google).'}
                 </p>
                 <div className="mt-2 flex gap-2">
                   <Button
@@ -1042,7 +1151,8 @@ export function ThreadReader() {
         ) : null}
 
         <ExportDialog entryIds={[entry.id]} open={exportOpen} onOpenChange={setExportOpen} />
-        <Dialog open={helpOpen} onOpenChange={setHelpOpen} title="Raccourcis clavier">
+        {isWeb ? <ShareDialog target={shareTarget} onClose={() => setShareTarget(null)} /> : null}
+        <Dialog open={helpOpen} onOpenChange={setHelpOpen} title={t('readerShortcuts')}>
           <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-[13px]">
             {SHORTCUTS.map(([k, v]) => (
               <Fragment key={k}>

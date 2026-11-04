@@ -35,6 +35,11 @@ export const settingsSchema = z.object({
     .string()
     .regex(/^[a-z]{2,3}$/)
     .default('fr'),
+  /** Web-only cloud fallback: never enabled for the browser extension by default. */
+  webTranslation: z.object({
+    automatic: z.boolean().default(false),
+    consentAt: z.number().nullable().default(null),
+  }).default({ automatic: false, consentAt: null }),
   /** Download images of saved posts into IndexedDB for offline reading. */
   cacheMedia: z.boolean().default(true),
   maxMediaMB: z.number().min(1).max(50).default(8),

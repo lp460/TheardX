@@ -33,6 +33,7 @@ export function useSettings(): [
           reader: { ...prev.reader, ...patch.reader },
           copy: { ...prev.copy, ...patch.copy },
           ai: { ...prev.ai, ...patch.ai },
+          webTranslation: { ...prev.webTranslation, ...patch.webTranslation },
           library: { ...prev.library, ...patch.library },
           sync: { ...prev.sync, ...patch.sync },
         }) as Settings,

@@ -121,7 +121,9 @@ export function ExportDialog({
       if (format === 'pdf') {
         for (const id of entryIds.slice(0, 5)) {
           window.open(
-            chrome.runtime.getURL(`reader/index.html?id=${encodeURIComponent(id)}&print=1`),
+            typeof chrome !== 'undefined' && chrome.runtime?.getURL
+              ? chrome.runtime.getURL(`reader/index.html?id=${encodeURIComponent(id)}&print=1`)
+              : `/reader/index.html?id=${encodeURIComponent(id)}&print=1`,
             '_blank',
             'noopener',
           );

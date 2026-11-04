@@ -16,6 +16,8 @@ import {
   MousePointerClick,
   Pin,
   FolderCog,
+  Menu as MenuIcon,
+  X,
 } from 'lucide-react';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { CollectionManager } from '@/components/CollectionManager';
@@ -35,6 +37,7 @@ import { isoDay } from '@/utils/format';
 import { copyEntry, openReader } from './actions';
 import { LibraryView } from './LibraryView';
 import { parseHash, useLibrary, type View } from './store';
+import { useWebI18n } from '@/web/i18n';
 
 function NavItem({
   active,
@@ -152,10 +155,13 @@ function Welcome() {
 }
 
 export function LibraryApp() {
+  const { t } = useWebI18n();
   const [settings, updateSettings] = useSettings();
   useThemeClass(settings.theme);
   const s = useLibrary();
   const [manageOpen, setManageOpen] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const isWeb = typeof chrome === 'undefined' || !chrome.runtime?.id;
 
   useEffect(() => {
     const onHash = () =>
@@ -196,38 +202,41 @@ export function LibraryApp() {
   );
 
   useEffect(() => {
-    document.title = 'ThreadShelf — Bibliothèque';
-  }, []);
+    document.title = `${isWeb ? 'TheardX' : 'ThreadShelf'} — ${t('library')}`;
+  }, [isWeb, t]);
 
-  const go = (v: View) => s.setView(v);
+  const go = (v: View) => {
+    s.setView(v);
+    setMobileNavOpen(false);
+  };
   const commandActions: CommandAction[] = [
     {
       id: 'all',
-      label: 'Toute la bibliothèque',
+      label: t('allLibrary'),
       icon: <Inbox size={14} />,
       run: () => go({ kind: 'all' }),
     },
     {
       id: 'later',
-      label: 'À lire plus tard',
+      label: t('later'),
       icon: <Clock size={14} />,
       run: () => go({ kind: 'later' }),
     },
-    { id: 'fav', label: 'Favoris', icon: <Star size={14} />, run: () => go({ kind: 'favorites' }) },
+    { id: 'fav', label: t('favorites'), icon: <Star size={14} />, run: () => go({ kind: 'favorites' }) },
     {
       id: 'settings',
-      label: 'Paramètres',
+      label: t('settings'),
       icon: <SettingsIcon size={14} />,
       run: () => go({ kind: 'settings' }),
     },
     {
       id: 'backup',
-      label: 'Exporter la bibliothèque (JSON)',
+      label: t('backup'),
       icon: <Download size={14} />,
       run: async () =>
         downloadFile(
           JSON.stringify(
-            await exportLibrary({ settings, appVersion: chrome.runtime.getManifest().version }),
+            await exportLibrary({ settings, appVersion: isWeb ? 'web' : chrome.runtime.getManifest().version }),
             null,
             2,
           ),
@@ -239,13 +248,23 @@ export function LibraryApp() {
 
   return (
     <TooltipProvider>
-      <div className="flex h-screen overflow-hidden">
+      <div className={cn('flex overflow-hidden', isWeb ? 'h-full' : 'h-screen')}>
+        {mobileNavOpen ? <button type="button" aria-label={t('closeMenu')}
+          onClick={() => setMobileNavOpen(false)}
+          className="fixed inset-0 z-30 bg-black/40 md:hidden" /> : null}
         <aside
-          className="flex w-60 shrink-0 flex-col border-r border-line bg-subtle/40"
-          aria-label="Navigation"
+          className={cn(
+            'w-[min(85vw,20rem)] shrink-0 flex-col border-r border-line bg-subtle/95 md:relative md:z-auto md:flex md:w-60 md:bg-subtle/40',
+            mobileNavOpen ? 'fixed inset-y-0 left-0 z-40 flex shadow-2xl' : 'hidden',
+          )}
+          aria-label={t('desktopNav')}
         >
           <div className="flex h-14 items-center px-4">
-            <Logo />
+            <Logo name={isWeb ? 'TheardX' : 'ThreadShelf'} />
+            <button type="button" onClick={() => setMobileNavOpen(false)}
+              className="ml-auto rounded-lg p-2 text-muted md:hidden" aria-label={t('closeMenu')}>
+              <X size={18} />
+            </button>
           </div>
           <div className="px-3">
             <button
@@ -253,7 +272,7 @@ export function LibraryApp() {
               onClick={() => s.setCommandOpen(true)}
               className="ts-focus flex h-8 w-full items-center gap-2 rounded-lg border border-line bg-surface px-2.5 text-[12.5px] text-faint transition-colors hover:text-muted"
             >
-              <CommandIcon size={13} /> Rechercher…{' '}
+              <CommandIcon size={13} /> {t('search')}{' '}
               <span className="ml-auto">
                 <Kbd>⌘K</Kbd>
               </span>
@@ -265,42 +284,42 @@ export function LibraryApp() {
                 active={same(s.view, { kind: 'all' })}
                 onClick={() => go({ kind: 'all' })}
                 icon={<Inbox size={15} />}
-                label="Tout"
+                label={t('all')}
                 count={counts.all}
               />
               <NavItem
                 active={same(s.view, { kind: 'later' })}
                 onClick={() => go({ kind: 'later' })}
                 icon={<Clock size={15} />}
-                label="À lire plus tard"
+                label={t('later')}
                 count={counts.later}
               />
               <NavItem
                 active={same(s.view, { kind: 'unread' })}
                 onClick={() => go({ kind: 'unread' })}
                 icon={<Circle size={13} />}
-                label="Non lus"
+                label={t('unread')}
                 count={counts.unread}
               />
               <NavItem
                 active={same(s.view, { kind: 'favorites' })}
                 onClick={() => go({ kind: 'favorites' })}
                 icon={<Star size={15} />}
-                label="Favoris"
+                label={t('favorites')}
                 count={counts.favorites}
               />
               <NavItem
                 active={same(s.view, { kind: 'duplicates' })}
                 onClick={() => go({ kind: 'duplicates' })}
                 icon={<Layers3 size={15} />}
-                label="Doublons"
+                label={t('duplicates')}
               />
             </div>
             <div className="flex items-center justify-between pr-1">
-              <SectionTitle>Collections</SectionTitle>
+              <SectionTitle>{t('collections')}</SectionTitle>
               <button
                 type="button"
-                aria-label="Gérer les collections et catégories"
+                aria-label={t('manageCollections')}
                 onClick={() => setManageOpen(true)}
                 className="ts-focus mt-3 rounded p-1 text-faint hover:text-fg"
               >
@@ -325,13 +344,13 @@ export function LibraryApp() {
                   onClick={() => setManageOpen(true)}
                   className="px-2 py-1 text-[12.5px] text-faint hover:text-muted"
                 >
-                  + Nouvelle collection
+                  + {t('newCollection')}
                 </button>
               ) : null}
             </div>
             {categories.length ? (
               <>
-                <SectionTitle>Catégories</SectionTitle>
+                <SectionTitle>{t('categories')}</SectionTitle>
                 <div className="space-y-0.5">
                   {categories.map((c) => (
                     <NavItem
@@ -349,7 +368,7 @@ export function LibraryApp() {
             ) : null}
             {tags.length ? (
               <>
-                <SectionTitle>Tags</SectionTitle>
+                <SectionTitle>{t('tags')}</SectionTitle>
                 <div className="space-y-0.5">
                   {tags.slice(0, 12).map((t) => (
                     <NavItem
@@ -367,22 +386,22 @@ export function LibraryApp() {
           </nav>
           <div className="border-t border-line px-3 py-2">
             <div className="px-1">
-              <StorageMeterCompact />
+              <StorageMeterCompact label={t('localStorage')} />
             </div>
             <NavItem
               active={same(s.view, { kind: 'settings' })}
               onClick={() => go({ kind: 'settings' })}
               icon={<SettingsIcon size={15} />}
-              label="Paramètres"
+              label={t('settings')}
             />
           </div>
         </aside>
 
-        <main className="relative flex-1 overflow-y-auto" id="main">
+        <main className="relative min-w-0 flex-1 overflow-y-auto pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-0" id="main">
           {s.view.kind === 'settings' ? (
-            <div className="mx-auto max-w-3xl px-6 py-8">
+            <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-8">
               <h1 className="mb-5 text-[20px] font-semibold tracking-[-0.015em] text-fg">
-                Paramètres
+                {t('settings')}
               </h1>
               <SettingsPanel />
             </div>
@@ -395,9 +414,29 @@ export function LibraryApp() {
               categories={categories}
               settings={settings}
               updateSettings={updateSettings}
+                webExperience={isWeb}
             />
           )}
         </main>
+        <nav aria-label={t('mobileNav')} className="fixed bottom-0 left-0 right-0 z-20 flex items-center justify-around border-t border-line bg-surface/95 px-2 pb-[env(safe-area-inset-bottom)] shadow-lg backdrop-blur md:hidden">
+          {([
+            ['all', Inbox, t('all')],
+            ['later', Clock, t('laterShort')],
+            ['favorites', Star, t('favorites')],
+          ] as const).map(([kind, Icon, label]) => (
+            <button key={kind} type="button" onClick={() => go({ kind })}
+              aria-current={s.view.kind === kind ? 'page' : undefined}
+              className={cn('ts-focus flex min-h-16 flex-1 flex-col items-center justify-center gap-1 text-xs',
+                s.view.kind === kind ? 'font-semibold text-accent' : 'text-muted')}>
+              <Icon size={22} />{label}
+            </button>
+          ))}
+          <button type="button" onClick={() => setMobileNavOpen(true)}
+            aria-expanded={mobileNavOpen} aria-label={t('menu')}
+            className="ts-focus flex min-h-16 flex-1 flex-col items-center justify-center gap-1 text-xs text-muted">
+            <MenuIcon size={22} />{t('menu')}
+          </button>
+        </nav>
       </div>
       <SearchCommand
         open={s.commandOpen}
@@ -420,7 +459,7 @@ export function LibraryApp() {
   );
 }
 
-function StorageMeterCompact() {
+function StorageMeterCompact({ label = 'Stockage local' }: { label?: string }) {
   const [open, setOpen] = useState(false);
   return (
     <div className="pb-1">
@@ -430,7 +469,7 @@ function StorageMeterCompact() {
         className="ts-focus flex w-full items-center gap-2 rounded-md px-1 py-1 text-[12px] text-faint hover:text-muted"
         aria-expanded={open}
       >
-        <Database size={13} /> Stockage local
+        <Database size={13} /> {label}
       </button>
       {open ? <StorageMeter /> : null}
     </div>

@@ -25,11 +25,11 @@ export function LogoMark({ size = 22, className }: { size?: number; className?: 
   );
 }
 
-export function Logo({ className }: { className?: string }) {
+export function Logo({ className, name = 'ThreadShelf' }: { className?: string; name?: string }) {
   return (
     <span className={cn('inline-flex items-center gap-2', className)}>
       <LogoMark />
-      <span className="text-[14px] font-semibold tracking-[-0.01em] text-fg">ThreadShelf</span>
+      <span className="text-[14px] font-semibold tracking-[-0.01em] text-fg">{name}</span>
     </span>
   );
 }

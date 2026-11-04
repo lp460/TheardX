@@ -1,0 +1,50 @@
+import { useEffect, useState } from 'react';
+import { Cloud, RefreshCw, ShieldCheck } from 'lucide-react';
+import { Button } from '@/components/ui/Button';
+import { downloadWebMedia, getSyncState, setWebPassphrase, subscribeSync, syncWebNow, type WebSyncState } from './sync';
+import { useWebI18n } from './i18n';
+
+export function WebSyncSettings() {
+  const { t, language } = useWebI18n();
+  const [state, setState] = useState<WebSyncState>(getSyncState);
+  const [passphrase, setPassphrase] = useState('');
+  const [mediaBusy, setMediaBusy] = useState(false);
+  const [mediaMessage, setMediaMessage] = useState('');
+  useEffect(() => subscribeSync(setState), []);
+  return <section className="rounded-2xl border border-line bg-surface px-5 py-4">
+    <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold text-fg"><Cloud size={16} /> {t('syncSettings')}</h2>
+    <p className="text-xs leading-relaxed text-muted">
+      {t('syncSettingsHint')} <code>threadshelf-data/threadshelf/library.json</code>.
+    </p>
+    <div className="mt-3 flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
+      <div className="text-xs text-muted">{state.phase === 'running' ? t('syncInProgress')
+        : state.lastSyncAt ? `${t('lastSync')} : ${new Date(state.lastSyncAt).toLocaleString(language==='fr'?'fr-FR':language==='es'?'es-ES':'en-US')}`
+          : t('noSync')}</div>
+      <Button size="sm" disabled={state.phase === 'running'} onClick={() => void syncWebNow()}>
+        <RefreshCw size={14} /> {t('sync')}
+      </Button>
+    </div>
+    {state.error ? <p className="mt-3 text-xs text-warning">{state.error}</p> : null}
+    {state.phase === 'needs-passphrase' ? <form className="mt-4 flex flex-col gap-2 sm:flex-row"
+      onSubmit={(e) => { e.preventDefault(); setWebPassphrase(passphrase); setPassphrase(''); }}>
+      <label className="flex-1 text-xs text-muted">{t('encryptedLibrary')}
+        <input type="password" minLength={8} required value={passphrase} autoComplete="off"
+          onChange={(e) => setPassphrase(e.target.value)}
+          className="mt-1 h-9 w-full rounded-lg border border-line bg-bg px-3 text-fg" />
+      </label>
+      <Button size="sm" type="submit">{t('unlock')}</Button>
+    </form> : null}
+    <p className="mt-3 flex items-start gap-2 text-xs text-muted"><ShieldCheck size={16} className="shrink-0" />
+      {t('passphrasePrivacy')}
+    </p>
+    <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-line pt-3">
+      <Button size="sm" disabled={mediaBusy} loading={mediaBusy} onClick={() => {
+        setMediaBusy(true);
+        void downloadWebMedia().then((r) => setMediaMessage(
+          `${r.entries} entrées vérifiées · ${r.cached} images ajoutées · ${r.failed} échecs`,
+        )).catch((e) => setMediaMessage(String(e))).finally(() => setMediaBusy(false));
+      }}>{t('downloadOfflineImages')}</Button>
+      {mediaMessage ? <span className="text-xs text-muted">{mediaMessage}</span> : null}
+    </div>
+  </section>;
+}

@@ -11,6 +11,7 @@ describe('settings', () => {
       notifications: true,
       cacheMedia: true,
       ai: { enabled: false, consentAt: null },
+      webTranslation: { automatic: false, consentAt: null },
     });
   });
 
@@ -39,7 +40,10 @@ describe('settings', () => {
 
   it('merges nested updates', async () => {
     await updateSettings({ reader: { fontSize: 22 } });
+    await updateSettings({ webTranslation: { automatic: true, consentAt: 123 } });
+    await updateSettings({ webTranslation: { automatic: false } });
     const s = await loadSettings();
     expect(s.reader).toEqual({ fontSize: 22, width: 680, font: 'serif' });
+    expect(s.webTranslation).toEqual({ automatic: false, consentAt: 123 });
   });
 });
