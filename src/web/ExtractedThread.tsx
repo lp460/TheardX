@@ -51,8 +51,8 @@ export function capturedThreadPlainText(exampleId: string, firstOnly = false, ma
   }).join(markdown ? '\n\n---\n\n' : '\n\n────────────────\n\n');
 }
 
-function CapturedBlock({ block }: { block: ArticleBlock }) {
-  if (block.t === 'paragraph') return <RichText segments={block.text} className="text-[14px] leading-[1.85] text-[#4c4d59] sm:text-[15px]"/>;
+function CapturedBlock({ block, reader = false }: { block: ArticleBlock; reader?: boolean }) {
+  if (block.t === 'paragraph') return <RichText segments={block.text} className={reader ? 'text-[1em] leading-[1.9] text-inherit' : 'text-[14px] leading-[1.85] text-[#4c4d59] sm:text-[15px]'}/>;
   if (block.t === 'quote') return <blockquote className="border-l-[3px] border-[#c1b4e8] pl-4"><RichText segments={block.text} className="text-[14px] leading-7 text-[#666475]"/></blockquote>;
   if (block.t === 'heading') return <RichText segments={block.text} className="text-[17px] font-bold leading-7 text-[#343343]"/>;
   if (block.t === 'list') {
@@ -64,20 +64,20 @@ function CapturedBlock({ block }: { block: ArticleBlock }) {
   return <hr className="border-[#e9e6f0]"/>;
 }
 
-function CapturedPost({ post, index, locale }: { post: PublicCapturedPost; index: number; locale: WebLanguage }) {
+function CapturedPost({ post, index, locale, reader = false }: { post: PublicCapturedPost; index: number; locale: WebLanguage; reader?: boolean }) {
   const t = labels[locale];
   const hasBody = !!post.text?.length || !!post.blocks?.length;
-  return <article data-testid="captured-post" className="min-w-0 rounded-xl border border-[#e9e7ef] bg-white px-3 py-4 shadow-[0_2px_8px_#34245306] sm:px-5">
-    <div className="mb-4 flex flex-wrap items-center gap-2 text-[11px]">
+  return <article data-testid="captured-post" className={reader ? `min-w-0 ${index > 0 ? 'mt-9 border-t border-[#e8e3db] pt-7' : ''}` : 'min-w-0 rounded-xl border border-[#e9e7ef] bg-white px-3 py-4 shadow-[0_2px_8px_#34245306] sm:px-5'}>
+    {(!reader || index > 0) ? <div className="mb-4 flex flex-wrap items-center gap-2 text-[11px]">
       <span className="inline-flex items-center gap-1.5 rounded-full bg-[#eeeafa] px-2.5 py-1 font-semibold text-[#6b57bd]">{post.comment ? <MessageCircle size={12}/> : <FileText size={12}/>} {post.comment ? t.comment : t.post} {index + 1}</span>
       <span className="max-w-full break-all font-semibold text-[#494553]">{post.comment ? 'u/' : '@'}{post.handle}</span>
       <a href={safeHref(post.url) ?? '#'} target="_blank" rel="noopener noreferrer" className="ts-focus ml-auto inline-flex items-center gap-1 font-semibold text-[#735ac8] hover:underline"><ExternalLink size={12}/>{t.original}</a>
-    </div>
-    <div className="min-w-0 space-y-4 break-words [&_a]:!text-[#7053c8] [&_a]:underline [&_a]:underline-offset-2">
-      {post.text?.length ? <RichText segments={post.text} className="font-serif text-[15px] leading-[1.85] text-[#4c4d59] sm:text-[16px]"/> : null}
-      {(post.blocks ?? []).map((block, i) => <CapturedBlock key={i} block={block}/>)}
+    </div> : null}
+    <div className={`min-w-0 break-words [&_a]:!text-[#7053c8] [&_a]:underline [&_a]:underline-offset-2 ${reader ? 'space-y-5' : 'space-y-4'}`}>
+      {post.text?.length ? <RichText segments={post.text} className={reader ? 'text-[1em] leading-[1.9] text-inherit' : 'font-serif text-[15px] leading-[1.85] text-[#4c4d59] sm:text-[16px]'}/> : null}
+      {(post.blocks ?? []).map((block, i) => <CapturedBlock key={i} block={block} reader={reader}/>)}
       {post.card ? <a href={safeHref(post.card.url) ?? '#'} target="_blank" rel="noopener noreferrer" className="ts-focus inline-flex max-w-full items-center gap-2 rounded-lg border border-[#dfdaf0] bg-[#f9f7ff] px-3 py-2 text-xs text-[#6b55be]"><ExternalLink size={15} className="shrink-0"/><span className="min-w-0 break-words">{post.card.title || t.link}</span></a> : null}
-      {post.media?.length && index > 0 ? <div className="grid gap-2 sm:grid-cols-2">{post.media.slice(0, 2).map((media, i) => <a key={media.url + i} href={safeHref(post.url) ?? '#'} target="_blank" rel="noopener noreferrer" className="ts-focus block overflow-hidden rounded-lg bg-[#f2f0f7]"><img src={media.url} alt={media.alt || `${post.author} · ${t.post} ${index + 1}`} loading="lazy" referrerPolicy="no-referrer" className="max-h-44 w-full object-contain"/></a>)}</div> : null}
+      {post.media?.length && (reader || index > 0) ? <div className={`grid gap-3 ${reader ? 'grid-cols-1' : 'sm:grid-cols-2'}`}>{post.media.slice(0, reader ? 4 : 2).map((media, i) => <a key={media.url + i} href={safeHref(post.url) ?? '#'} target="_blank" rel="noopener noreferrer" className="ts-focus block overflow-hidden rounded-xl bg-[#f2f0f7]"><img src={media.url} alt={media.alt || `${post.author} · ${t.post} ${index + 1}`} loading="lazy" referrerPolicy="no-referrer" className={reader ? 'max-h-[360px] w-full object-contain' : 'max-h-44 w-full object-contain'}/></a>)}</div> : null}
       {!hasBody && !post.card ? <p className="text-xs italic text-[#8f889a]">{t.unavailable}</p> : null}
     </div>
     {post.truncated ? <p className="mt-4 rounded-lg bg-[#fff4df] px-3 py-2 text-[12px] font-semibold text-[#8e6429]">{t.partial}</p> : null}
@@ -85,15 +85,16 @@ function CapturedPost({ post, index, locale }: { post: PublicCapturedPost; index
 }
 
 /** Complete saved text of each selected public thread, with honest partial-capture markers. */
-export function ExtractedThread({ example, language }: { example: PublicExample; language: WebLanguage }) {
+export function ExtractedThread({ example, language, variant = 'cards' }: { example: PublicExample; language: WebLanguage; variant?: 'cards' | 'reader' }) {
   const posts = realExampleContent[example.id] ?? [];
   const t = labels[language];
-  return <section data-testid="captured-thread" aria-label={t.heading} className="mt-7 min-w-0">
-    <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
+  const reader = variant === 'reader';
+  return <section data-testid="captured-thread" aria-label={t.heading} className={reader ? 'min-w-0' : 'mt-7 min-w-0'}>
+    {!reader ? <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
       <h4 className="font-sans text-[17px] font-bold text-[#302b45]">{t.heading}</h4>
       <span className="text-xs font-semibold text-[#82779c]">{posts.length} {t.count}</span>
-    </div>
+    </div> : null}
     {posts.some((post) => post.truncated) ? <p className="mb-4 rounded-xl border border-[#f5deb5] bg-[#fffaf0] px-4 py-3 text-xs leading-6 text-[#8a6437]">{t.partialNote}</p> : null}
-    <div className="space-y-3">{posts.map((post, i) => <CapturedPost key={post.id} post={post} index={i} locale={language}/>)}</div>
+    <div className={reader ? 'space-y-0' : 'space-y-3'}>{posts.map((post, i) => <CapturedPost key={post.id} post={post} index={i} locale={language} reader={reader}/>)}</div>
   </section>;
 }
