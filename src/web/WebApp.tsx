@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Cloud, CloudOff, House, LogOut, RefreshCw, WifiOff } from 'lucide-react';
+import { Cloud, CloudOff, House, LogOut, MessageSquareWarning, RefreshCw, WifiOff } from 'lucide-react';
 import { LibraryApp } from '@/library/LibraryApp';
 import { Button } from '@/components/ui/Button';
 import { resolveWebAuth, signOut, type WebAuth } from './auth';
@@ -40,6 +40,7 @@ export function WebApp() {
         </div>
         <div className="flex items-center gap-1">
           <a href="/?home=1" className="ts-focus inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-muted hover:bg-subtle hover:text-fg" aria-label={t('home')} title={t('home')}><House size={19} /></a>
+          <a href="https://github.com/lp460/TheardX/issues/new/choose" target="_blank" rel="noopener noreferrer" className="ts-focus inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-muted hover:bg-subtle hover:text-fg" aria-label={t('reportIssue')} title={t('reportIssue')}><MessageSquareWarning size={18} /></a>
           <LanguageSelector />
           <Button size="icon-sm" className="max-sm:h-10 max-sm:w-10" variant="ghost" aria-label={t('syncNow')}
             disabled={auth.phase === 'offline' || sync.phase === 'running'} onClick={() => void syncWebNow()}>

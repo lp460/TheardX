@@ -1,0 +1,28 @@
+name: "💡 Idée / Feature request"
+description: "Proposer une amélioration produit"
+title: "[Idée] "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: "Quel problème rencontrez-vous ? / What problem are you solving?"
+      placeholder: "Quand je sauvegarde un article…"
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: "Comportement souhaité / Desired behaviour"
+    validations:
+      required: true
+  - type: dropdown
+    id: surface
+    attributes:
+      label: "Périmètre / Area"
+      options: ["Site web / PWA", "Extension navigateur", "Synchronisation", "Lecture / annotations", "Import X/Reddit", "Autre / Other"]
+  - type: textarea
+    id: constraints
+    attributes:
+      label: "Confidentialité et limites / Privacy and trade-offs"
+      description: "Cette idée demande-t-elle de nouvelles permissions ou l'envoi de données à un service externe ?"

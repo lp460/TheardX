@@ -1,4 +1,6 @@
-# Sécurité et confidentialité
+# Sécurité et confidentialité — extension Chromium
+
+Cette section décrit avant tout l'extension. La PWA ajoute une session GitHub côté serveur, un proxy d'images, des liens de partage publics et une traduction distante sur consentement. Le détail des transferts et des choix de l'utilisateur figure dans [PRIVACY.md](PRIVACY.md) et [docs/WEB-PWA.md](docs/WEB-PWA.md).
 
 ## Permissions (minimales)
 
@@ -32,8 +34,8 @@ ThreadShelf ne demande pas les permissions `tabs`, `cookies`, `webRequest`, `dow
 ## Données
 
 - Tout est stocké localement : IndexedDB et `chrome.storage.local` de l'extension.
-- **Aucune télémétrie, aucun analytics, aucun service tiers.**
-- Requêtes réseau émises par l'extension : uniquement les images des publications enregistrées, depuis `pbs.twimg.com` avec `credentials: 'omit'` et `referrerPolicy: 'no-referrer'`. Désactivable : Paramètres → Hors ligne.
+- **Aucune télémétrie ou publicité intégrée à l'extension.** Les services utilisés sur action de l'utilisateur (images, GitHub, traduction externe) sont détaillés ci-dessous ; la PWA dispose de services supplémentaires.
+- Requêtes réseau de l'extension hors synchronisation/traduction externe : images des publications enregistrées depuis les hôtes X/Reddit autorisés, sans cookies. Désactivable : Paramètres → Hors ligne.
 - **Synchronisation GitHub (désactivée par défaut).** Une fois activée, la bibliothèque est envoyée uniquement au dépôt privé `threadshelf-data` de votre compte, via l'API officielle (Contents API).
   - Connexion par **OAuth Device Flow** : pas de jeton à copier, pas de _client secret_ dans l'extension, pas de page de redirection. Le scope demandé est `repo`, nécessaire pour créer et écrire un dépôt privé ; il donne accès à vos dépôts privés. Préférez au besoin un compte GitHub dédié.
   - Le jeton d'accès est stocké dans `chrome.storage.local`, sous une clé séparée des préférences. Il n'est **jamais** exporté ni synchronisé. « Se déconnecter » l'efface ; l'autorisation se révoque aussi depuis GitHub.
@@ -43,6 +45,13 @@ ThreadShelf ne demande pas les permissions `tabs`, `cookies`, `webRequest`, `dow
 - **Traduction** : traducteur intégré au navigateur, exécuté sur l’appareil ; aucun texte n’est envoyé. Le repli Google Traduction ouvre un onglet uniquement sur clic explicite, et le texte est alors transmis à Google.
 - IA : non livrée. L'architecture (`src/ai/provider.ts`) exige activation **et** consentement explicite avant qu'un contenu quitte le navigateur.
 
+## Particularités de la PWA
+
+- Authentification GitHub : jeton chiffré dans un cookie de session `HttpOnly` et `Secure` sous HTTPS ; jamais fourni au JavaScript du site. La permission GitHub `repo` est plus large que les seules opérations effectuées par TheardX.
+- Synchronisation : le serveur accède au dépôt privé `threadshelf-data` du compte connecté. La bibliothèque reste **lisible dans GitHub si son chiffrement optionnel n'est pas activé**.
+- Partages : snapshots explicites dans Vercel Blob, visibles sans authentification à toute personne possédant le lien. Les notes et annotations personnelles sont exclues.
+- Traduction web : Vercel AI Gateway et le fournisseur configuré ne reçoivent du texte que sur consentement explicite. Le mode local de l'extension n'est pas modifié.
+
 ## Signaler un problème
 
-Ouvrez une issue privée sur le dépôt ou contactez le mainteneur. Merci de ne pas publier de détails exploitables avant correction.
+Pour une vulnérabilité, utilisez de préférence le signalement privé de sécurité GitHub du dépôt (si activé) ou contactez le mainteneur par un canal privé. Les issues ordinaires sont publiques : n'y publiez ni secret ni détails exploitables avant correction.
