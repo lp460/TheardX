@@ -67,3 +67,28 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* Only the public demo reader is printed, never the rest of the marketing page. */
+#ts-demo-print {
+  display: none;
+}
+
+@media print {
+  body.ts-demo-printing > #root {
+    display: none !important;
+  }
+  body.ts-demo-printing > #ts-demo-print {
+    display: block !important;
+    background: white;
+    color: #222;
+    padding: 12mm;
+  }
+  #ts-demo-print > article {
+    max-width: 700px;
+    margin: 0 auto;
+  }
+  #ts-demo-print img {
+    max-width: 100%;
+    break-inside: avoid;
+  }
+}
