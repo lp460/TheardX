@@ -343,6 +343,21 @@ export function ThreadCard({
         >
           <Star size={14} fill={entry.favorite ? 'currentColor' : 'none'} />
         </button>
+        {actions.share ? (
+          <button
+            type="button"
+            aria-label={t('shareEntry')}
+            data-testid="entry-share"
+            onClick={(event) => {
+              event.stopPropagation();
+              actions.share?.(entry);
+            }}
+            className="ts-focus inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-2 text-[12.5px] font-semibold text-accent hover:bg-accent-soft"
+          >
+            <Share2 size={15} />
+            {t('shareAction')}
+          </button>
+        ) : null}
         <div onClick={(e) => e.stopPropagation()}>
           <EntryMenu
             entry={entry}
@@ -443,6 +458,23 @@ export function ThreadCard({
           />
         </div>
       </div>
+      {actions.share ? (
+        <div className="flex justify-end border-t border-line/70 px-3 py-1.5">
+          <button
+            type="button"
+            aria-label={t('shareEntry')}
+            data-testid="entry-share"
+            onClick={(event) => {
+              event.stopPropagation();
+              actions.share?.(entry);
+            }}
+            className="ts-focus inline-flex min-h-10 items-center gap-2 rounded-lg px-3 text-[13px] font-semibold text-accent transition-colors hover:bg-accent-soft"
+          >
+            <Share2 size={16} />
+            {t('shareAction')}
+          </button>
+        </div>
+      ) : null}
     </article>
   );
 }
