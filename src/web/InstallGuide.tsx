@@ -23,8 +23,10 @@ const content = {
     stepFourTitle: 'Chargez le dossier extrait', stepFour: 'Cliquez sur « Charger l’extension non empaquetée » (Load unpacked) puis sélectionnez le dossier extrait contenant manifest.json. TheardX apparaît dans vos extensions.',
     arcFootnote: 'Arc utilise les extensions Chrome. Les intitulés et l’accès au mode développeur peuvent varier selon sa version.',
     openDocs: 'Documentation officielle', copied: 'Adresse copiée', copy: 'Copier l’adresse',
-    note: 'Installation manuelle pour navigateurs de bureau. Gardez le dossier extrait : le supprimer peut désactiver l’extension. Pour mettre à jour, téléchargez un nouveau ZIP et rechargez l’extension.',
+    note: 'Installation manuelle sur ordinateur : conservez le dossier extrait. Pour mettre à jour sans changer d’identifiant ni perdre l’accès au stockage local, remplacez les fichiers dans CE MÊME dossier, rechargez l’extension, puis actualisez vos onglets X/Reddit. Le ZIP ne se met pas à jour automatiquement.',
     ios: 'Sur iPhone et Safari, utilisez la version web PWA avec « Sur l’écran d’accueil » : les extensions Chromium ne s’y installent pas.',
+    firstSaveTitle: 'Votre premier article', firstSave: 'Épinglez TheardX dans le menu des extensions, ouvrez une publication sur X (ou Reddit si activé) et cliquez sur le bouton TheardX. Retrouvez ensuite le contenu dans la bibliothèque.',
+    reportIssue: 'Un problème pendant l’installation ? Signalez-le',
   },
   en: {
     eyebrow: 'Step-by-step installation', title: 'Install TheardX without leaving this page.',
@@ -38,8 +40,10 @@ const content = {
     stepFourTitle: 'Load the extracted folder', stepFour: 'Click “Load unpacked” and select the extracted folder containing manifest.json. TheardX will appear among your extensions.',
     arcFootnote: 'Arc supports Chrome extensions. Labels and developer mode access may vary by version.',
     openDocs: 'Official documentation', copied: 'Address copied', copy: 'Copy address',
-    note: 'Manual desktop browser installation. Keep the extracted folder: deleting it can disable the extension. For updates, download a fresh ZIP and reload the extension.',
+    note: 'Manual desktop installation: keep the extracted folder. For updates, replace the files in THAT SAME folder, reload the extension, then refresh X/Reddit tabs. Reusing the folder preserves the extension identity and access to its local storage. ZIP installs do not update automatically.',
     ios: 'On iPhone and Safari, use the web PWA via “Add to Home Screen”. Chromium extensions cannot be installed there.',
+    firstSaveTitle: 'Save your first article', firstSave: 'Pin TheardX from the extensions menu, open a post on X (or Reddit if enabled), then select TheardX. Find the saved content in your library.',
+    reportIssue: 'Having trouble installing? Report an issue',
   },
   es: {
     eyebrow: 'Instalación paso a paso', title: 'Instala TheardX sin salir de esta página.',
@@ -53,8 +57,10 @@ const content = {
     stepFourTitle: 'Carga la carpeta extraída', stepFour: 'Pulsa « Load unpacked » o « Cargar descomprimida » y selecciona la carpeta que contiene manifest.json. Aparecerá TheardX.',
     arcFootnote: 'Arc admite extensiones de Chrome. Los nombres y el acceso al modo desarrollador pueden variar según la versión.',
     openDocs: 'Documentación oficial', copied: 'Dirección copiada', copy: 'Copiar dirección',
-    note: 'Instalación manual para ordenadores. Conserva la carpeta extraída: borrarla puede desactivar la extensión. Para actualizar, descarga un ZIP nuevo y recarga la extensión.',
+    note: 'Instalación manual para ordenador: conserva la carpeta extraída. Para actualizar, sustituye los archivos en ESA MISMA carpeta, recarga la extensión y actualiza las pestañas de X/Reddit. Así se conserva el identificador de la extensión y el acceso a los datos locales. El ZIP no se actualiza automáticamente.',
     ios: 'En iPhone y Safari, usa la PWA con « Añadir a pantalla de inicio ». No se pueden instalar extensiones de Chromium.',
+    firstSaveTitle: 'Guarda tu primer artículo', firstSave: 'Fija TheardX desde el menú de extensiones, abre una publicación en X (o Reddit si está activado) y selecciona TheardX. Busca después el contenido en tu biblioteca.',
+    reportIssue: '¿Problemas con la instalación? Informa del error',
   },
 };
 
@@ -85,6 +91,11 @@ export function InstallGuide() {
         </div>
       </div>
       <div className="mt-7 grid gap-3 sm:grid-cols-2"><p className="flex gap-2 rounded-xl bg-[#f7f5ff] p-4 text-xs leading-6 text-[#79728d]"><FolderOpen size={17} className="mt-0.5 shrink-0 text-[#8062c7]"/>{labels.note}</p><p className="flex gap-2 rounded-xl bg-[#edf9f4] p-4 text-xs leading-6 text-[#607f75]"><Info size={17} className="mt-0.5 shrink-0 text-[#43a081]"/>{labels.ios}</p></div>
+      <div className="mt-5 flex flex-col gap-3 rounded-2xl border border-[#c9e7d8] bg-[#f2fbf6] p-5 sm:flex-row sm:items-start sm:gap-4">
+        <Check className="mt-0.5 shrink-0 text-[#359370]" size={20}/>
+        <div className="min-w-0 flex-1"><h3 className="text-sm font-bold text-[#286a52]">{labels.firstSaveTitle}</h3><p className="mt-1 text-sm leading-6 text-[#557969]">{labels.firstSave}</p></div>
+        <a href="https://github.com/lp460/TheardX/issues/new/choose" target="_blank" rel="noopener noreferrer" className="ts-focus inline-flex min-h-10 shrink-0 items-center gap-2 self-start rounded-lg border border-[#a9d8bf] px-3 py-2 text-xs font-semibold text-[#326a52] hover:bg-[#e4f5ea]"><ExternalLink size={14}/>{labels.reportIssue}</a>
+      </div>
     </div>
   </section>;
 }

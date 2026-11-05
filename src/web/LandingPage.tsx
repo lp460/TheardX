@@ -128,6 +128,10 @@ export function LandingPage({ status, loginAvailable, libraryAvailable = false }
         <div className="mx-auto flex max-w-7xl flex-col justify-between gap-4 sm:flex-row sm:items-center">
           <span className="inline-flex items-center gap-2 font-semibold text-white"><LogoMark size={23}/> TheardX</span>
           <span>{t('privacyBody')}</span>
+          <div className="flex flex-wrap items-center gap-4">
+            <a className="ts-focus underline-offset-4 hover:text-white hover:underline" href="https://github.com/lp460/TheardX/blob/main/PRIVACY.md" target="_blank" rel="noopener noreferrer">{t('privacyPolicy')}</a>
+            <a className="ts-focus underline-offset-4 hover:text-white hover:underline" href="https://github.com/lp460/TheardX/issues/new/choose" target="_blank" rel="noopener noreferrer">{t('reportIssue')}</a>
+          </div>
           <span>{t('footer')}</span>
         </div>
       </footer>

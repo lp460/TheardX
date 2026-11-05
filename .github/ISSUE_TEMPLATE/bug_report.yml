@@ -1,0 +1,48 @@
+name: "🐛 Bug / Bug report"
+description: "Décrire une anomalie reproductible, sans données personnelles"
+title: "[Bug] "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: "⚠️ Ne partagez pas de code OAuth, jeton, cookie, phrase secrète ni export de bibliothèque privée. Masquez les noms/comptes dans les captures."
+  - type: dropdown
+    id: surface
+    attributes:
+      label: "Où ? / Where?"
+      options: ["Site web / PWA", "Extension Chrome", "Extension Arc", "Extension Brave", "Extension Edge", "Autre / Other"]
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: "Navigateur, système, version / Browser, OS, version"
+      placeholder: "Chrome 156, Windows 11, TheardX 1.2.0"
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: "Comment reproduire ? / Steps to reproduce"
+      placeholder: "1. Ouvrir… 2. Cliquer… 3. Observer…"
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: "Résultat attendu / Expected result"
+    validations:
+      required: true
+  - type: textarea
+    id: observed
+    attributes:
+      label: "Résultat observé / Actual result"
+    validations:
+      required: true
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: "Confidentialité / Privacy"
+      options:
+        - label: "Je n'ai inclus aucun code d'autorisation, jeton, cookie ou contenu personnel. / No sensitive data included."
+          required: true
