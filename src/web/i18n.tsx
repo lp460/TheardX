@@ -63,6 +63,7 @@ const messages = {
     demoPrivacyLine:
       'Google Drive avec chiffrement au choix ou GitHub privé · Vos données vous appartiennent',
     demoSignInShort: 'Connexion',
+    dialogClose: 'Fermer',
     demoOpenShort: 'Bibliothèque',
     featureSectionTitle: 'Moins de contenus perdus. Plus d’idées retrouvées.',
     heroRead: 'Accéder à ma bibliothèque',
@@ -333,6 +334,7 @@ const messages = {
     demoPrivacyLine:
       'Optional encryption on Google Drive or private GitHub · Your data stays yours',
     demoSignInShort: 'Sign in',
+    dialogClose: 'Close',
     demoOpenShort: 'Library',
     featureSectionTitle: 'Lose fewer discoveries. Keep more ideas.',
     heroRead: 'Open my library',
@@ -597,6 +599,7 @@ const messages = {
       'Ejemplos reales de publicaciones públicas de la biblioteca. No se muestran notas, favoritos ni datos personales.',
     demoPrivacyLine: 'Google Drive con cifrado opcional o GitHub privado · Tus datos te pertenecen',
     demoSignInShort: 'Entrar',
+    dialogClose: 'Cerrar',
     demoOpenShort: 'Biblioteca',
     featureSectionTitle: 'Menos hallazgos perdidos. Más ideas recuperadas.',
     heroRead: 'Abrir mi biblioteca',
