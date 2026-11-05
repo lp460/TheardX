@@ -3,20 +3,29 @@ import { runSync, type SyncResult } from '@/sync/engine';
 import { isEncrypted } from '@/sync/crypto';
 import { DecryptionError } from '@/sync/crypto';
 import { WebGitHubClient } from './github-client';
-import { syncGoogleDrive } from './google-sync';
+import { changeGoogleDriveMode, inspectGoogleDrive, syncGoogleDrive } from './google-sync';
+import type { GoogleEncryptionMode } from '@/sync/google-snapshot';
 import type { WebIdentity } from './auth';
 import { cacheEntryMedia } from '@/storage/media-cache';
 import { loadSettings } from '@/settings/store';
 import { repository } from '@/storage/repository';
 
-export type WebSyncState =
+export type WebSyncState = (
   | { phase: 'idle' | 'running'; lastSyncAt: number | null; error: string | null }
-  | { phase: 'needs-passphrase' | 'error'; lastSyncAt: number | null; error: string };
+  | {
+      phase: 'needs-passphrase' | 'choose-encryption' | 'error';
+      lastSyncAt: number | null;
+      error: string;
+    }
+) & { mode?: GoogleEncryptionMode | null };
 
 let state: WebSyncState = { phase: 'idle', lastSyncAt: null, error: null };
 const listeners = new Set<(state: WebSyncState) => void>();
 let currentIdentity: WebIdentity | null = null;
 let passphrase = '';
+let googleMode: GoogleEncryptionMode | null = null;
+let googleModeKnown = false;
+let migrating = false;
 let inFlight: Promise<void> | null = null;
 let scheduled: ReturnType<typeof setTimeout> | null = null;
 let stopCurrent: (() => void) | null = null;
@@ -49,7 +58,7 @@ export async function downloadWebMedia(): Promise<{
 }
 
 function emit(next: WebSyncState): void {
-  state = next;
+  state = { ...next, mode: currentIdentity?.provider === 'google' ? googleMode : null };
   listeners.forEach((fn) => fn(state));
 }
 
@@ -73,25 +82,88 @@ export function setWebPassphrase(value: string): void {
   if (currentIdentity) void syncWebNow();
 }
 
+/** Called only after the first-login choice has been displayed. */
+export function setWebGoogleMode(mode: GoogleEncryptionMode): void {
+  if (currentIdentity?.provider !== 'google' || !googleModeKnown || googleMode) return;
+  googleMode = mode;
+  if (mode === 'encrypted') {
+    emit({
+      phase: 'needs-passphrase',
+      lastSyncAt: state.lastSyncAt,
+      error:
+        'Vous avez choisi le chiffrement renforcé : définissez une phrase secrète de 8 caractères minimum.',
+    });
+  } else {
+    void syncWebNow();
+  }
+}
+
+/** Changing modes creates a new Drive generation. Existing backups are not deleted. */
+export async function changeWebGoogleMode(
+  mode: GoogleEncryptionMode,
+  newPassphrase = '',
+  oldPassphrase = '',
+): Promise<void> {
+  if (currentIdentity?.provider !== 'google' || !googleMode || migrating)
+    throw new Error('Connexion Google Drive non disponible.');
+  if (mode === googleMode) return;
+  if (inFlight) await inFlight;
+  migrating = true;
+  emit({ phase: 'running', lastSyncAt: state.lastSyncAt, error: null });
+  try {
+    await changeGoogleDriveMode({
+      to: mode,
+      currentPassphrase: oldPassphrase || passphrase,
+      newPassphrase,
+    });
+    googleMode = mode;
+    passphrase = mode === 'encrypted' ? newPassphrase : '';
+    emit({ phase: 'idle', lastSyncAt: Date.now(), error: null });
+  } catch (error) {
+    emit({
+      phase: 'error',
+      lastSyncAt: state.lastSyncAt,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    throw error;
+  } finally {
+    migrating = false;
+  }
+}
+
 export function syncWebNow(): Promise<void> {
   if (inFlight) return inFlight;
+  if (migrating) return Promise.resolve();
   if (!currentIdentity || !navigator.onLine) return Promise.resolve();
   const identity = currentIdentity;
   inFlight = (async () => {
     emit({ phase: 'running', lastSyncAt: state.lastSyncAt, error: null });
     try {
-      if (identity.provider === 'google' && passphrase.length < 8) {
-        emit({
-          phase: 'needs-passphrase',
-          lastSyncAt: state.lastSyncAt,
-          error:
-            'Google Drive nécessite une phrase secrète de 8 caractères minimum. Elle reste sur votre appareil.',
-        });
-        return;
-      }
       let result: SyncResult;
       if (identity.provider === 'google') {
-        result = await syncGoogleDrive({ passphrase });
+        if (!googleModeKnown) {
+          const remote = await inspectGoogleDrive();
+          if (currentIdentity?.accountId !== identity.accountId) return;
+          googleMode = remote.mode;
+          googleModeKnown = true;
+        }
+        if (!googleMode) {
+          emit({
+            phase: 'choose-encryption',
+            lastSyncAt: state.lastSyncAt,
+            error: 'Choisissez comment protéger votre bibliothèque sur Google Drive.',
+          });
+          return;
+        }
+        if (googleMode === 'encrypted' && passphrase.length < 8) {
+          emit({
+            phase: 'needs-passphrase',
+            lastSyncAt: state.lastSyncAt,
+            error: 'Bibliothèque chiffrée : saisissez votre phrase secrète (8 caractères minimum).',
+          });
+          return;
+        }
+        result = await syncGoogleDrive({ mode: googleMode, passphrase });
       } else {
         const login = identity.login;
         const client = new WebGitHubClient(login);
@@ -147,6 +219,10 @@ export function syncWebNow(): Promise<void> {
 export function startWebSync(identity: WebIdentity): () => void {
   stopCurrent?.();
   currentIdentity = identity;
+  passphrase = '';
+  googleMode = null;
+  googleModeKnown = false;
+  emit({ phase: 'idle', lastSyncAt: null, error: null });
   const soon = () => {
     if (scheduled) clearTimeout(scheduled);
     scheduled = setTimeout(() => {
@@ -174,6 +250,8 @@ export function startWebSync(identity: WebIdentity): () => void {
     document.removeEventListener('visibilitychange', onVisible);
     Dexie.on('storagemutated').unsubscribe(soon);
     passphrase = '';
+    googleMode = null;
+    googleModeKnown = false;
   };
   stopCurrent = stop;
   return stop;

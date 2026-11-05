@@ -134,6 +134,7 @@ export function syncNow(): Promise<SyncStatus> {
         const id = device && /^[a-f0-9-]{36}$/.test(device) ? device : crypto.randomUUID();
         if (id !== device) await chrome.storage.local.set({ [GOOGLE_DEVICE_KEY]: id });
         result = await syncGoogleDrive({
+          mode: 'encrypted',
           passphrase: sec.googlePassphrase ?? '',
           appVersion: chrome.runtime.getManifest().version,
           store: googleExtensionStore,

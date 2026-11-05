@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Cloud, RefreshCw, ShieldCheck } from 'lucide-react';
+import { Cloud, LockKeyhole, RefreshCw, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import {
   downloadWebMedia,
+  changeWebGoogleMode,
   getSyncState,
   getWebSyncProvider,
   setWebPassphrase,
@@ -18,6 +19,11 @@ export function WebSyncSettings() {
   const [passphrase, setPassphrase] = useState('');
   const [mediaBusy, setMediaBusy] = useState(false);
   const [mediaMessage, setMediaMessage] = useState('');
+  const [editProtection, setEditProtection] = useState(false);
+  const [newPassphrase, setNewPassphrase] = useState('');
+  const [oldPassphrase, setOldPassphrase] = useState('');
+  const [protectionBusy, setProtectionBusy] = useState(false);
+  const [protectionMessage, setProtectionMessage] = useState('');
   const google = getWebSyncProvider() === 'google';
   useEffect(() => subscribeSync(setState), []);
   return (
@@ -73,10 +79,109 @@ export function WebSyncSettings() {
           </Button>
         </form>
       ) : null}
-      <p className="mt-3 flex items-start gap-2 text-xs text-muted">
-        <ShieldCheck size={16} className="shrink-0" />
-        {t('passphrasePrivacy')}
-      </p>
+      {google && state.mode ? (
+        <div className="mt-4 rounded-xl border border-line bg-bg p-4">
+          <h3 className="flex items-center gap-2 text-sm font-semibold">
+            {state.mode === 'encrypted' ? <LockKeyhole size={16} /> : <ShieldCheck size={16} />}
+            {t('googleProtectionLabel')}
+          </h3>
+          <p className="mt-1 text-xs text-muted">
+            {t(state.mode === 'encrypted' ? 'googleCurrentEncrypted' : 'googleCurrentStandard')}
+          </p>
+          {!editProtection ? (
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-3"
+              onClick={() => {
+                setProtectionMessage('');
+                setEditProtection(true);
+              }}
+            >
+              {t('googleChangeProtection')}
+            </Button>
+          ) : (
+            <form
+              className="mt-3 space-y-3"
+              onSubmit={(event) => {
+                event.preventDefault();
+                const target = state.mode === 'encrypted' ? 'plain' : 'encrypted';
+                setProtectionBusy(true);
+                setProtectionMessage('');
+                void changeWebGoogleMode(target, newPassphrase, oldPassphrase)
+                  .then(() => {
+                    setEditProtection(false);
+                    setNewPassphrase('');
+                    setOldPassphrase('');
+                    setProtectionMessage(t('googleProtectionSaved'));
+                  })
+                  .catch((error) =>
+                    setProtectionMessage(error instanceof Error ? error.message : String(error)),
+                  )
+                  .finally(() => setProtectionBusy(false));
+              }}
+            >
+              <p className="text-xs leading-relaxed text-warning">{t('googleChangeWarning')}</p>
+              {state.mode === 'encrypted' ? (
+                <label className="block text-xs text-muted">
+                  {t('googleOldPassphrase')}
+                  <input
+                    type="password"
+                    minLength={8}
+                    autoComplete="off"
+                    value={oldPassphrase}
+                    onChange={(event) => setOldPassphrase(event.target.value)}
+                    placeholder={t('encryptedLibrary')}
+                    className="mt-1 h-10 w-full rounded-lg border border-line bg-surface px-3 text-fg"
+                  />
+                </label>
+              ) : (
+                <label className="block text-xs text-muted">
+                  {t('googleNewPassphrase')}
+                  <input
+                    type="password"
+                    required
+                    minLength={8}
+                    autoComplete="new-password"
+                    value={newPassphrase}
+                    onChange={(event) => setNewPassphrase(event.target.value)}
+                    className="mt-1 h-10 w-full rounded-lg border border-line bg-surface px-3 text-fg"
+                  />
+                </label>
+              )}
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  type="submit"
+                  disabled={protectionBusy || state.phase === 'running'}
+                  loading={protectionBusy}
+                >
+                  {t('googleApplyProtection')}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={protectionBusy}
+                  onClick={() => setEditProtection(false)}
+                >
+                  {t('googleCancelProtection')}
+                </Button>
+              </div>
+            </form>
+          )}
+          {protectionMessage ? (
+            <p role="status" className="mt-2 text-xs text-muted">
+              {protectionMessage}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+      {!google || state.mode === 'encrypted' ? (
+        <p className="mt-3 flex items-start gap-2 text-xs text-muted">
+          <ShieldCheck size={16} className="shrink-0" />
+          {t('passphrasePrivacy')}
+        </p>
+      ) : null}
       <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-line pt-3">
         <Button
           size="sm"

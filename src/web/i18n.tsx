@@ -60,7 +60,8 @@ const messages = {
       'TheardX rassemble ce que vous avez choisi de conserver, dans un espace calme. Vous pouvez reprendre votre lecture, retrouver un passage et garder vos idées même hors connexion.',
     demoDisclaimer:
       'Exemples réels tirés de publications publiques de la bibliothèque. Notes, favoris et données personnelles ne sont pas affichés.',
-    demoPrivacyLine: 'Google Drive chiffré ou GitHub privé · Vos données vous appartiennent',
+    demoPrivacyLine:
+      'Google Drive avec chiffrement au choix ou GitHub privé · Vos données vous appartiennent',
     demoSignInShort: 'Connexion',
     demoOpenShort: 'Bibliothèque',
     featureSectionTitle: 'Moins de contenus perdus. Plus d’idées retrouvées.',
@@ -73,7 +74,7 @@ const messages = {
       'Les textes restent accessibles sur votre appareil. Les médias déjà mis en cache aussi.',
     featureSyncTitle: 'Vos contenus, synchronisés',
     featureSyncBody:
-      'Retrouvez votre bibliothèque depuis Google Drive chiffré ou votre dépôt GitHub privé.',
+      'Retrouvez votre bibliothèque sur Google Drive, avec chiffrement facultatif, ou sur GitHub privé.',
     featureFocusTitle: 'Enfin le plaisir de lire',
     featureFocusBody:
       'Une lecture claire, sans distraction, avec recherche, favoris et collections.',
@@ -96,7 +97,7 @@ const messages = {
       'Ouvrez ce site dans Safari, puis utilisez Partager → Sur l’écran d’accueil. Vous retrouvez la bibliothèque sans installer l’extension desktop.',
     privacyTitle: 'Votre bibliothèque vous appartient.',
     privacyBody:
-      'Les données restent locales puis, selon votre choix, chiffrées dans Google Drive ou synchronisées avec GitHub. Vous choisissez ce que vous enregistrez.',
+      'Les données restent locales puis peuvent être synchronisées avec Google Drive (chiffrement facultatif) ou GitHub.',
     footer: 'Un projet indépendant, non affilié à X ou Reddit.',
     library: 'Bibliothèque',
     all: 'Tout',
@@ -205,7 +206,29 @@ const messages = {
     syncSettings: 'Synchronisation GitHub Web',
     googleSyncSettings: 'Synchronisation Google Drive',
     googleSyncHint:
-      'Sauvegardes chiffrées de bout en bout dans le dossier TheardX de votre Drive. La phrase secrète n’est jamais envoyée à Google ni à Vercel. Pour le moment, la synchronisation de l’extension reste sur GitHub.',
+      'Sauvegardes dans votre dossier TheardX sur Google Drive. Le chiffrement de bout en bout est facultatif ; sans lui, le contenu transite en clair par le serveur Vercel. Pour le moment, la synchronisation de l’extension reste sur GitHub.',
+    googleChoiceTitle: 'Protéger votre bibliothèque Google Drive ?',
+    googleChoiceBody:
+      'Choisissez une fois lors de votre première connexion. Vous pourrez modifier ce réglage dans les options.',
+    googleStandardTitle: 'Sans phrase secrète',
+    googleStandardDesc:
+      'Synchronisation automatique avec votre compte Google. Le contenu est lisible par Google et par le serveur TheardX.',
+    googleEncryptedTitle: 'Avec chiffrement renforcé',
+    googleEncryptedDesc:
+      'Une phrase secrète personnelle protège les contenus avant leur envoi. Vous devrez la saisir sur vos autres appareils.',
+    googleChooseStandard: 'Non, continuer sans secret',
+    googleChooseEncrypted: 'Oui, chiffrer ma bibliothèque',
+    googleProtectionLabel: 'Protection des sauvegardes',
+    googleCurrentStandard: 'Mode standard : aucune phrase secrète',
+    googleCurrentEncrypted: 'Chiffrement renforcé activé',
+    googleChangeProtection: 'Modifier la protection',
+    googleChangeWarning:
+      'Un nouveau jeu de sauvegardes sera créé, sans supprimer les anciennes versions. Si vous activez le chiffrement, les anciennes sauvegardes non chiffrées restent lisibles sur Drive.',
+    googleOldPassphrase: 'Phrase secrète actuelle',
+    googleNewPassphrase: 'Nouvelle phrase secrète',
+    googleApplyProtection: 'Confirmer le changement',
+    googleCancelProtection: 'Annuler',
+    googleProtectionSaved: 'Mode de protection mis à jour sur Google Drive.',
     syncSettingsHint:
       'Même bibliothèque que l’extension dans votre dépôt privé GitHub. Le contenu reste accessible localement hors connexion.',
     syncInProgress: 'Synchronisation en cours…',
@@ -307,7 +330,8 @@ const messages = {
       'TheardX brings everything you chose to keep into a calm space. Pick up where you left off, find a passage, and keep reading even without a connection.',
     demoDisclaimer:
       'Real examples from public posts in the library. Private notes, favorites and personal data are never displayed.',
-    demoPrivacyLine: 'Encrypted Google Drive or private GitHub · Your data stays yours',
+    demoPrivacyLine:
+      'Optional encryption on Google Drive or private GitHub · Your data stays yours',
     demoSignInShort: 'Sign in',
     demoOpenShort: 'Library',
     featureSectionTitle: 'Lose fewer discoveries. Keep more ideas.',
@@ -319,7 +343,7 @@ const messages = {
     featureOfflineBody: 'Text stays available on your device. Already cached media does too.',
     featureSyncTitle: 'Your content, in sync',
     featureSyncBody:
-      'Bring back your library from encrypted Google Drive or your own private GitHub repository.',
+      'Bring back your library from Google Drive, with optional encryption, or your private GitHub repository.',
     featureFocusTitle: 'Reading, uninterrupted',
     featureFocusBody: 'A clean reading experience with search, favorites and collections.',
     howTitle: 'Save on the web. Read anywhere.',
@@ -341,7 +365,7 @@ const messages = {
       'Open this website in Safari and choose Share → Add to Home Screen. Your library is available without the desktop extension.',
     privacyTitle: 'Your library belongs to you.',
     privacyBody:
-      'Your content stays on your device and can sync via encrypted Google Drive or private GitHub. You decide what to save.',
+      'Your content stays on your device and can sync via Google Drive with optional encryption or private GitHub.',
     footer: 'An independent project, not affiliated with X or Reddit.',
     library: 'Library',
     all: 'All',
@@ -448,7 +472,28 @@ const messages = {
     syncSettings: 'GitHub web sync',
     googleSyncSettings: 'Google Drive sync',
     googleSyncHint:
-      'End-to-end encrypted snapshots in your Drive’s TheardX folder. Your passphrase is never sent to Google or Vercel. Extension sync still uses GitHub for now.',
+      'Backups in the TheardX folder on your Google Drive. End-to-end encryption is optional; without it, content passes through the Vercel server in plaintext. Extension sync still uses GitHub for now.',
+    googleChoiceTitle: 'Protect your Google Drive library?',
+    googleChoiceBody: 'Choose when you first sign in. You can change this in Settings later.',
+    googleStandardTitle: 'No extra passphrase',
+    googleStandardDesc:
+      'Automatic sync with your Google account. Google and the TheardX server can read the data.',
+    googleEncryptedTitle: 'Extra encryption',
+    googleEncryptedDesc:
+      'A personal passphrase encrypts data before upload. You will need it on your other devices.',
+    googleChooseStandard: 'No, continue without a secret',
+    googleChooseEncrypted: 'Yes, encrypt my library',
+    googleProtectionLabel: 'Backup protection',
+    googleCurrentStandard: 'Standard mode: no passphrase',
+    googleCurrentEncrypted: 'Extra encryption enabled',
+    googleChangeProtection: 'Change protection',
+    googleChangeWarning:
+      'A new backup generation will be created without deleting the old versions. When enabling encryption, older unencrypted backups remain readable on Drive.',
+    googleOldPassphrase: 'Current passphrase',
+    googleNewPassphrase: 'New passphrase',
+    googleApplyProtection: 'Confirm change',
+    googleCancelProtection: 'Cancel',
+    googleProtectionSaved: 'Google Drive protection updated.',
     syncSettingsHint:
       'The same library as the extension, in your private GitHub repository. Content remains available offline on this device.',
     syncInProgress: 'Sync in progress…',
@@ -550,7 +595,7 @@ const messages = {
       'TheardX reúne todo lo que decidiste guardar en un espacio tranquilo. Retoma la lectura, encuentra un pasaje y sigue leyendo incluso sin conexión.',
     demoDisclaimer:
       'Ejemplos reales de publicaciones públicas de la biblioteca. No se muestran notas, favoritos ni datos personales.',
-    demoPrivacyLine: 'Google Drive cifrado o GitHub privado · Tus datos te pertenecen',
+    demoPrivacyLine: 'Google Drive con cifrado opcional o GitHub privado · Tus datos te pertenecen',
     demoSignInShort: 'Entrar',
     demoOpenShort: 'Biblioteca',
     featureSectionTitle: 'Menos hallazgos perdidos. Más ideas recuperadas.',
@@ -563,7 +608,7 @@ const messages = {
       'Los textos quedan en tu dispositivo. También los archivos multimedia ya guardados.',
     featureSyncTitle: 'Tus contenidos, sincronizados',
     featureSyncBody:
-      'Recupera tu biblioteca desde Google Drive cifrado o tu repositorio privado de GitHub.',
+      'Recupera tu biblioteca desde Google Drive con cifrado opcional o tu repositorio privado de GitHub.',
     featureFocusTitle: 'Lee sin distracciones',
     featureFocusBody: 'Lectura cómoda con búsqueda, favoritos y colecciones.',
     howTitle: 'Guarda en la web. Lee donde quieras.',
@@ -585,7 +630,7 @@ const messages = {
       'Abre esta web en Safari y elige Compartir → Añadir a pantalla de inicio. Tu biblioteca funciona sin instalar la extensión de escritorio.',
     privacyTitle: 'Tu biblioteca es tuya.',
     privacyBody:
-      'Tus contenidos se guardan localmente y se sincronizan con Google Drive cifrado o GitHub privado. Tú decides qué conservar.',
+      'Tus contenidos se guardan localmente y se sincronizan con Google Drive con cifrado opcional o GitHub privado.',
     footer: 'Proyecto independiente, no afiliado a X ni a Reddit.',
     library: 'Biblioteca',
     all: 'Todo',
@@ -694,7 +739,28 @@ const messages = {
     syncSettings: 'Sincronización web con GitHub',
     googleSyncSettings: 'Sincronización Google Drive',
     googleSyncHint:
-      'Copias cifradas de extremo a extremo en la carpeta TheardX de Drive. Tu contraseña no se envía a Google ni a Vercel. Por ahora la extensión sigue sincronizando con GitHub.',
+      'Copias en la carpeta TheardX de Google Drive. El cifrado de extremo a extremo es opcional; sin él, el contenido pasa sin cifrar por Vercel. La extensión sigue usando GitHub por ahora.',
+    googleChoiceTitle: '¿Proteger tu biblioteca de Google Drive?',
+    googleChoiceBody: 'Elige al iniciar sesión por primera vez. Podrás cambiarlo en Ajustes.',
+    googleStandardTitle: 'Sin contraseña adicional',
+    googleStandardDesc:
+      'Sincronización automática con Google. Google y el servidor TheardX pueden leer los datos.',
+    googleEncryptedTitle: 'Cifrado reforzado',
+    googleEncryptedDesc:
+      'Una frase secreta cifra los datos antes de subirlos. La necesitarás en otros dispositivos.',
+    googleChooseStandard: 'No, continuar sin contraseña',
+    googleChooseEncrypted: 'Sí, cifrar mi biblioteca',
+    googleProtectionLabel: 'Protección de copias',
+    googleCurrentStandard: 'Modo estándar: sin frase secreta',
+    googleCurrentEncrypted: 'Cifrado reforzado activado',
+    googleChangeProtection: 'Cambiar protección',
+    googleChangeWarning:
+      'Se creará una nueva generación sin borrar las copias anteriores. Al activar el cifrado, las copias antiguas sin cifrar seguirán siendo legibles en Drive.',
+    googleOldPassphrase: 'Frase secreta actual',
+    googleNewPassphrase: 'Nueva frase secreta',
+    googleApplyProtection: 'Confirmar cambio',
+    googleCancelProtection: 'Cancelar',
+    googleProtectionSaved: 'Protección de Google Drive actualizada.',
     syncSettingsHint:
       'La misma biblioteca que la extensión, en tu repositorio privado de GitHub. El contenido permanece disponible sin conexión.',
     syncInProgress: 'Sincronizando…',

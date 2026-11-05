@@ -1,10 +1,20 @@
 import { useEffect, useState } from 'react';
-import { Cloud, CloudOff, House, LogOut, RefreshCw, WifiOff } from 'lucide-react';
+import {
+  Cloud,
+  CloudOff,
+  House,
+  LockKeyhole,
+  LogOut,
+  RefreshCw,
+  Shield,
+  WifiOff,
+} from 'lucide-react';
 import { LibraryApp } from '@/library/LibraryApp';
 import { Button } from '@/components/ui/Button';
 import { resolveWebAuth, signOut, type WebAuth } from './auth';
 import {
   getSyncState,
+  setWebGoogleMode,
   setWebPassphrase,
   startWebSync,
   subscribeSync,
@@ -74,9 +84,11 @@ export function WebApp() {
                 ? t('syncing')
                 : sync.phase === 'needs-passphrase'
                   ? t('passphrase')
-                  : sync.phase === 'error'
-                    ? t('syncError')
-                    : t('localLibrary')}
+                  : sync.phase === 'choose-encryption'
+                    ? t('googleProtectionLabel')
+                    : sync.phase === 'error'
+                      ? t('syncError')
+                      : t('localLibrary')}
           </span>
         </div>
         <div className="flex items-center gap-1">
@@ -152,6 +164,52 @@ export function WebApp() {
       <div className="min-h-0 flex-1">
         <LibraryApp />
       </div>
+      {sync.phase === 'choose-encryption' ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/60 p-4">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="google-protection-title"
+            className="w-full max-w-lg rounded-2xl border border-line bg-surface p-5 shadow-2xl sm:p-7"
+          >
+            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-accent/10 text-accent">
+              <Shield size={26} />
+            </div>
+            <h2 id="google-protection-title" className="text-xl font-semibold text-fg">
+              {t('googleChoiceTitle')}
+            </h2>
+            <p className="mt-2 text-sm leading-relaxed text-muted">{t('googleChoiceBody')}</p>
+            <div className="mt-5 space-y-3">
+              <div className="rounded-xl border border-line p-4">
+                <h3 className="text-sm font-semibold">{t('googleStandardTitle')}</h3>
+                <p className="mt-1 text-xs leading-relaxed text-muted">{t('googleStandardDesc')}</p>
+                <Button
+                  className="mt-3 h-10 w-full"
+                  variant="primary"
+                  onClick={() => setWebGoogleMode('plain')}
+                >
+                  {t('googleChooseStandard')}
+                </Button>
+              </div>
+              <div className="rounded-xl border border-line p-4">
+                <h3 className="flex items-center gap-2 text-sm font-semibold">
+                  <LockKeyhole size={16} /> {t('googleEncryptedTitle')}
+                </h3>
+                <p className="mt-1 text-xs leading-relaxed text-muted">
+                  {t('googleEncryptedDesc')}
+                </p>
+                <Button
+                  className="mt-3 h-10 w-full"
+                  variant="outline"
+                  onClick={() => setWebGoogleMode('encrypted')}
+                >
+                  {t('googleChooseEncrypted')}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

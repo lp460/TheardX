@@ -16,9 +16,19 @@
   Toutes les révisions sont réconciliées avec les règles existantes de fusion
   (entrées, tweets, catégories, annotations, suppressions/tombstones). Aucune
   écriture ne remplace directement la dernière version d'un autre appareil.
-- Confidentialité : les contenus sont chiffrés côté client (AES-GCM + PBKDF2)
-  **avant** toute requête vers Vercel/Google. La phrase secrète n'est jamais
-  envoyée au serveur. Le serveur ne traite que le fichier chiffré.
+- Confidentialité : **au premier accès Google Drive, le Web demande si l'utilisateur
+  souhaite activer le chiffrement renforcé**. Par défaut, le mode standard ne
+  demande pas de phrase secrète et stocke les données sur son Drive au format JSON
+  lisible. Google protège le compte et les échanges HTTPS, mais Google et les
+  fonctions Vercel peuvent lire cette sauvegarde : **ce n'est pas du chiffrement
+  de bout en bout**. En mode renforcé, les contenus sont chiffrés dans le navigateur
+  (AES-GCM + PBKDF2) avant envoi ; la phrase secrète n'est jamais envoyée au serveur.
+- Choix conservé sur Drive : une génération de révisions contient le mode choisi.
+  Un autre appareil retrouve automatiquement le mode standard, ou demande la phrase
+  secrète si la génération est chiffrée. Le changement dans Paramètres crée une
+  **nouvelle génération** après fusion de la bibliothèque, sans effacer les
+  versions précédentes. L'activation ultérieure du chiffrement **ne chiffre pas
+  rétroactivement** les copies historiques non chiffrées.
 - Photos et préférences restent locales, comme avec la synchronisation GitHub.
 - Identités : `google:<sub>` et `github:<login>` sont isolées. Une autre identité
   dans le même profil navigateur est bloquée pour éviter les mélanges involontaires.
@@ -74,6 +84,10 @@ pas de _refresh token_ Google dans ses paramètres. Pour autoriser cette fonctio
 4. Installer l'extension, aller dans Paramètres → Synchronisation → Google,
    saisir une phrase secrète (8 caractères min.), puis accepter l'accès au
    domaine Google. Se connecter sur **le même compte Google** que le Web.
+   **Limite de la version actuelle :** l'extension Chromium n'accepte pour
+   l'instant que les sauvegardes Google chiffrées ; en mode standard, elle refuse
+   de publier plutôt que changer silencieusement le mode distant. La synchro
+   GitHub de l'extension reste indépendante.
 
 Sans cet identifiant au build, le bouton Google de l'extension reste
 désactivé, tandis que GitHub continue de fonctionner. La compatibilité de
@@ -86,16 +100,18 @@ Il n'y a **aucune migration automatique** ni suppression du dépôt GitHub.
 
 1. Dans le profil GitHub actuel, exporter une sauvegarde JSON complète.
 2. Dans un **profil navigateur distinct**, se connecter avec Google.
-3. Saisir sa phrase secrète Google Drive et attendre le premier état de
-   synchronisation.
+3. Choisir le mode de protection au premier accès (aucune phrase secrète en mode
+   standard ; phrase secrète requise en mode renforcé) et attendre le premier
+   état de synchronisation.
 4. Importer explicitement la sauvegarde JSON avec le mode **Fusionner**.
 5. Déclencher une nouvelle synchronisation, vérifier les comptes et comparer
    les nombres d'entrées, tags, notes, collections et suppressions.
 6. Répéter sur l'extension liée au même compte Google.
 
-La phrase secrète est indispensable à la restauration. Ni Google ni TheardX
-ne peuvent la récupérer. Une mauvaise phrase secrète bloque la lecture et
-empêche l'envoi d'une nouvelle sauvegarde dans ce cycle.
+En mode chiffré, la phrase secrète est indispensable à la restauration. Ni
+Google ni TheardX ne peuvent la récupérer. Une mauvaise phrase secrète bloque
+la lecture et empêche l'envoi d'une nouvelle sauvegarde dans ce cycle. En mode
+standard, seul l'accès au compte Google est nécessaire.
 
 ## Contrôles de sécurité et limites à lever avant production
 
@@ -107,11 +123,14 @@ empêche l'envoi d'une nouvelle sauvegarde dans ce cycle.
   de la place Drive. Le code bloque au-delà de **300 versions** (maximum 3 Mio
   par fichier) ; une politique sûre de rétention et de restauration doit être
   conçue et testée avant une utilisation soutenue.
-- Les deux clients Google (Web/extension) utilisent le même nom de dossier,
-  nommage de fichiers et format chiffré. Les modifications concurrentes sont
-  fusionnées au prochain cycle (pas d'écrasement direct d'un fichier partagé).
-- Le mode hors connexion garde la bibliothèque locale ; le serveur ne reçoit
-  aucun texte déchiffré.
+- Les deux clients Google (Web/extension) utilisent le même nom de dossier et
+  nommage de fichiers ; le mode standard n'est pour l'instant géré que par le Web.
+  Les modifications concurrentes au sein d'une génération sont fusionnées au
+  prochain cycle (pas d'écrasement direct d'un fichier partagé). Des changements
+  de mode simultanés sur plusieurs appareils demandent une vérification manuelle.
+- Le mode hors connexion garde la bibliothèque locale. En mode renforcé, le
+  serveur ne reçoit aucun texte déchiffré ; en mode standard, il traite le JSON
+  en clair. Les anciennes copies ne sont jamais effacées automatiquement.
 - Une session Web expirée nécessite une reconnexion ; la révocation Google doit
   être testée (erreurs 401/403, suppression du consentement, compte supprimé).
 - Pour un lancement public : tests d'intégration réels, tests de charge et de

@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createSnapshot, listSnapshots, readSnapshot, DriveError } from '../../server/google-drive';
+import { encodeGoogleSnapshot } from '@/sync/google-snapshot';
 
 const DEVICE = 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa';
 const REVISION = 'bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb';
@@ -73,5 +74,44 @@ describe('Scoped Google Drive storage', () => {
       }),
     ).rejects.toMatchObject({ status: 413 });
     await expect(readSnapshot('token', '../secrets')).rejects.toBeInstanceOf(DriveError);
+  });
+
+  it('accepts an explicitly chosen standard backup, but rejects an unwrapped plaintext file', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: RequestInit) => {
+        if (url.includes('uploadType=multipart'))
+          return Response.json({ id: 'createdFile123', name: FILE });
+        if (init?.method === 'POST') return Response.json({ id: 'folder123456789' });
+        return Response.json({ files: [] });
+      }),
+    );
+    const plain = JSON.stringify({
+      format: 'threadshelf.backup',
+      version: 2,
+      schemaVersion: 1,
+      appVersion: '1.2',
+      exportedAt: new Date().toISOString(),
+      data: {
+        entries: [],
+        tweets: [],
+        relations: [],
+        collections: [],
+        categories: [],
+        annotations: [],
+      },
+    });
+    const wrapped = encodeGoogleSnapshot({
+      epoch: DEVICE,
+      mode: 'plain',
+      root: true,
+      data: plain,
+    });
+    expect(
+      await createSnapshot('token', { deviceId: DEVICE, revisionId: REVISION, text: wrapped }),
+    ).toMatchObject({ id: 'createdFile123' });
+    await expect(
+      createSnapshot('token', { deviceId: DEVICE, revisionId: REVISION, text: plain }),
+    ).rejects.toMatchObject({ status: 400 });
   });
 });

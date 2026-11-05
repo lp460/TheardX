@@ -1,7 +1,7 @@
 /** Direct Google Drive API access in the Chromium extension (no Vercel session required). */
 import type { GoogleSnapshotStore } from '@/web/google-sync';
 import type { GoogleSnapshot } from '@/web/google-client';
-import { isEncrypted } from './crypto';
+import { decodeGoogleSnapshot } from './google-snapshot';
 
 export const GOOGLE_ORIGINS = [
   'https://www.googleapis.com/*',
@@ -174,10 +174,14 @@ export const googleExtensionStore: GoogleSnapshotStore = {
     return text;
   },
   async write(deviceId, revisionId, text) {
+    try {
+      decodeGoogleSnapshot(text);
+    } catch {
+      throw new ExtensionGoogleError('Sauvegarde invalide : format inconnu.', 400);
+    }
     if (
       !/^[a-f0-9-]{36}$/.test(deviceId) ||
       !/^[a-f0-9-]{36}$/.test(revisionId) ||
-      !isEncrypted(text) ||
       new TextEncoder().encode(text).length > 3 * 1024 * 1024
     )
       throw new ExtensionGoogleError('Sauvegarde invalide ou trop volumineuse.', 400);
@@ -189,7 +193,7 @@ export const googleExtensionStore: GoogleSnapshotStore = {
         name,
         mimeType: 'application/json',
         parents: [folderId],
-        description: 'TheardX — sauvegarde chiffrée de bibliothèque',
+        description: 'TheardX — sauvegarde de bibliothèque',
       })}\r\n`,
       `--${boundary}\r\nContent-Type: application/json\r\n\r\n${text}\r\n--${boundary}--`,
     ].join('');

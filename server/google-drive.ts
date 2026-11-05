@@ -1,4 +1,5 @@
 import { readSession, setSessionCookie, type GoogleWebSession } from './session.js';
+import { decodeGoogleSnapshot } from '../src/sync/google-snapshot.js';
 
 const DRIVE_API = 'https://www.googleapis.com/drive/v3/files';
 const FOLDER_NAME = 'TheardX';
@@ -192,14 +193,12 @@ export async function createSnapshot(
     throw new DriveError('Identifiant de révision invalide.', 400);
   if (Buffer.byteLength(text, 'utf8') > MAX_SNAPSHOT_BYTES)
     throw new DriveError('Sauvegarde trop volumineuse pour Vercel.', 413);
-  let envelope: { format?: unknown; v?: unknown };
+  let snapshot;
   try {
-    envelope = JSON.parse(text);
+    snapshot = decodeGoogleSnapshot(text);
   } catch {
-    throw new DriveError('Sauvegarde chiffrée attendue.', 400);
+    throw new DriveError('Format de sauvegarde Google Drive invalide.', 400);
   }
-  if (envelope.format !== 'threadshelf.encrypted' || envelope.v !== 1)
-    throw new DriveError('Le chiffrement est obligatoire pour Google Drive.', 400);
   if (
     (await listSnapshots(token)).some(
       (file) => file.name === `${FILE_PREFIX}${deviceId}-${revisionId}.json`,
@@ -215,7 +214,10 @@ export async function createSnapshot(
       name,
       mimeType: 'application/json',
       parents: [folderId],
-      description: 'TheardX — sauvegarde chiffrée de bibliothèque',
+      description:
+        snapshot.mode === 'encrypted'
+          ? 'TheardX — sauvegarde de bibliothèque chiffrée'
+          : 'TheardX — sauvegarde standard de bibliothèque',
     })}\r\n`,
     `--${boundary}\r\nContent-Type: application/json\r\n\r\n${text}\r\n--${boundary}--`,
   ].join('');
