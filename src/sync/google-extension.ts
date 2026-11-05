@@ -81,7 +81,7 @@ async function browserBackend(
 ): Promise<BrowserTokens> {
   let response: Response;
   try {
-    response = await fetch(`${GOOGLE_EXTENSION_TOKEN_ORIGIN}/api/auth/google/extension-token`, {
+    response = await fetch(`${GOOGLE_EXTENSION_TOKEN_ORIGIN}/api/auth/google/login`, {
       method: 'POST',
       credentials: 'include',
       cache: 'no-store',

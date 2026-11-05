@@ -80,6 +80,9 @@ L'extension prend en charge deux connexions Google, avec le même périmètre
   dans Vercel**. Une fonction API échange ou renouvelle les jetons. Dans ce
   mode, le _refresh token_ est stocké localement dans `chrome.storage.local`,
   jamais dans les sauvegardes. La déconnexion l'efface du navigateur.
+  Le `POST /api/auth/google/login` réutilise la fonction Vercel de connexion
+  existante (le `GET` du site reste inchangé), afin de respecter la limite de
+  fonctions du forfait Vercel Hobby.
 
 Pour autoriser ces fonctions :
 
@@ -164,7 +167,7 @@ standard, seul l'accès au compte Google est nécessaire.
 - **Pas de test OAuth réel** sans identifiants de développement Google Cloud.
   Les tests automatisés utilisent des réponses simulées.
 - **Pas de test Arc/Brave/Edge** sans navigateur/configuration OAuth stable.
-- **Nouvelle route OAuth Arc/Brave** : contrôler son accessibilité effective depuis
+- **Échange OAuth Arc/Brave** : contrôler son accessibilité effective depuis
   Arc avec la protection de déploiement Vercel. L'accès CORS est restreint à
   `chrome-extension://finnpgeglikfoejkedoobkigbfgmbglf`, mais l'en-tête
   `Origin` n'est pas une authentification en soi : seul Google valide le

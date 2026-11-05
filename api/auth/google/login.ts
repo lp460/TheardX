@@ -1,8 +1,13 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { json, setGooglePkceCookie, setStateCookie, webOrigin } from '../../../server/session.js';
+import extensionToken from '../../../server/google-extension-token.js';
 
 export default {
-  fetch(request: Request): Response {
+  fetch(request: Request): Response | Promise<Response> {
+    // Reuse this serverless function for the extension's POST/OPTIONS OAuth
+    // token bridge. Keep the existing GET sign-in flow unchanged.
+    if (request.method === 'POST' || request.method === 'OPTIONS')
+      return extensionToken.fetch(request);
     if (request.method !== 'GET') return json({ error: 'Méthode refusée' }, 405);
     const clientId = process.env.GOOGLE_CLIENT_ID;
     if (!clientId || !process.env.GOOGLE_CLIENT_SECRET || !process.env.SESSION_SECRET)

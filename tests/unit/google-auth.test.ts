@@ -58,11 +58,13 @@ describe('Google auth + distinct provider identity', () => {
     delete process.env.GOOGLE_CLIENT_SECRET;
   });
 
-  it('canonicalizes the host, uses limited Drive scope, opaque state and PKCE', () => {
-    const alias = googleLogin.fetch(new Request('https://preview.example/api/auth/google/login'));
+  it('canonicalizes the host, uses limited Drive scope, opaque state and PKCE', async () => {
+    const alias = await googleLogin.fetch(
+      new Request('https://preview.example/api/auth/google/login'),
+    );
     expect(alias.headers.get('Location')).toBe(`${ORIGIN}/api/auth/google/login`);
     expect(alias.headers.getSetCookie()).toHaveLength(0);
-    const response = googleLogin.fetch(req('/api/auth/google/login'));
+    const response = await googleLogin.fetch(req('/api/auth/google/login'));
     expect(response.status).toBe(302);
     const authUrl = new URL(response.headers.get('Location')!);
     expect(authUrl.host).toBe('accounts.google.com');
@@ -84,7 +86,7 @@ describe('Google auth + distinct provider identity', () => {
   it('rejects CSRF and missing PKCE before contacting Google', async () => {
     const response = await googleCallback.fetch(req('/api/auth/google/callback?code=x&state=fake'));
     expect(response.status).toBe(400);
-    const start = googleLogin.fetch(req('/api/auth/google/login'));
+    const start = await googleLogin.fetch(req('/api/auth/google/login'));
     const response2 = await googleCallback.fetch(
       req('/api/auth/google/callback?code=x&state=wrong', cookies(start)),
     );
@@ -92,7 +94,7 @@ describe('Google auth + distinct provider identity', () => {
   });
 
   it('exchanges a valid code, verifies Google subject, keeps tokens encrypted and isolates GitHub', async () => {
-    const start = googleLogin.fetch(req('/api/auth/google/login'));
+    const start = await googleLogin.fetch(req('/api/auth/google/login'));
     const params = new URL(start.headers.get('Location')!).searchParams;
     vi.stubGlobal(
       'fetch',

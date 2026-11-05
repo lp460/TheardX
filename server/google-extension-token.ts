@@ -5,7 +5,7 @@
  * WEB client ID. Only this Node function knows the corresponding client secret.
  * Chrome's existing native getAuthToken flow never calls this endpoint.
  */
-import { EXTENSION_ID, GOOGLE_EXTENSION_REDIRECT_URI } from '../../../src/extension-identity.mjs';
+import { EXTENSION_ID, GOOGLE_EXTENSION_REDIRECT_URI } from '../src/extension-identity.mjs';
 
 const ALLOWED_ORIGIN = `chrome-extension://${EXTENSION_ID}`;
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';

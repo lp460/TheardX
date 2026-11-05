@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import extensionToken from '../../api/auth/google/extension-token';
+import extensionToken from '../../api/auth/google/login';
 import {
   EXTENSION_ID,
   GOOGLE_EXTENSION_REDIRECT_URI,
@@ -65,7 +65,7 @@ describe('Arc/Brave OAuth extension with PKCE', () => {
           url,
           body: typeof init.body === 'string' ? JSON.parse(init.body) : undefined,
         });
-        if (url.endsWith('/extension-token'))
+        if (url.endsWith('/api/auth/google/login'))
           return Response.json({
             accessToken: 'browser-access-token',
             refreshToken: REFRESH,
@@ -93,8 +93,8 @@ describe('Arc/Brave OAuth extension with PKCE', () => {
     expect(oauthUrl.searchParams.get('code_verifier')).toBeNull();
     expect(oauthUrl.searchParams.get('client_secret')).toBeNull();
     expect(oauthUrl.searchParams.get('state')).toMatch(/^[\w-]{32}$/);
-    const exchange = requests.find((r) => r.url.endsWith('/extension-token'))!;
-    expect(exchange.url).toBe(`${GOOGLE_EXTENSION_TOKEN_ORIGIN}/api/auth/google/extension-token`);
+    const exchange = requests.find((r) => r.url.endsWith('/api/auth/google/login'))!;
+    expect(exchange.url).toBe(`${GOOGLE_EXTENSION_TOKEN_ORIGIN}/api/auth/google/login`);
     expect(exchange.body).toMatchObject({
       grantType: 'authorization_code',
       code: CODE,
@@ -118,7 +118,7 @@ describe('Arc/Brave OAuth extension with PKCE', () => {
       expiresAt: Date.now() - 1_000,
     });
     const api = vi.fn(async (url: string, init: RequestInit) => {
-      if (url.endsWith('/extension-token')) {
+      if (url.endsWith('/api/auth/google/login')) {
         const body = JSON.parse(init.body as string);
         expect(body).toEqual({ grantType: 'refresh_token', refreshToken: REFRESH });
         return Response.json({
@@ -153,7 +153,7 @@ describe('Arc/Brave OAuth extension with PKCE', () => {
 
 describe('Google Web confidential token bridge', () => {
   const request = (origin = ORIGIN, body: Record<string, unknown> = {}) =>
-    new Request('https://preview.example/api/auth/google/extension-token', {
+    new Request('https://preview.example/api/auth/google/login', {
       method: 'POST',
       headers: { Origin: origin, 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
