@@ -9,7 +9,6 @@ import {
 } from '../../server/session';
 import login from '../../api/auth/login';
 import me from '../../api/auth/me';
-import logout from '../../api/auth/logout';
 import sync from '../../api/sync';
 import media from '../../api/media';
 
@@ -75,6 +74,13 @@ describe('Web session and GitHub proxy', () => {
     expect(readSession(request('/', 'GET', expired.split(';')[0]))).toBeNull();
   });
 
+  it('keeps the provider availability endpoint public after the Hobby API consolidation', async () => {
+    const response = me.fetch(request('/api/auth/me?__theardx_auth=providers'));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ github: true, google: false });
+    expect(me.fetch(request('/api/auth/me?__theardx_auth=providers', 'POST')).status).toBe(405);
+  });
+
   it('uses constant-time OAuth state comparison with strict lengths', () => {
     expect(matchesState('abcdefghijkl', 'abcdefghijkl')).toBe(true);
     expect(matchesState('abcdefghijkl', 'abcdefghijkm')).toBe(false);
@@ -122,9 +128,9 @@ describe('Web session and GitHub proxy', () => {
       ).status,
     ).toBe(403);
     expect(
-      logout.fetch(request('/api/auth/logout', 'POST', cookie, 'https://evil.example')).status,
+      me.fetch(request('/api/auth/me?__theardx_auth=logout', 'POST', cookie, 'https://evil.example')).status,
     ).toBe(403);
-    const response = logout.fetch(request('/api/auth/logout', 'POST', cookie, ORIGIN));
+    const response = me.fetch(request('/api/auth/me?__theardx_auth=logout', 'POST', cookie, ORIGIN));
     expect(response.status).toBe(200);
     expect(response.headers.get('Set-Cookie')).toContain('Max-Age=0');
     expect(clearSessionCookie(request('/'))).toContain('HttpOnly');

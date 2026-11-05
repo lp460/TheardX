@@ -104,7 +104,7 @@ function signedGoogleCookie(): string {
   const request = new Request(ORIGIN);
   return setSessionCookie(request, {
     provider: 'google',
-    subject: 'stable-google-user-id',
+    subject: '12345678901234567890',
     login: 'reader@example.com',
     token: 'secret-google-access',
     refreshToken: 'secret-google-refresh',
