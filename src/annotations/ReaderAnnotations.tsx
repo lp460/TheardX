@@ -115,8 +115,11 @@ export function useReaderAnnotations(
     setPending({
       tweetId: found.tweetId,
       anchor: found.anchor,
-      x: Math.min(window.innerWidth - 185, Math.max(12, found.rect.left)),
-      y: Math.max(62, found.rect.top - 50),
+      // The comment editor is wider and taller than the initial toolbar.
+      // Keep both states inside the viewport, including keyboard selections
+      // and content whose position changes after images load.
+      x: Math.max(12, Math.min(window.innerWidth - 320, found.rect.left)),
+      y: Math.max(62, Math.min(window.innerHeight - 210, found.rect.top - 50)),
     });
     setCommenting(false);
     setDraft('');
