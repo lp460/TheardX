@@ -118,6 +118,8 @@ test('the installation guide stays on TheardX and gives official instructions fo
   await page.getByRole('link', { name: 'Guide d’installation' }).click();
   await expect(page).toHaveURL(/#installation$/);
   await expect(page.getByRole('heading', { name: 'Installez TheardX, sans quitter cette page.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Votre premier article' })).toBeVisible();
+  await expect(page.getByText(/Le ZIP ne se met pas à jour automatiquement/)).toBeVisible();
   await expect(page.getByTestId('install-address')).toHaveText('chrome://extensions');
   await expect(page.getByRole('link', { name: /Documentation officielle · Chrome/ })).toHaveAttribute('href', /developer\.chrome\.com/);
   await page.getByTestId('install-brave').click();

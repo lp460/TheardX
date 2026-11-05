@@ -1,10 +1,21 @@
-# ThreadShelf
+# TheardX (extension ThreadShelf + Web/PWA)
 
-> **Version web/PWA Vercel :** voir [docs/WEB-PWA.md](docs/WEB-PWA.md). Le build web est indépendant de l'extension et réutilise la bibliothèque GitHub existante.
+> **Essayer TheardX :** https://theard-x.vercel.app — démonstration publique, lecture et bibliothèque web sur connexion Google ou GitHub. Voir [docs/WEB-PWA.md](docs/WEB-PWA.md). Le build web est indépendant de celui de l'extension.
 
 Enregistrez, lisez, copiez et organisez les publications et threads de X.com, et les discussions Reddit (facultatif). Extension Manifest V3 conçue pour **Arc sur macOS**, compatible Chrome, Brave, Edge et autres navigateurs Chromium.
 
-Pocket + mode lecture + gestionnaire de favoris, spécialisé pour X. Tout reste dans votre navigateur : pas de compte, pas de serveur, aucune télémétrie.
+Pocket + mode lecture + gestionnaire de favoris, spécialisé pour X. **L'extension fonctionne localement sans compte** ; sa synchronisation Google Drive ou GitHub est facultative. **La PWA accepte Google ou GitHub pour une bibliothèque personnelle synchronisée** et peut utiliser Vercel pour les partages et la traduction distante sur consentement. Sur Google Drive, le mode de sauvegarde standard sans chiffrement de bout en bout est proposé par défaut ; le chiffrement reste activable dans les options de sécurité. Consultez [la politique de confidentialité](PRIVACY.md).
+
+## Démarrer en 2 minutes
+
+1. Sur ordinateur, ouvrez [le guide d'installation](https://theard-x.vercel.app/#installation), téléchargez le ZIP et décompressez-le dans un **dossier permanent**.
+2. Dans Arc, Chrome, Brave ou Edge, activez le mode développeur dans le gestionnaire d'extensions et chargez le dossier contenant `manifest.json`.
+3. Sur X ou Reddit, ouvrez une publication, utilisez le bouton de l'extension puis retrouvez l'article dans la bibliothèque.
+4. Pour retrouver la même bibliothèque sur plusieurs appareils, connectez le même fournisseur (Google Drive ou GitHub) dans l'extension et la PWA. Pensez à conserver une sauvegarde JSON avant de changer d'installation.
+
+**Mises à jour du ZIP :** remplacez le contenu du **même dossier d'extension** puis rechargez-la dans le gestionnaire et rafraîchissez les onglets X/Reddit. Une installation ZIP **ne se met pas à jour automatiquement**. Le Chrome Web Store est un chantier de distribution distinct, pas une publication déjà annoncée.
+
+**Retour d'expérience :** [signaler un bug ou proposer une amélioration](https://github.com/lp460/TheardX/issues/new/choose). Ne joignez aucun jeton, code OAuth, phrase secrète ni export personnel.
 
 ## Fonctionnalités
 
@@ -148,7 +159,7 @@ Fonctionnement :
 
 ## Confidentialité
 
-ThreadShelf lit uniquement ce que X affiche dans votre onglet pendant votre navigation normale. Aucun appel aux API de X, aucune lecture de cookies ou de jetons, aucune collecte de profils. Les seules requêtes réseau sont les téléchargements d'images des publications que vous avez enregistrées (`pbs.twimg.com`), pour la lecture hors ligne ; c'est désactivable dans les paramètres. Voir [SECURITY.md](SECURITY.md).
+L'extension lit ce que X ou Reddit affiche dans votre onglet, sans utiliser leurs API privées ni leurs cookies de connexion. La synchronisation et la traduction distante éventuelles sont des actions distinctes, détaillées dans [PRIVACY.md](PRIVACY.md) et [SECURITY.md](SECURITY.md).
 
 ## Distribution aux clients et mises à jour
 
@@ -164,7 +175,8 @@ npm run release -- minor
 - [TESTING.md](TESTING.md) : stratégie de test, couverture, distinction entre fixtures et site réel
 - [SECURITY.md](SECURITY.md) : permissions, modèle de menace, traitement des données
 - [CHANGELOG.md](CHANGELOG.md)
-- [PRIVACY.md](PRIVACY.md) : politique de confidentialité (à publier pour le Store)
+- [PRIVACY.md](PRIVACY.md) : confidentialité de l'extension et de la PWA (coordonnées à compléter avant diffusion Store)
+- [CONTRIBUTING.md](CONTRIBUTING.md) : installation de développement, tests, propositions et signalement des bugs
 - [docs/DISTRIBUTION.md](docs/DISTRIBUTION.md) et [docs/store-listing.md](docs/store-listing.md) : publication et mises à jour
 
 Aucune licence n'est incluse : les droits d'utilisation n'ont pas été définis par le propriétaire du projet.

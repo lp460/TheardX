@@ -99,6 +99,7 @@ const messages = {
     privacyTitle: 'Votre bibliothèque vous appartient.',
     privacyBody:
       'Les données restent locales puis peuvent être synchronisées avec Google Drive (chiffrement facultatif) ou GitHub.',
+    privacyPolicy: 'Confidentialité', reportIssue: 'Signaler un problème',
     footer: 'Un projet indépendant, non affilié à X ou Reddit.',
     library: 'Bibliothèque',
     all: 'Tout',
@@ -369,6 +370,7 @@ const messages = {
     privacyTitle: 'Your library belongs to you.',
     privacyBody:
       'Your content stays on your device and can sync via Google Drive with optional encryption or private GitHub.',
+    privacyPolicy: 'Privacy', reportIssue: 'Report a problem',
     footer: 'An independent project, not affiliated with X or Reddit.',
     library: 'Library',
     all: 'All',
@@ -636,6 +638,7 @@ const messages = {
     privacyTitle: 'Tu biblioteca es tuya.',
     privacyBody:
       'Tus contenidos se guardan localmente y se sincronizan con Google Drive con cifrado opcional o GitHub privado.',
+    privacyPolicy: 'Privacidad', reportIssue: 'Informar de un problema',
     footer: 'Proyecto independiente, no afiliado a X ni a Reddit.',
     library: 'Biblioteca',
     all: 'Todo',

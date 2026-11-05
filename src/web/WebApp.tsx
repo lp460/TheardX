@@ -4,6 +4,7 @@ import {
   CloudOff,
   House,
   LogOut,
+  MessageSquareWarning,
   RefreshCw,
   WifiOff,
 } from 'lucide-react';
@@ -94,6 +95,16 @@ export function WebApp() {
             title={t('home')}
           >
             <House size={19} />
+          </a>
+          <a
+            href="https://github.com/lp460/TheardX/issues/new/choose"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="ts-focus inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-muted hover:bg-subtle hover:text-fg"
+            aria-label={t('reportIssue')}
+            title={t('reportIssue')}
+          >
+            <MessageSquareWarning size={18} />
           </a>
           <LanguageSelector />
           <Button

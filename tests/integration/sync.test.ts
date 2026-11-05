@@ -175,6 +175,53 @@ describe('GitHub library sync between two PCs', () => {
     expect(await names(B)).toEqual(['ada_dev', 'other', 'third']);
   });
 
+  it('preserves private highlights across two devices, concurrent additions and deletion', async () => {
+    const t = threadPosts(2);
+    const { entry } = await A.saveCapture(captureFromFixture(t, t[0]!));
+    const first = await A.saveAnnotation({
+      entryId: entry.id, tweetId: entry.focalTweetId,
+      exact: 'passage A', prefix: '', suffix: '', start: 0, end: 9,
+      color: 'yellow', comment: 'Commentaire sur le PC A',
+    });
+    await sync(dbA);
+    await sync(dbB);
+    expect((await B.listAnnotations(entry.id)).map((a) => a.id)).toEqual([first.id]);
+
+    // Both machines add different annotations before seeing each other's push.
+    const fromA = await A.saveAnnotation({
+      entryId: entry.id, tweetId: entry.focalTweetId,
+      exact: 'nouvelle idée A', prefix: '', suffix: '', start: 9, end: 24,
+      color: 'blue', comment: 'À partager avec Stan',
+    });
+    const fromB = await B.saveAnnotation({
+      entryId: entry.id, tweetId: entry.focalTweetId,
+      exact: 'nouvelle idée B', prefix: '', suffix: '', start: 24, end: 39,
+      color: 'green', comment: 'À relire',
+    });
+    let once = true;
+    gl.beforeWrite = async () => {
+      if (!once) return;
+      once = false;
+      gl.beforeWrite = undefined;
+      await sync(dbA);
+    };
+    await sync(dbB);
+    await sync(dbA);
+    const ids = async (repo: Repository) => (await repo.listAnnotations(entry.id)).map((a) => a.id).sort();
+    const expected = [first.id, fromA.id, fromB.id].sort();
+    expect(await ids(A)).toEqual(expected);
+    expect(await ids(B)).toEqual(expected);
+    expect((await B.listAnnotations(entry.id)).find((a) => a.id === fromA.id)?.comment)
+      .toBe('À partager avec Stan');
+
+    await A.deleteAnnotation(first.id);
+    await sync(dbA);
+    await sync(dbB);
+    expect(await ids(B)).toEqual([fromA.id, fromB.id].sort());
+    await sync(dbA);
+    expect(await ids(A)).toEqual([fromA.id, fromB.id].sort());
+  });
+
   it('end-to-end encryption: GitHub only stores ciphertext', async () => {
     const t = threadPosts(2, { text: (i) => `Secret note ${i}` });
     await A.saveCapture(captureFromFixture(t, t[0]!));
