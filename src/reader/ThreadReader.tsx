@@ -288,7 +288,7 @@ function Toc({
   );
 }
 
-function NoteEditor({ bundle }: { bundle: EntryBundle }) {
+function NoteEditor({ bundle, onEditingChange }: { bundle: EntryBundle; onEditingChange: (editing: boolean) => void }) {
   const [note, setNote] = useState(bundle.entry.note);
   const [saved, setSaved] = useState(true);
   useEffect(() => setNote(bundle.entry.note), [bundle.entry.note]);
@@ -315,6 +315,8 @@ function NoteEditor({ bundle }: { bundle: EntryBundle }) {
         className="mt-2 bg-transparent"
         value={note}
         placeholder="Ce que je retiens de ce thread…"
+        onFocus={() => onEditingChange(true)}
+        onBlur={() => onEditingChange(false)}
         onChange={(e) => {
           setNote(e.target.value);
           setSaved(false);
@@ -341,6 +343,7 @@ export function ThreadReader() {
   const [shareTarget, setShareTarget] = useState<ShareTarget | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
   const [selecting, setSelecting] = useState(false);
+  const [noteEditing, setNoteEditing] = useState(false);
   const [selection, setSelection] = useState<Set<string>>(new Set());
   const [scrolled, setScrolled] = useState(false);
   const [translations, setTranslations] = useState<Record<string, PostTranslation>>({});
@@ -1142,7 +1145,7 @@ export function ThreadReader() {
                 </ul>
               </section>
             ) : null}
-            <NoteEditor bundle={bundle} />
+            <NoteEditor bundle={bundle} onEditingChange={setNoteEditing} />
             <footer className="mt-10 font-sans text-[12px] text-faint">
               Enregistré le {formatDateTime(entry.savedAt)} ·{' '}
               {isReddit
@@ -1154,7 +1157,7 @@ export function ThreadReader() {
         </div>
 
         {annotationTools.toolbar}
-        {!PRINT && !selecting ? (
+        {!PRINT && !selecting && !noteEditing ? (
           <ReadingNotesDock
             note={entry.note}
             annotationCount={annotationTools.count}
