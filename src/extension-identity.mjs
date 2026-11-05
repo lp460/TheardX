@@ -22,3 +22,11 @@ export const EXTENSION_ID = 'finnpgeglikfoejkedoobkigbfgmbglf';
  */
 export const CHROME_OAUTH_CLIENT_ID =
   '29268983058-gtne0dru73vme0iq777ln7g72so44sf4.apps.googleusercontent.com';
+
+/** Public web OAuth client used only for Arc/Brave's PKCE authorization-code flow. */
+export const GOOGLE_WEB_OAUTH_CLIENT_ID =
+  '29268983058-banfvk7umrbj66m66mmh9ama13iujq3a.apps.googleusercontent.com';
+/** Existing Vercel Preview API performs code/refresh exchanges; secrets stay server-side. */
+export const GOOGLE_EXTENSION_TOKEN_ORIGIN =
+  'https://theard-x-git-feat-theardx-google-drive-20261105-lp-9f5d.vercel.app';
+export const GOOGLE_EXTENSION_REDIRECT_URI = `https://${EXTENSION_ID}.chromiumapp.org/google`;

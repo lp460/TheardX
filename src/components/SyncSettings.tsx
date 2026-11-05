@@ -14,7 +14,13 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import type { DevicePoll, DeviceStart, SyncStatus } from '@/background/sync-service';
 import { send } from '@/messaging/client';
 import { GITHUB_OAUTH_CLIENT_ID } from '@/sync/github-app';
-import { GOOGLE_ORIGINS, hasGoogleOAuthClient } from '@/sync/google-extension';
+import {
+  GOOGLE_ORIGINS,
+  GOOGLE_BROWSER_ORIGINS,
+  hasGoogleOAuthClient,
+  hasGoogleBrowserOAuthClient,
+  type GoogleAuthMode,
+} from '@/sync/google-extension';
 import type { GoogleEncryptionMode } from '@/sync/google-snapshot';
 import { loadSecrets, saveSecrets } from '@/sync/secrets';
 import { copyText } from '@/utils/clipboard';
@@ -168,13 +174,15 @@ export function SyncSettings() {
     }
   };
 
-  const startGoogle = async () => {
+  const startGoogle = async (authMode: GoogleAuthMode) => {
     setBusy('google');
     try {
       // Permission request must start from the user gesture (Chrome/Arc/Brave).
-      const granted = await chrome.permissions.request({ origins: GOOGLE_ORIGINS });
+      const granted = await chrome.permissions.request({
+        origins: authMode === 'browser' ? GOOGLE_BROWSER_ORIGINS : GOOGLE_ORIGINS,
+      });
       if (!granted) throw new Error('Autorisation de Google Drive refusée.');
-      const remote = (await send({ type: 'sync.googleInspect' })) as unknown as {
+      const remote = (await send({ type: 'sync.googleInspect', authMode })) as unknown as {
         email: string;
         mode: GoogleEncryptionMode | null;
       };
@@ -538,10 +546,19 @@ export function SyncSettings() {
                 variant="primary"
                 disabled={!hasGoogleOAuthClient() || busy !== null}
                 loading={busy === 'google'}
-                onClick={() => void startGoogle()}
+                onClick={() => void startGoogle('chrome')}
               >
                 <CloudCog size={14} />{' '}
-                {googleSetup ? 'Changer de compte Google' : 'Se connecter avec Google'}
+                {googleSetup ? 'Changer de compte Google' : 'Google (Chrome)'}
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={!hasGoogleBrowserOAuthClient() || busy !== null}
+                loading={busy === 'google'}
+                onClick={() => void startGoogle('browser')}
+              >
+                <CloudCog size={14} /> Google (Arc / Brave)
               </Button>
               {!hasGoogleOAuthClient() ? (
                 <span className="text-[11px] text-warning">

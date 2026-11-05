@@ -2,14 +2,29 @@
 import type { GoogleSnapshotStore } from '@/web/google-sync';
 import type { GoogleSnapshot } from '@/web/google-client';
 import { decodeGoogleSnapshot } from './google-snapshot';
+import {
+  GOOGLE_EXTENSION_REDIRECT_URI,
+  GOOGLE_EXTENSION_TOKEN_ORIGIN,
+  GOOGLE_WEB_OAUTH_CLIENT_ID,
+} from '../extension-identity.mjs';
 
 export const GOOGLE_ORIGINS = [
   'https://www.googleapis.com/*',
   'https://openidconnect.googleapis.com/*',
 ];
+export const GOOGLE_BROWSER_ORIGINS = [...GOOGLE_ORIGINS, `${GOOGLE_EXTENSION_TOKEN_ORIGIN}/*`];
+export type GoogleAuthMode = 'chrome' | 'browser';
+const AUTH_MODE_KEY = 'threadshelf.google.auth-mode';
+const BROWSER_TOKENS_KEY = 'threadshelf.google.browser-tokens';
 const BASE = 'https://www.googleapis.com/drive/v3/files';
 const FOLDER_NAME = 'TheardX';
 const MAX_FILES = 300;
+
+interface BrowserTokens {
+  accessToken: string;
+  refreshToken: string;
+  expiresAt: number;
+}
 
 export class ExtensionGoogleError extends Error {
   constructor(
@@ -24,7 +39,16 @@ export function hasGoogleOAuthClient(): boolean {
   return !!chrome.runtime.getManifest().oauth2?.client_id;
 }
 
-async function token(interactive = false): Promise<string> {
+export function hasGoogleBrowserOAuthClient(): boolean {
+  return !!GOOGLE_WEB_OAUTH_CLIENT_ID && !!chrome.identity?.launchWebAuthFlow;
+}
+
+async function authMode(): Promise<GoogleAuthMode> {
+  const stored = (await chrome.storage?.local?.get(AUTH_MODE_KEY))?.[AUTH_MODE_KEY];
+  return stored === 'browser' ? 'browser' : 'chrome';
+}
+
+async function chromeToken(interactive = false): Promise<string> {
   if (!hasGoogleOAuthClient())
     throw new ExtensionGoogleError(
       'Identifiant OAuth Google Chrome absent de cette version de l’extension.',
@@ -43,6 +67,164 @@ async function token(interactive = false): Promise<string> {
   return result.token;
 }
 
+function base64url(value: Uint8Array): string {
+  return btoa(String.fromCharCode(...value))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+}
+
+async function browserBackend(
+  body:
+    | { grantType: 'authorization_code'; code: string; codeVerifier: string }
+    | { grantType: 'refresh_token'; refreshToken: string },
+): Promise<BrowserTokens> {
+  let response: Response;
+  try {
+    response = await fetch(`${GOOGLE_EXTENSION_TOKEN_ORIGIN}/api/auth/google/extension-token`, {
+      method: 'POST',
+      credentials: 'include',
+      cache: 'no-store',
+      redirect: 'error',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    throw new ExtensionGoogleError(
+      'Serveur OAuth Preview inaccessible depuis ce navigateur. Vérifiez votre accès à la Preview Vercel.',
+      503,
+    );
+  }
+  const data = (await response.json().catch(() => ({}))) as Partial<BrowserTokens> & {
+    error?: string;
+  };
+  if (!response.ok)
+    throw new ExtensionGoogleError(
+      data.error || 'Échange OAuth Google refusé. Vérifiez la connexion à la Preview Vercel.',
+      response.status,
+    );
+  if (
+    typeof data.accessToken !== 'string' ||
+    typeof data.refreshToken !== 'string' ||
+    typeof data.expiresAt !== 'number' ||
+    data.expiresAt < Date.now()
+  )
+    throw new ExtensionGoogleError('Réponse OAuth Google invalide.', 502);
+  return data as BrowserTokens;
+}
+
+async function browserSignIn(): Promise<string> {
+  if (!hasGoogleBrowserOAuthClient())
+    throw new ExtensionGoogleError('Connexion Google par navigateur indisponible.', 503);
+  const redirectUri = chrome.identity.getRedirectURL('google');
+  if (redirectUri !== GOOGLE_EXTENSION_REDIRECT_URI)
+    throw new ExtensionGoogleError('ID de l’extension différent du client Google enregistré.', 400);
+  const codeVerifier = base64url(crypto.getRandomValues(new Uint8Array(48)));
+  const challenge = base64url(
+    new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(codeVerifier))),
+  );
+  const state = base64url(crypto.getRandomValues(new Uint8Array(24)));
+  const url = new URL('https://accounts.google.com/o/oauth2/v2/auth');
+  url.searchParams.set('client_id', GOOGLE_WEB_OAUTH_CLIENT_ID);
+  url.searchParams.set('redirect_uri', redirectUri);
+  url.searchParams.set('response_type', 'code');
+  url.searchParams.set('scope', 'openid email https://www.googleapis.com/auth/drive.file');
+  url.searchParams.set('access_type', 'offline');
+  url.searchParams.set('prompt', 'consent');
+  url.searchParams.set('state', state);
+  url.searchParams.set('code_challenge', challenge);
+  url.searchParams.set('code_challenge_method', 'S256');
+  let result: string | undefined;
+  try {
+    result = await chrome.identity.launchWebAuthFlow({ url: url.href, interactive: true });
+  } catch {
+    throw new ExtensionGoogleError(
+      'Connexion Google annulée ou URL de retour non autorisée dans le client OAuth Web.',
+      401,
+    );
+  }
+  if (!result) throw new ExtensionGoogleError('Google n’a pas renvoyé de code OAuth.', 401);
+  const returned = new URL(result);
+  const expected = new URL(redirectUri);
+  if (
+    returned.origin !== expected.origin ||
+    returned.pathname !== expected.pathname ||
+    returned.searchParams.get('state') !== state
+  )
+    throw new ExtensionGoogleError('Réponse Google refusée : état ou origine incorrect.', 401);
+  if (returned.searchParams.has('error'))
+    throw new ExtensionGoogleError('Google a refusé la connexion.', 401);
+  const code = returned.searchParams.get('code');
+  if (!code) throw new ExtensionGoogleError('Code OAuth Google manquant.', 401);
+  const credentials = await browserBackend({
+    grantType: 'authorization_code',
+    code,
+    codeVerifier,
+  });
+  await chrome.storage.local.set({ [BROWSER_TOKENS_KEY]: credentials });
+  return credentials.accessToken;
+}
+
+let refreshInFlight: Promise<string> | null = null;
+async function browserToken(interactive = false): Promise<string> {
+  const saved = (await chrome.storage.local.get(BROWSER_TOKENS_KEY))[BROWSER_TOKENS_KEY] as
+    BrowserTokens | undefined;
+  if (saved?.accessToken && saved.expiresAt > Date.now() + 30_000) return saved.accessToken;
+  if (saved?.refreshToken) {
+    if (!refreshInFlight) {
+      refreshInFlight = (async () => {
+        const next = await browserBackend({
+          grantType: 'refresh_token',
+          refreshToken: saved.refreshToken,
+        });
+        await chrome.storage.local.set({ [BROWSER_TOKENS_KEY]: next });
+        return next.accessToken;
+      })().finally(() => {
+        refreshInFlight = null;
+      });
+    }
+    try {
+      return await refreshInFlight;
+    } catch {
+      await chrome.storage.local.remove(BROWSER_TOKENS_KEY);
+      if (!interactive)
+        throw new ExtensionGoogleError('Connexion Google expirée. Reconnectez-vous.', 401);
+    }
+  }
+  if (interactive) return browserSignIn();
+  throw new ExtensionGoogleError('Reconnectez votre compte Google depuis les paramètres.', 401);
+}
+
+async function token(interactive = false): Promise<string> {
+  return (await authMode()) === 'browser' ? browserToken(interactive) : chromeToken(interactive);
+}
+
+async function invalidateToken(bearer: string): Promise<void> {
+  if ((await authMode()) === 'browser') {
+    const stored = (await chrome.storage.local.get(BROWSER_TOKENS_KEY))[BROWSER_TOKENS_KEY] as
+      BrowserTokens | undefined;
+    if (stored?.accessToken === bearer)
+      await chrome.storage.local.set({
+        [BROWSER_TOKENS_KEY]: { ...stored, accessToken: '', expiresAt: 0 },
+      });
+  } else {
+    await chrome.identity.removeCachedAuthToken({ token: bearer });
+  }
+}
+
+export async function disconnectGoogleExtension(): Promise<void> {
+  const mode = await authMode();
+  if (mode === 'chrome') {
+    try {
+      const current = await chrome.identity.getAuthToken({ interactive: false });
+      if (current.token) await chrome.identity.removeCachedAuthToken({ token: current.token });
+    } catch {
+      // No cached Chrome token, or this browser does not implement native auth.
+    }
+  }
+  await chrome.storage?.local?.remove([AUTH_MODE_KEY, BROWSER_TOKENS_KEY]);
+}
+
 async function google(path: string, init: RequestInit = {}): Promise<Response> {
   const url =
     path.startsWith('https://www.googleapis.com/') ||
@@ -59,7 +241,7 @@ async function google(path: string, init: RequestInit = {}): Promise<Response> {
     });
   let response = await call(bearer);
   if (response.status === 401) {
-    await chrome.identity.removeCachedAuthToken({ token: bearer });
+    await invalidateToken(bearer);
     bearer = await token();
     response = await call(bearer);
   }
@@ -144,8 +326,14 @@ async function ensureFolder(): Promise<string> {
 
 export async function connectGoogleExtension(
   interactive = true,
+  requestedMode?: GoogleAuthMode,
 ): Promise<{ email: string; subject: string }> {
-  const bearer = await token(interactive);
+  const bearer =
+    requestedMode === 'browser' && interactive
+      ? await browserSignIn()
+      : requestedMode === 'chrome'
+        ? await chromeToken(interactive)
+        : await token(interactive);
   const response = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
     headers: { Authorization: `Bearer ${bearer}` },
     cache: 'no-store',
@@ -159,6 +347,10 @@ export async function connectGoogleExtension(
   };
   if (!user.email || !user.email_verified || !user.sub || !/^\d{5,40}$/.test(user.sub))
     throw new ExtensionGoogleError('Compte Google non vérifié.', 401);
+  if (requestedMode) {
+    await chrome.storage?.local?.set({ [AUTH_MODE_KEY]: requestedMode });
+    if (requestedMode === 'chrome') await chrome.storage?.local?.remove(BROWSER_TOKENS_KEY);
+  }
   return { email: user.email, subject: user.sub };
 }
 

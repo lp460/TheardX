@@ -7,6 +7,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { join, resolve } from 'node:path';
 import { EXTENSION_ID, EXTENSION_PUBLIC_KEY } from '../src/extension-identity.mjs';
+import { GOOGLE_EXTENSION_TOKEN_ORIGIN } from '../src/extension-identity.mjs';
 
 const dist = resolve(process.argv[2] ?? 'dist');
 const errors = [];
@@ -76,6 +77,7 @@ const OPTIONAL_HOSTS = new Set([
   'https://api.github.com/*',
   'https://www.googleapis.com/*',
   'https://openidconnect.googleapis.com/*',
+  `${GOOGLE_EXTENSION_TOKEN_ORIGIN}/*`,
   'https://www.reddit.com/*',
   'https://reddit.com/*',
   'https://i.redd.it/*',

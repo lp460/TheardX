@@ -76,7 +76,10 @@ export const requestSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('ping') }),
   z.object({ type: z.literal('sync.now') }),
   z.object({ type: z.literal('sync.status') }),
-  z.object({ type: z.literal('sync.googleInspect') }),
+  z.object({
+    type: z.literal('sync.googleInspect'),
+    authMode: z.enum(['chrome', 'browser']).optional(),
+  }),
   z.object({
     type: z.literal('sync.googleConnect'),
     mode: z.enum(['plain', 'encrypted']),

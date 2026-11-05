@@ -18,7 +18,10 @@ const google = vi.hoisted(() => ({
 
 vi.mock('@/sync/google-extension', () => ({
   hasGoogleOAuthClient: () => true,
+  hasGoogleBrowserOAuthClient: () => true,
   GOOGLE_ORIGINS: ['https://www.googleapis.com/*'],
+  GOOGLE_BROWSER_ORIGINS: ['https://www.googleapis.com/*', 'https://preview.example/*'],
+  disconnectGoogleExtension: vi.fn(async () => undefined),
   googleExtensionStore: {},
   connectGoogleExtension: vi.fn(async () => ({
     email: 'lorry@example.com',

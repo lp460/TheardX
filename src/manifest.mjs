@@ -1,5 +1,9 @@
 /** Manifest V3 definition — written to dist/manifest.json by scripts/build.mjs. */
-import { CHROME_OAUTH_CLIENT_ID, EXTENSION_PUBLIC_KEY } from './extension-identity.mjs';
+import {
+  CHROME_OAUTH_CLIENT_ID,
+  EXTENSION_PUBLIC_KEY,
+  GOOGLE_EXTENSION_TOKEN_ORIGIN,
+} from './extension-identity.mjs';
 
 export function createManifest(pkg, { googleClientId = CHROME_OAUTH_CLIENT_ID } = {}) {
   const icons = {
@@ -58,6 +62,8 @@ export function createManifest(pkg, { googleClientId = CHROME_OAUTH_CLIENT_ID } 
       // Requested only if the user elects Google sync; no broad Drive permission.
       'https://www.googleapis.com/*',
       'https://openidconnect.googleapis.com/*',
+      // Required for the optional Arc/Brave OAuth code exchange on our Preview API.
+      `${GOOGLE_EXTENSION_TOKEN_ORIGIN}/*`,
       // Requested only when the user turns Reddit on (pages + images of saved posts).
       'https://www.reddit.com/*',
       'https://reddit.com/*',

@@ -16,9 +16,13 @@ import { GITHUB_OAUTH_CLIENT_ID } from '@/sync/github-app';
 import { clearToken, loadSecrets, saveSecrets } from '@/sync/secrets';
 import {
   connectGoogleExtension,
+  disconnectGoogleExtension,
   googleExtensionStore,
   GOOGLE_ORIGINS,
+  GOOGLE_BROWSER_ORIGINS,
   hasGoogleOAuthClient,
+  hasGoogleBrowserOAuthClient,
+  type GoogleAuthMode,
 } from '@/sync/google-extension';
 import type { GoogleEncryptionMode } from '@/sync/google-snapshot';
 import { changeGoogleDriveMode, inspectGoogleDrive, syncGoogleDrive } from '@/web/google-sync';
@@ -204,16 +208,20 @@ export async function syncDeviceStart(): Promise<DeviceStart> {
 }
 
 /** Google Chrome Identity manages access tokens; this extension never stores a refresh token. */
-export async function syncGoogleInspect(): Promise<{
+export async function syncGoogleInspect(input: { authMode?: GoogleAuthMode } = {}): Promise<{
   email: string;
   mode: GoogleEncryptionMode | null;
 }> {
-  if (!hasGoogleOAuthClient())
-    throw new Error(
-      'Google n’est pas encore configuré dans ce build de l’extension. Ajoutez son Client ID Chrome OAuth dans la configuration publique.',
-    );
-  if (!(await hasPermission('google'))) throw new Error('Accès à Google Drive non autorisé.');
-  const { email, subject } = await connectGoogleExtension();
+  const authMode = input.authMode ?? 'chrome';
+  if (authMode === 'chrome' ? !hasGoogleOAuthClient() : !hasGoogleBrowserOAuthClient())
+    throw new Error('Le client OAuth Google choisi n’est pas disponible dans cette extension.');
+  if (
+    !(await hasPermission('google')) ||
+    (authMode === 'browser' &&
+      !(await chrome.permissions.contains({ origins: GOOGLE_BROWSER_ORIGINS })))
+  )
+    throw new Error('Accès à Google Drive ou au serveur OAuth non autorisé.');
+  const { email, subject } = await connectGoogleExtension(true, authMode);
   const existing = (await loadSyncStatus()).account;
   if (existing?.provider === 'google' && existing.googleSubject !== subject)
     throw new Error('Un autre compte Google est déjà lié. Déconnectez-le avant de continuer.');
@@ -364,14 +372,7 @@ export async function syncDevicePoll(
 
 export async function syncDisconnect(): Promise<SyncStatus> {
   const settings = await loadSettings();
-  if (settings.sync.provider === 'google' && hasGoogleOAuthClient()) {
-    try {
-      const auth = await chrome.identity.getAuthToken({ interactive: false });
-      if (auth.token) await chrome.identity.removeCachedAuthToken({ token: auth.token });
-    } catch {
-      /* There may be no cached Google token. */
-    }
-  }
+  if (settings.sync.provider === 'google') await disconnectGoogleExtension();
   await clearToken();
   await chrome.storage.session.remove(DEVICE_KEY);
   await updateSettings({ sync: { enabled: false } });

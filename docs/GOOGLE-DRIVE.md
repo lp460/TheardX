@@ -68,9 +68,20 @@ le site n'affiche que le bouton GitHub historique.
 
 ## Préparer l'extension Chromium
 
-Le parcours de l'extension passe par **Chrome Identity API**, avec `drive.file`.
-Le navigateur gère lui-même les jetons d'accès Google. L'extension ne conserve
-pas de _refresh token_ Google dans ses paramètres. Pour autoriser cette fonction :
+L'extension prend en charge deux connexions Google, avec le même périmètre
+`drive.file` :
+
+- **Chrome** : `chrome.identity.getAuthToken()` utilise le client OAuth
+  « Extension Chrome ». Le navigateur gère les jetons, aucun _refresh token_
+  Google n'est sauvegardé par TheardX.
+- **Arc / Brave** : `chrome.identity.launchWebAuthFlow()` démarre un code flow
+  Google avec `state` aléatoire et PKCE S256. Le client OAuth Web **public**
+  existant est intégré dans l'extension, mais **son secret reste uniquement
+  dans Vercel**. Une fonction API échange ou renouvelle les jetons. Dans ce
+  mode, le _refresh token_ est stocké localement dans `chrome.storage.local`,
+  jamais dans les sauvegardes. La déconnexion l'efface du navigateur.
+
+Pour autoriser ces fonctions :
 
 1. L'**ID permanent de l'extension** est
    `finnpgeglikfoejkedoobkigbfgmbglf`, calculé à partir de la clé publique
@@ -85,22 +96,41 @@ pas de _refresh token_ Google dans ses paramètres. Pour autoriser cette fonctio
    `CHROME_OAUTH_CLIENT_ID` de `src/extension-identity.mjs` ; le manifeste inclut
    alors l'objet `oauth2` requis. Aucun secret ni variable Vercel supplémentaire
    ne sont nécessaires pour cette étape.
-4. Installer l'extension, aller dans Paramètres → Synchronisation → Google,
-   autoriser l'accès au domaine Google et se connecter sur **le même compte
-   Google** que le Web. L'extension inspecte le Drive avant toute sauvegarde.
+4. Pour **Arc / Brave**, ouvrir le client OAuth **Application Web** déjà
+   utilisé par la Preview dans [Google Cloud → Clients OAuth](https://console.cloud.google.com/auth/clients?project=theardx).
+   Ajouter **sans remplacer les URL existantes** cette adresse dans
+   « URI de redirection autorisés » :
+
+   `https://finnpgeglikfoejkedoobkigbfgmbglf.chromiumapp.org/google`
+
+   Cette adresse est créée par `chrome.identity.getRedirectURL('google')`.
+   Elle est différente du callback Web Vercel. L'ID Chrome reste inchangé.
+   Aucune nouvelle variable d'environnement ni aucun nouveau secret ne sont
+   nécessaires sur Vercel.
+
+5. Installer l'extension, aller dans Paramètres → Synchronisation → Google,
+   choisir **Google (Chrome)** ou **Google (Arc / Brave)** et autoriser les
+   domaines demandés. La méthode Arc / Brave demande également l'accès
+   au domaine API de la Preview, puisque l'échange du code se fait côté
+   serveur. Se connecter sur **le même compte Google** que le Web.
+   L'extension inspecte le Drive avant toute sauvegarde.
    Sur un Drive neuf, elle propose « Non, sans phrase secrète » ou « Oui,
    chiffrer ma bibliothèque ». Sur un Drive déjà configuré, le mode existant
    est respecté : en mode standard, aucun secret supplémentaire ; en mode
    renforcé, la même phrase secrète (8 caractères min.) que sur le Web.
-5. Une fois connecté, le changement de protection est **explicite** dans les
+6. Une fois connecté, le changement de protection est **explicite** dans les
    paramètres. Il fusionne d'abord les données, puis crée une nouvelle
    génération de sauvegardes. Les anciennes versions ne sont pas effacées.
    La synchronisation GitHub de l'extension reste indépendante.
 
-Sans cet identifiant au build, le bouton Google de l'extension reste
-désactivé, tandis que GitHub continue de fonctionner. La compatibilité de
-`chrome.identity` dans **Arc, Brave et Edge** doit être validée sur chacun ;
-ne pas promettre le même parcours Google dans ces navigateurs sans essai.
+Sans identifiant OAuth public au build, le bouton correspondant reste
+désactivé, tandis que GitHub continue de fonctionner. La compatibilité
+Arc / Brave / Edge doit être validée sur chaque navigateur. Le flux avec
+fonction API n'a pas besoin du compte Google connecté au profil Chrome.
+Le backend du ZIP **Preview** pointe vers le domaine Vercel Preview ; il
+faudra définir un backend de production lors de la publication, après
+validation. Si la Preview exige une connexion Vercel, l'accès API du plugin
+peut être bloqué : ce cas doit être testé avant toute mise en production.
 
 **Migration de l'ancienne extension :** la première installation sous l'ID
 permanent peut apparaître comme une nouvelle extension et ne pas retrouver la
@@ -134,6 +164,12 @@ standard, seul l'accès au compte Google est nécessaire.
 - **Pas de test OAuth réel** sans identifiants de développement Google Cloud.
   Les tests automatisés utilisent des réponses simulées.
 - **Pas de test Arc/Brave/Edge** sans navigateur/configuration OAuth stable.
+- **Nouvelle route OAuth Arc/Brave** : contrôler son accessibilité effective depuis
+  Arc avec la protection de déploiement Vercel. L'accès CORS est restreint à
+  `chrome-extension://finnpgeglikfoejkedoobkigbfgmbglf`, mais l'en-tête
+  `Origin` n'est pas une authentification en soi : seul Google valide le
+  code unique PKCE ou le _refresh token_. Vérifier les quotas et appliquer
+  un contrôle de débit avant ouverture au public.
 - Pour éviter une suppression accidentelle, les anciennes révisions ne sont
   **jamais supprimées automatiquement**. Les sauvegardes successives consomment
   de la place Drive. Le code bloque au-delà de **300 versions** (maximum 3 Mio

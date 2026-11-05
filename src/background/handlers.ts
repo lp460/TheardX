@@ -85,7 +85,7 @@ async function dispatch(req: Request, deps: BackgroundDeps): Promise<unknown> {
     case 'sync.status':
       return (deps.sync?.status ?? (await import('./sync-service')).loadSyncStatus)();
     case 'sync.googleInspect':
-      return (await import('./sync-service')).syncGoogleInspect();
+      return (await import('./sync-service')).syncGoogleInspect(req);
     case 'sync.googleConnect':
       return (await import('./sync-service')).syncGoogleConnect(req);
     case 'sync.googleChangeMode':
