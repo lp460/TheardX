@@ -133,7 +133,8 @@ export function syncWebNow(): Promise<void> {
           googleMode = remote.mode ?? 'plain';
           googleModeKnown = true;
         }
-        if (googleMode === 'encrypted' && passphrase.length < 8) {
+        const activeMode = googleMode ?? 'plain';
+        if (activeMode === 'encrypted' && passphrase.length < 8) {
           emit({
             phase: 'needs-passphrase',
             lastSyncAt: state.lastSyncAt,
@@ -141,7 +142,7 @@ export function syncWebNow(): Promise<void> {
           });
           return;
         }
-        result = await syncGoogleDrive({ mode: googleMode, passphrase });
+        result = await syncGoogleDrive({ mode: activeMode, passphrase });
       } else {
         const login = identity.login;
         const client = new WebGitHubClient(login);
