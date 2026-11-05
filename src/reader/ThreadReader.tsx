@@ -5,6 +5,7 @@ import {
   ArrowLeft,
   Check,
   CheckSquare,
+  ChevronRight,
   Clock,
   Copy,
   Download,
@@ -360,6 +361,9 @@ export function ThreadReader() {
   const markedRead = useRef(false);
   const endRef = useRef<HTMLDivElement>(null);
   const articleRef = useRef<HTMLElement>(null);
+  const actionBarRef = useRef<HTMLDivElement>(null);
+  const [canScrollActionsLeft, setCanScrollActionsLeft] = useState(false);
+  const [canScrollActionsRight, setCanScrollActionsRight] = useState(false);
   const annotationTools = useReaderAnnotations(ENTRY_ID, articleRef, !showTranslation && !PRINT);
 
   // What is displayed: the saved posts, or their translation.
@@ -409,6 +413,28 @@ export function ThreadReader() {
     [allIds, bundle],
   );
   const needsTranslation = sourceLangs.some((l) => l !== target);
+
+  const updateActionScroll = useCallback(() => {
+    const bar = actionBarRef.current;
+    if (!bar) return;
+    setCanScrollActionsLeft(bar.scrollLeft > 2);
+    setCanScrollActionsRight(bar.scrollLeft + bar.clientWidth < bar.scrollWidth - 2);
+  }, []);
+
+  useEffect(() => {
+    const bar = actionBarRef.current;
+    if (!bar) return;
+    const frame = requestAnimationFrame(updateActionScroll);
+    const observer = typeof ResizeObserver !== 'undefined'
+      ? new ResizeObserver(updateActionScroll) : null;
+    observer?.observe(bar);
+    window.addEventListener('resize', updateActionScroll);
+    return () => {
+      cancelAnimationFrame(frame);
+      observer?.disconnect();
+      window.removeEventListener('resize', updateActionScroll);
+    };
+  }, [bundle, isWeb, needsTranslation, showTranslation, trProgress, updateActionScroll]);
 
   // Cached translations for the chosen language (available offline).
   useEffect(() => {
@@ -651,10 +677,11 @@ export function ThreadReader() {
             isWeb && 'max-sm:[&_button]:min-h-11 max-sm:[&_button]:min-w-11',
           )}
         >
-          <div className={cn('mx-auto flex h-14 max-w-6xl items-center gap-1 px-2 sm:gap-2 sm:px-4', isWeb ? 'overflow-x-hidden sm:overflow-x-auto' : 'overflow-x-auto')}>
+          <div className="mx-auto flex h-14 max-w-6xl items-center gap-1 overflow-hidden px-2 sm:gap-2 sm:px-4">
             <Button
               variant="ghost"
               size="sm"
+              className="shrink-0"
               onClick={() => (location.href = libraryUrl())}
               aria-label={t('readerBack')}
             >
@@ -669,6 +696,16 @@ export function ThreadReader() {
             >
               {entry.title}
             </div>
+            <div className="relative min-w-0 flex-1 sm:flex-[0_1_auto]">
+              <div
+                ref={actionBarRef}
+                role="toolbar"
+                aria-label="Actions de lecture"
+                data-testid="reader-action-strip"
+                onScroll={updateActionScroll}
+                className="flex h-14 w-full min-w-0 items-center gap-1 overflow-x-auto overscroll-x-contain whitespace-nowrap pr-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:gap-2 sm:pr-0"
+                style={{ WebkitOverflowScrolling: 'touch' }}
+              >
             {!online ? (
               <Tooltip label={t('offlineImagesHint')}>
                 <span
@@ -733,7 +770,7 @@ export function ThreadReader() {
                 </Button>
               </Tooltip>
             ) : null}
-            <div className={isWeb ? 'hidden sm:block' : undefined}><Menu>
+            <div><Menu>
               <MenuTrigger asChild>
                 <Button variant="ghost" size="icon" aria-label={t('readerCopy')}>
                   <Copy size={16} />
@@ -766,17 +803,18 @@ export function ThreadReader() {
                 </MenuItem>
               </MenuContent>
             </Menu></div>
-            <div className={isWeb ? 'hidden sm:block' : undefined}><Tooltip label={t('readerExport')}>
+            <div><Tooltip label={t('readerExport')}>
               <Button
                 variant="ghost"
                 size="icon"
                 aria-label={t('readerExport')}
+                data-testid="reader-export"
                 onClick={() => setExportOpen(true)}
               >
                 <Download size={16} />
               </Button>
             </Tooltip></div>
-            <div className={isWeb ? 'hidden sm:block' : undefined}><Tooltip label={`${t('readerPrint')} / PDF (p)`}>
+            <div><Tooltip label={`${t('readerPrint')} / PDF (p)`}>
               <Button
                 variant="ghost"
                 size="icon"
@@ -829,7 +867,7 @@ export function ThreadReader() {
               </MenuContent>
             </Menu></div> : null}
             <ReaderSettings isWeb={isWeb} />
-            <div className={isWeb ? 'hidden sm:block' : undefined}><Tooltip label={`${t('readerShortcuts')} (?)`}>
+            <div><Tooltip label={`${t('readerShortcuts')} (?)`}>
               <Button
                 variant="ghost"
                 size="icon"
@@ -839,6 +877,16 @@ export function ThreadReader() {
                 <Keyboard size={16} />
               </Button>
             </Tooltip></div>
+              </div>
+              {canScrollActionsLeft ? (
+                <div className="pointer-events-none absolute inset-y-0 left-0 w-5 bg-gradient-to-r from-[hsl(var(--ts-reader-bg))] to-transparent sm:hidden" aria-hidden="true" />
+              ) : null}
+              {canScrollActionsRight ? (
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex w-7 items-center justify-end bg-gradient-to-l from-[hsl(var(--ts-reader-bg))] to-transparent text-muted sm:hidden" aria-hidden="true">
+                  <ChevronRight size={15} />
+                </div>
+              ) : null}
+            </div>
           </div>
         </header>
 
