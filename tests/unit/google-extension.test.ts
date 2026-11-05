@@ -1,7 +1,11 @@
 // @vitest-environment node
 import { createHash } from 'node:crypto';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { EXTENSION_ID, EXTENSION_PUBLIC_KEY } from '../../src/extension-identity.mjs';
+import {
+  CHROME_OAUTH_CLIENT_ID,
+  EXTENSION_ID,
+  EXTENSION_PUBLIC_KEY,
+} from '../../src/extension-identity.mjs';
 import { createManifest } from '../../src/manifest.mjs';
 import {
   connectGoogleExtension,
@@ -19,13 +23,14 @@ afterEach(() => {
 });
 
 describe('Chromium extension Google configuration', () => {
-  it('does not request identity permission unless a Chrome OAuth client is configured', () => {
-    const baseline = createManifest(pkg);
+  it('uses the configured Chrome OAuth client, and requests identity only when enabled', () => {
+    expect(CHROME_OAUTH_CLIENT_ID).toMatch(/^\d+-[\w-]+\.apps\.googleusercontent\.com$/);
+    const baseline = createManifest(pkg, { googleClientId: '' });
     expect(baseline.permissions).not.toContain('identity');
     expect(baseline).not.toHaveProperty('oauth2');
-    const withGoogle = createManifest(pkg, { googleClientId: 'chrome-client-123' });
+    const withGoogle = createManifest(pkg);
     expect(withGoogle.permissions).toContain('identity');
-    expect(withGoogle.oauth2).toMatchObject({ client_id: 'chrome-client-123' });
+    expect(withGoogle.oauth2).toMatchObject({ client_id: CHROME_OAUTH_CLIENT_ID });
     expect(withGoogle.oauth2!.scopes).toContain('https://www.googleapis.com/auth/drive.file');
     expect(withGoogle.oauth2!.scopes).not.toContain('https://www.googleapis.com/auth/drive');
   });

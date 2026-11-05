@@ -20,4 +20,5 @@ export const EXTENSION_ID = 'finnpgeglikfoejkedoobkigbfgmbglf';
  * OAuth client secret, a Chrome extension OAuth client ID is public and safe
  * to include in the manifest; no Vercel environment variable is needed.
  */
-export const CHROME_OAUTH_CLIENT_ID = '';
+export const CHROME_OAUTH_CLIENT_ID =
+  '29268983058-gtne0dru73vme0iq777ln7g72so44sf4.apps.googleusercontent.com';
