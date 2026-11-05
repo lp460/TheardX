@@ -1,0 +1,132 @@
+# TheardX — Google OAuth + Google Drive (branche de développement)
+
+> **Ne pas déployer ni fusionner automatiquement.** Cette intégration nécessite des
+> identifiants Google Cloud, des essais réels sur les navigateurs visés et une revue
+> de sécurité avant sa mise en production. GitHub reste intact.
+
+## Fonctionnement
+
+- Connexion Web : OAuth 2.0 Google avec `state`, PKCE S256, `access_type=offline`,
+  identité vérifiée via `userinfo` (`sub` stable). Les cookies sont HttpOnly,
+  chiffrés AES-GCM, `Secure` en HTTPS, `SameSite=Lax` et renouvelés si nécessaire.
+- Stockage : un dossier **TheardX** visible dans le Drive de chaque utilisateur.
+  Seul le périmètre `drive.file` est demandé : l'application ne peut pas parcourir
+  arbitrairement le Drive. Elle retrouve ses propres dossiers et sauvegardes.
+- Synchronisation : chaque appareil publie une **nouvelle révision immuable**.
+  Toutes les révisions sont réconciliées avec les règles existantes de fusion
+  (entrées, tweets, catégories, annotations, suppressions/tombstones). Aucune
+  écriture ne remplace directement la dernière version d'un autre appareil.
+- Confidentialité : les contenus sont chiffrés côté client (AES-GCM + PBKDF2)
+  **avant** toute requête vers Vercel/Google. La phrase secrète n'est jamais
+  envoyée au serveur. Le serveur ne traite que le fichier chiffré.
+- Photos et préférences restent locales, comme avec la synchronisation GitHub.
+- Identités : `google:<sub>` et `github:<login>` sont isolées. Une autre identité
+  dans le même profil navigateur est bloquée pour éviter les mélanges involontaires.
+
+## Préparer Google Cloud (site Web)
+
+1. Créer ou sélectionner un projet Google Cloud, activer **Google Drive API**.
+2. Configurer l'écran de consentement OAuth pour TheardX, ses utilisateurs de
+   test et les scopes `openid`, `email`, `profile`, `drive.file`.
+3. Créer un client OAuth de type **Application Web**. Dans les _Authorized
+   redirect URIs_, déclarer exactement :
+
+   - En local (si le serveur de fonctions tourne) :
+     `http://localhost:3000/api/auth/google/callback`.
+   - En prévisualisation avec domaine canonique distinct :
+     `https://VOTRE-PREVIEW/api/auth/google/callback`.
+   - **Production, seulement après validation et sur demande explicite** :
+     `https://theard-x.vercel.app/api/auth/google/callback`.
+
+4. Pour l'environnement de **développement / preview uniquement**, définir :
+
+   | Variable               | Valeur                                               |
+   | ---------------------- | ---------------------------------------------------- |
+   | `GOOGLE_CLIENT_ID`     | Identifiant OAuth Web Google (non secret)            |
+   | `GOOGLE_CLIENT_SECRET` | Secret OAuth Web (variable secrète, jamais dans Git) |
+   | `SESSION_SECRET`       | Clé de session déjà utilisée, au moins 32 caractères |
+   | `WEB_ORIGIN`           | Domaine canonique exact de la prévisualisation       |
+
+5. Mettre l'écran de consentement en production chez Google lorsque l'application
+   sera prête à être ouverte aux autres utilisateurs. En statut _Testing_, les
+   jetons de renouvellement peuvent expirer au bout de 7 jours. La vérification
+   Google de l'application et de ses scopes doit être anticipée.
+
+La route `GET /api/auth/providers` indique seulement quels fournisseurs sont
+configurés, **sans publier leurs secrets**. Tant que Google n'est pas configuré,
+le site n'affiche que le bouton GitHub historique.
+
+## Préparer l'extension Chromium
+
+Le parcours de l'extension passe par **Chrome Identity API**, avec `drive.file`.
+Le navigateur gère lui-même les jetons d'accès Google. L'extension ne conserve
+pas de _refresh token_ Google dans ses paramètres. Pour autoriser cette fonction :
+
+1. Identifier l'**ID stable de l'extension** (extension signée/packagée ou clé
+   publique de manifeste). Un ZIP non empaqueté peut avoir un ID différent selon
+   son installation ou son chemin sur disque.
+2. Dans **le même projet Google Cloud que le site Web**, créer un **second
+   client OAuth « Chrome Extension »** associé à cet ID. Les autorisations
+   `drive.file` doivent appartenir à la même application Google ; ne pas
+   réutiliser le secret du client OAuth Web.
+3. Fournir `GOOGLE_EXTENSION_CLIENT_ID` **au moment de la construction de
+   l'extension** ; `src/manifest.mjs` inclut alors l'objet `oauth2` requis.
+4. Installer l'extension, aller dans Paramètres → Synchronisation → Google,
+   saisir une phrase secrète (8 caractères min.), puis accepter l'accès au
+   domaine Google. Se connecter sur **le même compte Google** que le Web.
+
+Sans cet identifiant au build, le bouton Google de l'extension reste
+désactivé, tandis que GitHub continue de fonctionner. La compatibilité de
+`chrome.identity` dans **Arc, Brave et Edge** doit être validée sur chacun ;
+ne pas promettre le même parcours Google dans ces navigateurs sans essai.
+
+## Migration volontaire depuis GitHub
+
+Il n'y a **aucune migration automatique** ni suppression du dépôt GitHub.
+
+1. Dans le profil GitHub actuel, exporter une sauvegarde JSON complète.
+2. Dans un **profil navigateur distinct**, se connecter avec Google.
+3. Saisir sa phrase secrète Google Drive et attendre le premier état de
+   synchronisation.
+4. Importer explicitement la sauvegarde JSON avec le mode **Fusionner**.
+5. Déclencher une nouvelle synchronisation, vérifier les comptes et comparer
+   les nombres d'entrées, tags, notes, collections et suppressions.
+6. Répéter sur l'extension liée au même compte Google.
+
+La phrase secrète est indispensable à la restauration. Ni Google ni TheardX
+ne peuvent la récupérer. Une mauvaise phrase secrète bloque la lecture et
+empêche l'envoi d'une nouvelle sauvegarde dans ce cycle.
+
+## Contrôles de sécurité et limites à lever avant production
+
+- **Pas de test OAuth réel** sans identifiants de développement Google Cloud.
+  Les tests automatisés utilisent des réponses simulées.
+- **Pas de test Arc/Brave/Edge** sans navigateur/configuration OAuth stable.
+- Pour éviter une suppression accidentelle, les anciennes révisions ne sont
+  **jamais supprimées automatiquement**. Les sauvegardes successives consomment
+  de la place Drive. Le code bloque au-delà de **300 versions** (maximum 3 Mio
+  par fichier) ; une politique sûre de rétention et de restauration doit être
+  conçue et testée avant une utilisation soutenue.
+- Les deux clients Google (Web/extension) utilisent le même nom de dossier,
+  nommage de fichiers et format chiffré. Les modifications concurrentes sont
+  fusionnées au prochain cycle (pas d'écrasement direct d'un fichier partagé).
+- Le mode hors connexion garde la bibliothèque locale ; le serveur ne reçoit
+  aucun texte déchiffré.
+- Une session Web expirée nécessite une reconnexion ; la révocation Google doit
+  être testée (erreurs 401/403, suppression du consentement, compte supprimé).
+- Pour un lancement public : tests d'intégration réels, tests de charge et de
+  reprise, documentation de confidentialité et consentement, contrôle de
+  taille/quota, auditer la compatibilité RGPD et la politique de sauvegarde.
+
+## Commandes de contrôle en développement
+
+```bash
+npm run typecheck
+npm run lint
+npm run test
+npm run build
+npm run validate
+npm run build:web
+```
+
+**Ne pas lancer de déploiement Vercel ni fusionner dans `main` sans validation.**

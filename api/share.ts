@@ -1,6 +1,13 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { del, get, list, put } from '@vercel/blob';
-import { json, readSession, sameOrigin, unauthorized, webOrigin } from '../server/session.js';
+import {
+  json,
+  readSession,
+  sameOrigin,
+  unauthorized,
+  webOrigin,
+  type WebSession,
+} from '../server/session.js';
 import { sharedSnapshot, type SharedSnapshot } from '../src/share/model.js';
 
 const MAX_BODY_BYTES = 1_000_000;
@@ -16,6 +23,11 @@ type StoredShare = {
 
 function ownerPrefix(login: string): string {
   return createHash('sha256').update(login.toLowerCase()).digest('hex').slice(0, 20);
+}
+
+function shareOwner(session: WebSession): string {
+  // Preserve old GitHub share identifiers; Google identity survives email changes.
+  return session.provider === 'google' ? `google:${session.subject}` : session.login;
 }
 
 function pathFor(id: string): string | null {
@@ -63,13 +75,13 @@ export default {
         const session = readSession(request);
         if (!session) return unauthorized();
         try {
-          const prefix = ownerPrefix(session.login);
+          const owner = shareOwner(session);
+          const prefix = ownerPrefix(owner);
           const page = await list({ prefix: `shares/v1/${prefix}/`, limit: MAX_SHARES_PER_USER });
           const shares = await Promise.all(
             page.blobs.map(async (blob) => {
               const stored = await readStored(blob.pathname);
-              if (!stored || stored.owner.toLowerCase() !== session.login.toLowerCase())
-                return null;
+              if (!stored || stored.owner.toLowerCase() !== owner.toLowerCase()) return null;
               const suffix = blob.pathname
                 .split('/')
                 .pop()
@@ -120,12 +132,12 @@ export default {
 
     if (method === 'DELETE') {
       if (!pathname) return json({ error: 'Lien de partage invalide.' }, 400);
-      if (!id.startsWith(`${ownerPrefix(session.login)}.`))
+      if (!id.startsWith(`${ownerPrefix(shareOwner(session))}.`))
         return json({ error: 'Vous ne pouvez pas supprimer ce partage.' }, 403);
       try {
         const stored = await readStored(pathname);
         if (!stored) return json({ error: 'Ce partage n’existe plus.' }, 404);
-        if (stored.owner.toLowerCase() !== session.login.toLowerCase())
+        if (stored.owner.toLowerCase() !== shareOwner(session).toLowerCase())
           return json({ error: 'Vous ne pouvez pas supprimer ce partage.' }, 403);
         await del(pathname);
         return new Response(null, { status: 204, headers: { 'Cache-Control': 'no-store' } });
@@ -146,7 +158,7 @@ export default {
       if (!result.success || ![null, 7, 30].includes(body?.expiresInDays as number | null))
         return json({ error: 'Contenu de partage invalide.' }, 400);
 
-      const prefix = ownerPrefix(session.login);
+      const prefix = ownerPrefix(shareOwner(session));
       const existing = await list({ prefix: `shares/v1/${prefix}/`, limit: MAX_SHARES_PER_USER });
       if (existing.blobs.length >= MAX_SHARES_PER_USER)
         return json({ error: 'Limite de 50 partages atteinte. Révoquez un ancien lien.' }, 429);
@@ -159,7 +171,7 @@ export default {
           ? null
           : createdAt + (body.expiresInDays as number) * 24 * 60 * 60 * 1_000;
       const stored: StoredShare = {
-        owner: session.login,
+        owner: shareOwner(session),
         createdAt,
         expiresAt,
         snapshot: result.data,

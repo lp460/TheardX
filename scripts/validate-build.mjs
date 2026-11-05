@@ -50,6 +50,8 @@ const ALLOWED_PERMS = new Set([
   'contextMenus',
   'clipboardWrite',
   'alarms',
+  // Required only by builds with a configured Google Chrome Extension OAuth client.
+  'identity',
   // Only used to register the Reddit content script on hosts the user granted (optional permission).
   'scripting',
 ]);
@@ -68,6 +70,8 @@ for (const p of [
 const OPTIONAL_HOSTS = new Set([
   'https://github.com/*',
   'https://api.github.com/*',
+  'https://www.googleapis.com/*',
+  'https://openidconnect.googleapis.com/*',
   'https://www.reddit.com/*',
   'https://reddit.com/*',
   'https://i.redd.it/*',
@@ -79,6 +83,14 @@ const OPTIONAL_HOSTS = new Set([
 ]);
 if ((m.optional_host_permissions ?? []).some((h) => !OPTIONAL_HOSTS.has(h)))
   fail(`optional_host_permissions too broad: ${m.optional_host_permissions}`);
+if (m.oauth2) {
+  if (!m.permissions.includes('identity') || !m.oauth2.client_id ||
+      [...m.oauth2.scopes].sort().join(',') !==
+        ['openid', 'email', 'https://www.googleapis.com/auth/drive.file'].sort().join(','))
+    fail('invalid Google OAuth extension configuration');
+} else if (m.permissions.includes('identity')) {
+  fail('identity permission must not be requested without an OAuth client');
+}
 if ((m.host_permissions ?? []).some((h) => !/^https:\/\/pbs\.twimg\.com\/\*$/.test(h)))
   fail(`host_permissions too broad: ${m.host_permissions}`);
 ok(

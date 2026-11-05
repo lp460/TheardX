@@ -84,6 +84,8 @@ async function dispatch(req: Request, deps: BackgroundDeps): Promise<unknown> {
       return (deps.sync?.now ?? (await import('./sync-service')).syncNow)();
     case 'sync.status':
       return (deps.sync?.status ?? (await import('./sync-service')).loadSyncStatus)();
+    case 'sync.googleConnect':
+      return (await import('./sync-service')).syncGoogleConnect(req.passphrase);
     case 'sync.deviceStart':
       return (await import('./sync-service')).syncDeviceStart();
     case 'sync.devicePoll':

@@ -1,14 +1,35 @@
-import { createCipheriv, createDecipheriv, createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import {
+  createCipheriv,
+  createDecipheriv,
+  createHash,
+  randomBytes,
+  timingSafeEqual,
+} from 'node:crypto';
 
 const SESSION_COOKIE = '__Host-theardx-session';
 const STATE_COOKIE = '__Host-theardx-oauth-state';
+const GOOGLE_PKCE_COOKIE = '__Host-theardx-google-pkce';
 const SESSION_TTL = 7 * 24 * 60 * 60;
 
-export interface WebSession {
+export interface GitHubWebSession {
+  provider?: 'github'; // Legacy GitHub cookies remain valid.
   login: string;
   token: string;
   expiresAt: number;
 }
+
+export interface GoogleWebSession {
+  provider: 'google';
+  /** Stable identity: email addresses can change, but Google's subject cannot. */
+  subject: string;
+  login: string;
+  token: string;
+  refreshToken: string;
+  accessExpiresAt: number;
+  expiresAt: number;
+}
+
+export type WebSession = GitHubWebSession | GoogleWebSession;
 
 export function webOrigin(request: Request): string {
   const incoming = new URL(request.url);
@@ -20,8 +41,12 @@ export function webOrigin(request: Request): string {
 }
 
 export function cookie(request: Request, name: string): string | undefined {
-  return request.headers.get('cookie')?.split(';').map((x) => x.trim())
-    .find((x) => x.startsWith(name + '='))?.slice(name.length + 1);
+  return request.headers
+    .get('cookie')
+    ?.split(';')
+    .map((x) => x.trim())
+    .find((x) => x.startsWith(name + '='))
+    ?.slice(name.length + 1);
 }
 
 function cookieString(name: string, value: string, maxAge: number, request: Request): string {
@@ -46,6 +71,18 @@ export function readStateCookie(request: Request): string | undefined {
   return cookie(request, cookieName(STATE_COOKIE, request));
 }
 
+export function setGooglePkceCookie(request: Request, verifier: string): string {
+  return cookieString(GOOGLE_PKCE_COOKIE, verifier, 600, request);
+}
+
+export function readGooglePkceCookie(request: Request): string | undefined {
+  return cookie(request, cookieName(GOOGLE_PKCE_COOKIE, request));
+}
+
+export function clearGooglePkceCookie(request: Request): string {
+  return cookieString(GOOGLE_PKCE_COOKIE, '', 0, request);
+}
+
 export function matchesState(expected: string | undefined, provided: string | null): boolean {
   if (!expected || !provided || expected.length !== provided.length) return false;
   return timingSafeEqual(Buffer.from(expected), Buffer.from(provided));
@@ -53,7 +90,8 @@ export function matchesState(expected: string | undefined, provided: string | nu
 
 function secretKey(): Buffer {
   const secret = process.env.SESSION_SECRET;
-  if (!secret || secret.length < 32) throw new Error('SESSION_SECRET doit contenir 32 caractères minimum.');
+  if (!secret || secret.length < 32)
+    throw new Error('SESSION_SECRET doit contenir 32 caractères minimum.');
   return createHash('sha256').update(secret).digest();
 }
 
@@ -79,9 +117,25 @@ export function readSession(request: Request): WebSession | null {
     const decipher = createDecipheriv('aes-256-gcm', secretKey(), iv!);
     decipher.setAuthTag(tag!);
     const value = JSON.parse(Buffer.concat([decipher.update(data!), decipher.final()]).toString());
-    if (typeof value.login !== 'string' || !/^[\w-]+$/.test(value.login) ||
-      typeof value.token !== 'string' || typeof value.expiresAt !== 'number' ||
-      value.expiresAt < Date.now()) return null;
+    if (
+      typeof value.login !== 'string' ||
+      typeof value.token !== 'string' ||
+      typeof value.expiresAt !== 'number' ||
+      value.expiresAt < Date.now()
+    )
+      return null;
+    if (value.provider === 'google') {
+      if (
+        !/^\d{5,40}$/.test(value.subject) ||
+        typeof value.refreshToken !== 'string' ||
+        !value.refreshToken ||
+        typeof value.accessExpiresAt !== 'number' ||
+        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.login)
+      )
+        return null;
+    } else if (value.provider === undefined || value.provider === 'github') {
+      if (!/^[\w-]+$/.test(value.login)) return null;
+    } else return null;
     return value as WebSession;
   } catch {
     return null;
@@ -94,9 +148,12 @@ export function sameOrigin(request: Request): boolean {
 }
 
 export function json(data: unknown, status = 200): Response {
-  return Response.json(data, { status, headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } });
+  return Response.json(data, {
+    status,
+    headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
+  });
 }
 
 export function unauthorized(): Response {
-  return json({ error: 'Connexion GitHub requise.' }, 401);
+  return json({ error: 'Connexion requise.' }, 401);
 }

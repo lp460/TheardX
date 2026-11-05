@@ -76,6 +76,7 @@ export const requestSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('ping') }),
   z.object({ type: z.literal('sync.now') }),
   z.object({ type: z.literal('sync.status') }),
+  z.object({ type: z.literal('sync.googleConnect'), passphrase: z.string().min(8).max(500) }),
   z.object({ type: z.literal('sync.disconnect') }),
   z.object({ type: z.literal('sync.deviceStart') }),
   z.object({

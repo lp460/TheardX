@@ -1,5 +1,6 @@
 /** Manifest V3 definition — written to dist/manifest.json by scripts/build.mjs. */
 export function createManifest(pkg) {
+  const googleClientId = process.env.GOOGLE_EXTENSION_CLIENT_ID?.trim();
   const icons = {
     16: 'icons/icon-16.png',
     32: 'icons/icon-32.png',
@@ -37,6 +38,7 @@ export function createManifest(pkg) {
     options_ui: { page: 'options/index.html', open_in_tab: true },
     permissions: [
       'storage',
+      ...(googleClientId ? ['identity'] : []),
       'unlimitedStorage',
       'contextMenus',
       'clipboardWrite',
@@ -50,6 +52,9 @@ export function createManifest(pkg) {
       // Requested only when the user clicks « Se connecter avec GitHub ».
       'https://github.com/*',
       'https://api.github.com/*',
+      // Requested only if the user elects Google sync; no broad Drive permission.
+      'https://www.googleapis.com/*',
+      'https://openidconnect.googleapis.com/*',
       // Requested only when the user turns Reddit on (pages + images of saved posts).
       'https://www.reddit.com/*',
       'https://reddit.com/*',
@@ -81,5 +86,13 @@ export function createManifest(pkg) {
     content_security_policy: {
       extension_pages: "script-src 'self'; object-src 'self'; base-uri 'none'",
     },
+    ...(googleClientId
+      ? {
+          oauth2: {
+            client_id: googleClientId,
+            scopes: ['openid', 'email', 'https://www.googleapis.com/auth/drive.file'],
+          },
+        }
+      : {}),
   };
 }

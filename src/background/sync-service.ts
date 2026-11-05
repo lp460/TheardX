@@ -14,11 +14,19 @@ import {
 import { connectGitHub, runSync, type SyncResult } from '@/sync/engine';
 import { GITHUB_OAUTH_CLIENT_ID } from '@/sync/github-app';
 import { clearToken, loadSecrets, saveSecrets } from '@/sync/secrets';
+import {
+  connectGoogleExtension,
+  googleExtensionStore,
+  GOOGLE_ORIGINS,
+  hasGoogleOAuthClient,
+} from '@/sync/google-extension';
+import { syncGoogleDrive } from '@/web/google-sync';
 
 /** Hosts used by the sync: sign-in (github.com) and the REST API (api.github.com). */
 export const GITHUB_ORIGINS = ['https://github.com/*', 'https://api.github.com/*'];
 const STATE_KEY = 'threadshelf.sync.state';
 const DEVICE_KEY = 'threadshelf.sync.device';
+const GOOGLE_DEVICE_KEY = 'threadshelf.google.extension-device-id';
 const ALARM = 'threadshelf-sync';
 const ALARM_SOON = 'threadshelf-sync-soon';
 
@@ -30,8 +38,14 @@ export interface SyncStatus {
     SyncResult,
     'added' | 'updated' | 'deleted' | 'pushed' | 'repo' | 'branch'
   > | null;
-  /** Connected GitHub account and repository. */
-  account: { login: string; repo: string; repoUrl: string } | null;
+  /** Connected provider and its account. */
+  account: {
+    login: string;
+    repo: string;
+    repoUrl: string;
+    provider?: 'github' | 'google';
+    googleSubject?: string;
+  } | null;
 }
 
 const EMPTY: SyncStatus = {
@@ -54,9 +68,11 @@ async function saveStatus(patch: Partial<SyncStatus>): Promise<SyncStatus> {
   return next;
 }
 
-async function hasPermission(): Promise<boolean> {
+async function hasPermission(provider: 'github' | 'google' = 'github'): Promise<boolean> {
   try {
-    return await chrome.permissions.contains({ origins: GITHUB_ORIGINS });
+    return await chrome.permissions.contains({
+      origins: provider === 'google' ? GOOGLE_ORIGINS : GITHUB_ORIGINS,
+    });
   } catch {
     return false;
   }
@@ -98,21 +114,42 @@ export function syncNow(): Promise<SyncStatus> {
     const settings = await loadSettings();
     if (!settings.sync.enabled)
       return saveStatus({ lastError: 'La synchronisation est désactivée.' });
-    if (!(await hasPermission()))
+    if (!(await hasPermission(settings.sync.provider)))
       return saveStatus({
-        lastError: 'Accès à GitHub non autorisé : reconnectez-vous dans les paramètres.',
+        lastError: `Accès à ${settings.sync.provider === 'google' ? 'Google Drive' : 'GitHub'} non autorisé : reconnectez-vous dans les paramètres.`,
       });
     await saveStatus({ running: true });
     try {
-      const result = await runSync({
-        config: {
-          repo: settings.sync.repo,
-          filePath: settings.sync.filePath,
-          encrypt: settings.sync.encrypt,
-        },
-        secrets: await credentials(),
-        appVersion: chrome.runtime.getManifest().version,
-      });
+      let result: SyncResult;
+      if (settings.sync.provider === 'google') {
+        const expected = (await loadSyncStatus()).account?.googleSubject;
+        const actual = await connectGoogleExtension(false);
+        if (!expected || actual.subject !== expected)
+          throw new Error(
+            'Le compte Google a changé : reconnectez-vous avant de synchroniser pour éviter de mélanger les bibliothèques.',
+          );
+        const sec = await loadSecrets();
+        const device = (await chrome.storage.local.get(GOOGLE_DEVICE_KEY))[GOOGLE_DEVICE_KEY] as
+          string | undefined;
+        const id = device && /^[a-f0-9-]{36}$/.test(device) ? device : crypto.randomUUID();
+        if (id !== device) await chrome.storage.local.set({ [GOOGLE_DEVICE_KEY]: id });
+        result = await syncGoogleDrive({
+          passphrase: sec.googlePassphrase ?? '',
+          appVersion: chrome.runtime.getManifest().version,
+          store: googleExtensionStore,
+          deviceId: id,
+        });
+      } else {
+        result = await runSync({
+          config: {
+            repo: settings.sync.repo,
+            filePath: settings.sync.filePath,
+            encrypt: settings.sync.encrypt,
+          },
+          secrets: await credentials(),
+          appVersion: chrome.runtime.getManifest().version,
+        });
+      }
       if (settings.cacheMedia) {
         for (const id of result.changedEntryIds.slice(0, 200)) {
           void cacheEntryMedia(id, { maxBytes: settings.maxMediaMB * 1024 * 1024 }).catch(
@@ -162,6 +199,32 @@ export async function syncDeviceStart(): Promise<DeviceStart> {
   };
 }
 
+/** Google Chrome Identity manages access tokens; this extension never stores a refresh token. */
+export async function syncGoogleConnect(passphrase: string): Promise<SyncStatus> {
+  if (!hasGoogleOAuthClient())
+    throw new Error(
+      'Google n’est pas configuré dans ce build de l’extension. Renseignez GOOGLE_EXTENSION_CLIENT_ID.',
+    );
+  if (!(await hasPermission('google'))) throw new Error('Accès à Google Drive non autorisé.');
+  if (passphrase.length < 8)
+    throw new Error('La phrase secrète doit contenir au moins 8 caractères.');
+  const { email, subject } = await connectGoogleExtension();
+  await saveSecrets({ googlePassphrase: passphrase });
+  await updateSettings({ sync: { provider: 'google', enabled: true, encrypt: true } });
+  await saveStatus({
+    account: {
+      login: email,
+      repo: 'Google Drive / TheardX',
+      repoUrl: 'https://drive.google.com/drive/u/0/my-drive',
+      provider: 'google',
+      googleSubject: subject,
+    },
+    lastError: null,
+  });
+  await scheduleSync();
+  return syncNow();
+}
+
 export type DevicePoll =
   { state: 'pending'; interval: number } | { state: 'connected'; status: SyncStatus };
 
@@ -202,12 +265,18 @@ export async function syncDevicePoll(
   await updateSettings({
     sync: {
       enabled: true,
+      provider: 'github',
       repo: connected.repo,
       ...(input.encrypt !== undefined ? { encrypt: input.encrypt } : {}),
     },
   });
   await saveStatus({
-    account: { login: connected.login, repo: connected.repo, repoUrl: connected.repoUrl },
+    account: {
+      login: connected.login,
+      repo: connected.repo,
+      repoUrl: connected.repoUrl,
+      provider: 'github',
+    },
     lastError: null,
   });
   await scheduleSync();
@@ -215,6 +284,15 @@ export async function syncDevicePoll(
 }
 
 export async function syncDisconnect(): Promise<SyncStatus> {
+  const settings = await loadSettings();
+  if (settings.sync.provider === 'google' && hasGoogleOAuthClient()) {
+    try {
+      const auth = await chrome.identity.getAuthToken({ interactive: false });
+      if (auth.token) await chrome.identity.removeCachedAuthToken({ token: auth.token });
+    } catch {
+      /* There may be no cached Google token. */
+    }
+  }
   await clearToken();
   await chrome.storage.session.remove(DEVICE_KEY);
   await updateSettings({ sync: { enabled: false } });
