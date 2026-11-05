@@ -1,5 +1,7 @@
 // @vitest-environment node
+import { createHash } from 'node:crypto';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { EXTENSION_ID, EXTENSION_PUBLIC_KEY } from '../../src/extension-identity.mjs';
 import { createManifest } from '../../src/manifest.mjs';
 import {
   connectGoogleExtension,
@@ -14,7 +16,6 @@ const REVISION = 'bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb';
 
 afterEach(() => {
   vi.unstubAllGlobals();
-  delete process.env.GOOGLE_EXTENSION_CLIENT_ID;
 });
 
 describe('Chromium extension Google configuration', () => {
@@ -22,12 +23,27 @@ describe('Chromium extension Google configuration', () => {
     const baseline = createManifest(pkg);
     expect(baseline.permissions).not.toContain('identity');
     expect(baseline).not.toHaveProperty('oauth2');
-    process.env.GOOGLE_EXTENSION_CLIENT_ID = 'chrome-client-123';
-    const withGoogle = createManifest(pkg);
+    const withGoogle = createManifest(pkg, { googleClientId: 'chrome-client-123' });
     expect(withGoogle.permissions).toContain('identity');
     expect(withGoogle.oauth2).toMatchObject({ client_id: 'chrome-client-123' });
     expect(withGoogle.oauth2!.scopes).toContain('https://www.googleapis.com/auth/drive.file');
     expect(withGoogle.oauth2!.scopes).not.toContain('https://www.googleapis.com/auth/drive');
+  });
+
+  it('uses a public manifest key yielding the same permanent ID across every build', () => {
+    const first = createManifest(pkg);
+    const next = createManifest({ version: '1.2.1' });
+    expect(first.key).toBe(EXTENSION_PUBLIC_KEY);
+    expect(next.key).toBe(first.key);
+    const sha = createHash('sha256')
+      .update(Buffer.from(first.key, 'base64'))
+      .digest('hex')
+      .slice(0, 32);
+    const derived = [...sha]
+      .map((hex) => String.fromCharCode(97 + Number.parseInt(hex, 16)))
+      .join('');
+    expect(derived).toBe(EXTENSION_ID);
+    expect(derived).toMatch(/^[a-p]{32}$/);
   });
 
   it('uses Chrome Identity and a verified email, not credentials embedded in the extension', async () => {

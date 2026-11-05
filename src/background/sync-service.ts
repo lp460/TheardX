@@ -210,7 +210,7 @@ export async function syncGoogleInspect(): Promise<{
 }> {
   if (!hasGoogleOAuthClient())
     throw new Error(
-      'Google n’est pas configuré dans ce build de l’extension. Renseignez GOOGLE_EXTENSION_CLIENT_ID.',
+      'Google n’est pas encore configuré dans ce build de l’extension. Ajoutez son Client ID Chrome OAuth dans la configuration publique.',
     );
   if (!(await hasPermission('google'))) throw new Error('Accès à Google Drive non autorisé.');
   const { email, subject } = await connectGoogleExtension();

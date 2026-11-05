@@ -545,8 +545,8 @@ export function SyncSettings() {
               </Button>
               {!hasGoogleOAuthClient() ? (
                 <span className="text-[11px] text-warning">
-                  Ce build doit être configuré avec GOOGLE_EXTENSION_CLIENT_ID et l’identifiant
-                  stable de l’extension.
+                  Google sera disponible après l’enregistrement de l’ID permanent de l’extension
+                  dans Google Cloud et la mise à jour du Client ID OAuth public.
                 </span>
               ) : null}
             </div>

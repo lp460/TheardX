@@ -4,7 +4,9 @@
  * (no remote code, no eval, minimal permissions, CSP), bundle sizes.
  */
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { join, resolve } from 'node:path';
+import { EXTENSION_ID, EXTENSION_PUBLIC_KEY } from '../src/extension-identity.mjs';
 
 const dist = resolve(process.argv[2] ?? 'dist');
 const errors = [];
@@ -21,6 +23,15 @@ console.log(`ThreadShelf ${m.version} — ${dist}`);
 
 if (m.manifest_version !== 3) fail('manifest_version must be 3');
 else ok('Manifest V3');
+if (m.key !== EXTENSION_PUBLIC_KEY) fail('permanent extension key missing or changed');
+else {
+  const hash = createHash('sha256').update(Buffer.from(m.key, 'base64')).digest('hex').slice(0, 32);
+  const actualId = [...hash]
+    .map((hex) => String.fromCharCode(97 + Number.parseInt(hex, 16)))
+    .join('');
+  if (actualId !== EXTENSION_ID) fail(`unexpected extension ID: ${actualId}`);
+  else ok(`permanent extension ID: ${actualId}`);
+}
 for (const k of [
   'name',
   'version',
@@ -56,14 +67,7 @@ const ALLOWED_PERMS = new Set([
   'scripting',
 ]);
 for (const p of m.permissions ?? []) if (!ALLOWED_PERMS.has(p)) fail(`unexpected permission: ${p}`);
-for (const p of [
-  'tabs',
-  'cookies',
-  'webRequest',
-  'history',
-  '<all_urls>',
-  'debugger',
-]) {
+for (const p of ['tabs', 'cookies', 'webRequest', 'history', '<all_urls>', 'debugger']) {
   if ((m.permissions ?? []).includes(p) || (m.host_permissions ?? []).includes(p))
     fail(`forbidden permission: ${p}`);
 }
@@ -84,9 +88,12 @@ const OPTIONAL_HOSTS = new Set([
 if ((m.optional_host_permissions ?? []).some((h) => !OPTIONAL_HOSTS.has(h)))
   fail(`optional_host_permissions too broad: ${m.optional_host_permissions}`);
 if (m.oauth2) {
-  if (!m.permissions.includes('identity') || !m.oauth2.client_id ||
-      [...m.oauth2.scopes].sort().join(',') !==
-        ['openid', 'email', 'https://www.googleapis.com/auth/drive.file'].sort().join(','))
+  if (
+    !m.permissions.includes('identity') ||
+    !m.oauth2.client_id ||
+    [...m.oauth2.scopes].sort().join(',') !==
+      ['openid', 'email', 'https://www.googleapis.com/auth/drive.file'].sort().join(',')
+  )
     fail('invalid Google OAuth extension configuration');
 } else if (m.permissions.includes('identity')) {
   fail('identity permission must not be requested without an OAuth client');

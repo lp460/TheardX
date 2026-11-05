@@ -72,15 +72,19 @@ Le parcours de l'extension passe par **Chrome Identity API**, avec `drive.file`.
 Le navigateur gère lui-même les jetons d'accès Google. L'extension ne conserve
 pas de _refresh token_ Google dans ses paramètres. Pour autoriser cette fonction :
 
-1. Identifier l'**ID stable de l'extension** (extension signée/packagée ou clé
-   publique de manifeste). Un ZIP non empaqueté peut avoir un ID différent selon
-   son installation ou son chemin sur disque.
+1. L'**ID permanent de l'extension** est
+   `finnpgeglikfoejkedoobkigbfgmbglf`, calculé à partir de la clé publique
+   versionnée dans `src/extension-identity.mjs`. La propriété `manifest.key`
+   est présente dans tous les ZIP de développement afin que l'ID ne dépende
+   ni du chemin du dossier ni du poste où l'extension est installée.
 2. Dans **le même projet Google Cloud que le site Web**, créer un **second
    client OAuth « Chrome Extension »** associé à cet ID. Les autorisations
    `drive.file` doivent appartenir à la même application Google ; ne pas
    réutiliser le secret du client OAuth Web.
-3. Fournir `GOOGLE_EXTENSION_CLIENT_ID` **au moment de la construction de
-   l'extension** ; `src/manifest.mjs` inclut alors l'objet `oauth2` requis.
+3. Copier le **Client ID** public du client Chrome OAuth nouvellement créé dans
+   `CHROME_OAUTH_CLIENT_ID` de `src/extension-identity.mjs` ; le manifeste inclut
+   alors l'objet `oauth2` requis. Aucun secret ni variable Vercel supplémentaire
+   ne sont nécessaires pour cette étape.
 4. Installer l'extension, aller dans Paramètres → Synchronisation → Google,
    autoriser l'accès au domaine Google et se connecter sur **le même compte
    Google** que le Web. L'extension inspecte le Drive avant toute sauvegarde.
@@ -97,6 +101,14 @@ Sans cet identifiant au build, le bouton Google de l'extension reste
 désactivé, tandis que GitHub continue de fonctionner. La compatibilité de
 `chrome.identity` dans **Arc, Brave et Edge** doit être validée sur chacun ;
 ne pas promettre le même parcours Google dans ces navigateurs sans essai.
+
+**Migration de l'ancienne extension :** la première installation sous l'ID
+permanent peut apparaître comme une nouvelle extension et ne pas retrouver la
+bibliothèque locale de l'ancien ID. Avant de supprimer l'ancienne extension,
+exporter une sauvegarde JSON de la bibliothèque, installer le nouveau ZIP,
+importer la sauvegarde dans le nouveau profil et comparer les entrées.
+Une future publication sur le Chrome Web Store exige de vérifier l'ID attribué
+par le Store afin de ne pas annoncer à tort une continuité des installations.
 
 ## Migration volontaire depuis GitHub
 

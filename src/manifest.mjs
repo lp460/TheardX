@@ -1,6 +1,7 @@
 /** Manifest V3 definition — written to dist/manifest.json by scripts/build.mjs. */
-export function createManifest(pkg) {
-  const googleClientId = process.env.GOOGLE_EXTENSION_CLIENT_ID?.trim();
+import { CHROME_OAUTH_CLIENT_ID, EXTENSION_PUBLIC_KEY } from './extension-identity.mjs';
+
+export function createManifest(pkg, { googleClientId = CHROME_OAUTH_CLIENT_ID } = {}) {
   const icons = {
     16: 'icons/icon-16.png',
     32: 'icons/icon-32.png',
@@ -12,6 +13,8 @@ export function createManifest(pkg) {
     name: 'ThreadShelf',
     short_name: 'ThreadShelf',
     version: pkg.version,
+    // Keep the extension ID stable even when a user moves an unpacked ZIP.
+    key: EXTENSION_PUBLIC_KEY,
     description:
       'Enregistrez, lisez, copiez et organisez les threads X et les discussions Reddit. Bibliothèque locale, mode lecture, exports.',
     minimum_chrome_version: '120',

@@ -27,7 +27,7 @@ export function hasGoogleOAuthClient(): boolean {
 async function token(interactive = false): Promise<string> {
   if (!hasGoogleOAuthClient())
     throw new ExtensionGoogleError(
-      'Identifiant Google Extension absent du build (GOOGLE_EXTENSION_CLIENT_ID).',
+      'Identifiant OAuth Google Chrome absent de cette version de l’extension.',
       503,
     );
   let result: chrome.identity.GetAuthTokenResult;
