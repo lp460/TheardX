@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Check, Highlighter, MessageSquare, Pencil, Trash2, X } from 'lucide-react';
+import { Check, Eye, EyeOff, Highlighter, MessageSquare, Pencil, Trash2, X } from 'lucide-react';
 import { useCallback, useEffect, useState, type MouseEvent, type RefObject } from 'react';
 import { toast } from '@/components/ToastNotification';
 import { Button } from '@/components/ui/Button';
@@ -56,6 +56,7 @@ export function useReaderAnnotations(
   const [editText, setEditText] = useState('');
   const [rects, setRects] = useState<HighlightRect[]>([]);
   const [orphaned, setOrphaned] = useState<Set<string>>(new Set());
+  const [highlightsVisible, setHighlightsVisible] = useState(true);
 
   const refresh = useCallback(() => {
     const article = articleRef.current;
@@ -153,7 +154,7 @@ export function useReaderAnnotations(
   };
 
   const onClick = (event: MouseEvent<HTMLElement>) => {
-    if (window.getSelection()?.toString().trim() || (event.target as Element).closest('a,button,input,textarea')) return;
+    if (!highlightsVisible || window.getSelection()?.toString().trim() || (event.target as Element).closest('a,button,input,textarea')) return;
     const bounds = articleRef.current?.getBoundingClientRect();
     if (!bounds) return;
     const x = event.clientX - bounds.left;
@@ -176,7 +177,7 @@ export function useReaderAnnotations(
     await repository.deleteAnnotation(a.id);
   };
 
-  const overlay = enabled ? (
+  const overlay = enabled && highlightsVisible ? (
     <div className="pointer-events-none absolute inset-0 z-[1] overflow-visible print:hidden" aria-hidden="true">
       {rects.map((rect, index) => (
         <span key={`${rect.id}-${index}`} className="absolute rounded-[2px]"
@@ -220,11 +221,18 @@ export function useReaderAnnotations(
   ) : null;
 
   const panel = panelOpen ? (
-    <aside className="fixed inset-x-2 bottom-2 z-40 max-h-[67vh] overflow-y-auto rounded-2xl border border-line bg-elevated p-4 shadow-float sm:inset-x-auto sm:right-4 sm:bottom-4 sm:w-80 xl:sticky xl:top-20 xl:right-auto xl:bottom-auto xl:ml-0 xl:max-h-[calc(100vh-6rem)] xl:w-72 xl:shrink-0 xl:self-start print:hidden"
+    <aside className="fixed inset-x-2 bottom-[calc(env(safe-area-inset-bottom,0px)+5rem)] z-40 max-h-[60vh] overflow-y-auto rounded-2xl border border-line bg-elevated p-4 shadow-float sm:inset-x-auto sm:right-4 sm:bottom-20 sm:w-80 xl:sticky xl:top-20 xl:right-auto xl:bottom-auto xl:ml-0 xl:max-h-[calc(100vh-6rem)] xl:w-72 xl:shrink-0 xl:self-start print:hidden"
       aria-label="Annotations personnelles" data-testid="reader-annotations-panel">
       <div className="mb-3 flex items-center justify-between gap-2">
         <h2 className="flex items-center gap-2 text-sm font-semibold"><Highlighter size={15}/> Mes annotations ({annotations.length})</h2>
-        <button type="button" aria-label="Fermer les annotations" onClick={() => setPanelOpen(false)}><X size={17}/></button>
+        <div className="flex items-center gap-3">
+          <button type="button" aria-label={highlightsVisible ? 'Masquer les surlignages' : 'Afficher les surlignages'}
+            title={highlightsVisible ? 'Masquer les surlignages dans le texte' : 'Afficher les surlignages dans le texte'}
+            aria-pressed={highlightsVisible} onClick={() => setHighlightsVisible((visible) => !visible)}>
+            {highlightsVisible ? <Eye size={17}/> : <EyeOff size={17}/>}
+          </button>
+          <button type="button" aria-label="Fermer les annotations" onClick={() => setPanelOpen(false)}><X size={17}/></button>
+        </div>
       </div>
       {!annotations.length ? <p className="text-xs text-muted">Sélectionnez une phrase dans l'article pour la surligner ou la commenter.</p> : null}
       <ol className="space-y-3">

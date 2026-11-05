@@ -62,6 +62,7 @@ import { toast } from '@/components/ToastNotification';
 import { useWebI18n } from '@/web/i18n';
 import { ShareDialog, type ShareTarget } from '@/share/ShareDialog';
 import { useReaderAnnotations } from '@/annotations/ReaderAnnotations';
+import { ReadingNotesDock } from './ReadingNotesDock';
 
 const params = new URLSearchParams(location.search);
 const ENTRY_ID = params.get('id') ?? '';
@@ -704,7 +705,14 @@ export function ThreadReader() {
                 aria-label="Mes annotations" aria-pressed={annotationTools.panelOpen}
                 onClick={annotationTools.togglePanel}
                 className={annotationTools.panelOpen ? 'text-accent' : undefined}>
-                <Highlighter size={16}/>
+                <span className="relative inline-flex">
+                  <Highlighter size={16}/>
+                  {annotationTools.count > 0 ? (
+                    <span className="absolute -right-2 -top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-0.5 text-[9px] font-bold leading-none text-white" aria-hidden="true">
+                      {annotationTools.count > 9 ? '9+' : annotationTools.count}
+                    </span>
+                  ) : null}
+                </span>
               </Button>
             </Tooltip> : null}
             {isWeb && !PRINT ? (
@@ -1146,6 +1154,19 @@ export function ThreadReader() {
         </div>
 
         {annotationTools.toolbar}
+        {!PRINT && !selecting ? (
+          <ReadingNotesDock
+            note={entry.note}
+            annotationCount={annotationTools.count}
+            annotationsOpen={annotationTools.panelOpen}
+            onToggleAnnotations={annotationTools.togglePanel}
+            onEditNote={() => {
+              const editor = document.querySelector<HTMLTextAreaElement>('[data-testid="reader-note"]');
+              editor?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              editor?.focus({ preventScroll: true });
+            }}
+          />
+        ) : null}
 
         {selecting ? (
           <div

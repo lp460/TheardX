@@ -210,6 +210,9 @@ test.describe('reader', () => {
     // Note autosave.
     await r.locator('[data-testid="reader-note"]').fill('À relire avant la conf');
     await expect(r.getByText('Enregistrée')).toBeVisible({ timeout: 4000 });
+    await expect(r.getByTestId('reader-notes-preview')).toContainText('À relire avant la conf');
+    await r.getByTestId('reader-notes-preview').click();
+    await expect(r.getByTestId('reader-notes-expanded')).toContainText('À relire avant la conf');
     // Reading to the end marks it as read.
     await r.locator('[data-testid="reader-end"]').scrollIntoViewIfNeeded();
     await expect
