@@ -82,12 +82,16 @@ pas de _refresh token_ Google dans ses paramètres. Pour autoriser cette fonctio
 3. Fournir `GOOGLE_EXTENSION_CLIENT_ID` **au moment de la construction de
    l'extension** ; `src/manifest.mjs` inclut alors l'objet `oauth2` requis.
 4. Installer l'extension, aller dans Paramètres → Synchronisation → Google,
-   saisir une phrase secrète (8 caractères min.), puis accepter l'accès au
-   domaine Google. Se connecter sur **le même compte Google** que le Web.
-   **Limite de la version actuelle :** l'extension Chromium n'accepte pour
-   l'instant que les sauvegardes Google chiffrées ; en mode standard, elle refuse
-   de publier plutôt que changer silencieusement le mode distant. La synchro
-   GitHub de l'extension reste indépendante.
+   autoriser l'accès au domaine Google et se connecter sur **le même compte
+   Google** que le Web. L'extension inspecte le Drive avant toute sauvegarde.
+   Sur un Drive neuf, elle propose « Non, sans phrase secrète » ou « Oui,
+   chiffrer ma bibliothèque ». Sur un Drive déjà configuré, le mode existant
+   est respecté : en mode standard, aucun secret supplémentaire ; en mode
+   renforcé, la même phrase secrète (8 caractères min.) que sur le Web.
+5. Une fois connecté, le changement de protection est **explicite** dans les
+   paramètres. Il fusionne d'abord les données, puis crée une nouvelle
+   génération de sauvegardes. Les anciennes versions ne sont pas effacées.
+   La synchronisation GitHub de l'extension reste indépendante.
 
 Sans cet identifiant au build, le bouton Google de l'extension reste
 désactivé, tandis que GitHub continue de fonctionner. La compatibilité de
@@ -124,7 +128,7 @@ standard, seul l'accès au compte Google est nécessaire.
   par fichier) ; une politique sûre de rétention et de restauration doit être
   conçue et testée avant une utilisation soutenue.
 - Les deux clients Google (Web/extension) utilisent le même nom de dossier et
-  nommage de fichiers ; le mode standard n'est pour l'instant géré que par le Web.
+  nommage de fichiers, et reconnaissent les modes standard et renforcé.
   Les modifications concurrentes au sein d'une génération sont fusionnées au
   prochain cycle (pas d'écrasement direct d'un fichier partagé). Des changements
   de mode simultanés sur plusieurs appareils demandent une vérification manuelle.

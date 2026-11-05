@@ -6,6 +6,7 @@ import {
   googleExtensionStore,
   hasGoogleOAuthClient,
 } from '../../src/sync/google-extension';
+import { encodeGoogleSnapshot } from '../../src/sync/google-snapshot';
 
 const pkg = { version: '1.2.0' };
 const DEVICE = 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa';
@@ -83,5 +84,36 @@ describe('Chromium extension Google configuration', () => {
     await expect(googleExtensionStore.write(DEVICE, REVISION, '{"entries":[]}')).rejects.toThrow(
       'Sauvegarde invalide',
     );
+  });
+
+  it('accepts standard unencrypted snapshots created by a website or another device', async () => {
+    vi.stubGlobal('chrome', {
+      runtime: { getManifest: () => ({ oauth2: { client_id: 'chrome-client-123' } }) },
+      identity: { getAuthToken: vi.fn(async () => ({ token: 'google-token' })) },
+    });
+    const requests: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init: RequestInit) => {
+        if (typeof init.body === 'string') requests.push(init.body);
+        if (url.includes('uploadType=multipart')) return Response.json({ id: 'fileABC123' });
+        if (init.method === 'POST') return Response.json({ id: 'folderABC123' });
+        return Response.json({ files: [] });
+      }),
+    );
+    const plain = JSON.stringify({
+      format: 'threadshelf.backup',
+      version: 2,
+      data: { entries: [] },
+    });
+    const text = encodeGoogleSnapshot({
+      epoch: 'cccccccc-cccc-4ccc-cccc-cccccccccccc',
+      mode: 'plain',
+      root: true,
+      data: plain,
+    });
+    await googleExtensionStore.write(DEVICE, REVISION, text);
+    expect(requests.some((body) => body.includes('"mode":"plain"'))).toBe(true);
+    expect(requests.some((body) => body.includes('threadshelf.backup'))).toBe(true);
   });
 });

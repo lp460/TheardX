@@ -15,6 +15,7 @@ import type { DevicePoll, DeviceStart, SyncStatus } from '@/background/sync-serv
 import { send } from '@/messaging/client';
 import { GITHUB_OAUTH_CLIENT_ID } from '@/sync/github-app';
 import { GOOGLE_ORIGINS, hasGoogleOAuthClient } from '@/sync/google-extension';
+import type { GoogleEncryptionMode } from '@/sync/google-snapshot';
 import { loadSecrets, saveSecrets } from '@/sync/secrets';
 import { copyText } from '@/utils/clipboard';
 import { formatRelative } from '@/utils/format';
@@ -64,6 +65,14 @@ export function SyncSettings() {
   const [s, update, loaded] = useSettings();
   const [status, setStatus] = useState<SyncStatus | null>(null);
   const [passphrase, setPassphrase] = useState('');
+  const [googlePassphrase, setGooglePassphrase] = useState('');
+  const [googleSetup, setGoogleSetup] = useState<{
+    email: string;
+    mode: GoogleEncryptionMode | null;
+  } | null>(null);
+  const [googleChoice, setGoogleChoice] = useState<GoogleEncryptionMode | null>(null);
+  const [changingMode, setChangingMode] = useState<GoogleEncryptionMode | null>(null);
+  const [newGooglePassphrase, setNewGooglePassphrase] = useState('');
   const [clientId, setClientId] = useState('');
   const [device, setDevice] = useState<DeviceStart | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -71,10 +80,11 @@ export function SyncSettings() {
 
   useEffect(() => {
     if (loaded)
-      void loadSecrets().then((sec) =>
-        setPassphrase(s.sync.provider === 'google' ? (sec.googlePassphrase ?? '') : sec.passphrase),
-      );
-  }, [loaded, s.sync.provider]);
+      void loadSecrets().then((sec) => {
+        setPassphrase(sec.passphrase);
+        setGooglePassphrase(sec.googlePassphrase ?? '');
+      });
+  }, [loaded]);
   useEffect(() => {
     if (loaded) setClientId(s.sync.oauthClientId);
   }, [loaded, s.sync.oauthClientId]);
@@ -158,20 +168,62 @@ export function SyncSettings() {
     }
   };
 
-  const signInGoogle = async () => {
+  const startGoogle = async () => {
     setBusy('google');
     try {
-      if (passphrase.length < 8)
-        throw new Error('Choisissez une phrase secrète de 8 caractères minimum.');
       // Permission request must start from the user gesture (Chrome/Arc/Brave).
       const granted = await chrome.permissions.request({ origins: GOOGLE_ORIGINS });
       if (!granted) throw new Error('Autorisation de Google Drive refusée.');
-      report(
-        (await send({ type: 'sync.googleConnect', passphrase })) as unknown as SyncStatus,
-        'Google Drive connecté — bibliothèque chiffrée',
-      );
+      const remote = (await send({ type: 'sync.googleInspect' })) as unknown as {
+        email: string;
+        mode: GoogleEncryptionMode | null;
+      };
+      setGoogleSetup(remote);
+      setGoogleChoice(remote.mode);
     } catch (e) {
       toast.error('Connexion Google', e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const finishGoogle = async () => {
+    if (!googleChoice) return;
+    setBusy('google');
+    try {
+      if (googleChoice === 'encrypted' && googlePassphrase.length < 8)
+        throw new Error('Choisissez une phrase secrète de 8 caractères minimum.');
+      const next = (await send({
+        type: 'sync.googleConnect',
+        mode: googleChoice,
+        passphrase: googleChoice === 'encrypted' ? googlePassphrase : undefined,
+      })) as unknown as SyncStatus;
+      setGoogleSetup(null);
+      report(next, 'Google Drive connecté — bibliothèque synchronisée');
+    } catch (e) {
+      toast.error('Connexion Google', e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const changeGoogleMode = async () => {
+    if (!changingMode) return;
+    setBusy('migration');
+    try {
+      const next = (await send({
+        type: 'sync.googleChangeMode',
+        mode: changingMode,
+        passphrase: changingMode === 'encrypted' ? newGooglePassphrase : undefined,
+      })) as unknown as SyncStatus;
+      if (changingMode === 'encrypted') setGooglePassphrase(newGooglePassphrase);
+      else setGooglePassphrase('');
+      setChangingMode(null);
+      setNewGooglePassphrase('');
+      report(next, 'Protection Google Drive modifiée');
+      toast.success('Mode de protection enregistré', 'Les anciennes sauvegardes sont conservées.');
+    } catch (e) {
+      toast.error('Protection Google Drive', e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(null);
     }
@@ -180,9 +232,7 @@ export function SyncSettings() {
   const syncNow = async () => {
     setBusy('sync');
     try {
-      await saveSecrets(
-        s.sync.provider === 'google' ? { googlePassphrase: passphrase } : { passphrase },
-      );
+      await saveSecrets(s.sync.provider === 'google' ? { googlePassphrase } : { passphrase });
       report(
         (await send({ type: 'sync.now' })) as unknown as SyncStatus,
         'Bibliothèque synchronisée',
@@ -219,8 +269,9 @@ export function SyncSettings() {
         />
       ) : (
         <p className="py-2 text-xs text-muted">
-          Google Drive : chiffrement obligatoire (AES-GCM). Conservez votre phrase secrète ; sans
-          elle, les sauvegardes ne peuvent pas être restaurées.
+          {s.sync.encrypt
+            ? 'Google Drive : chiffrement renforcé activé. La même phrase secrète est nécessaire sur tous vos appareils.'
+            : 'Google Drive : mode standard sans phrase secrète. Le contenu est lisible par Google ; vos échanges utilisent HTTPS.'}
         </p>
       )}
       {s.sync.encrypt ? (
@@ -235,11 +286,11 @@ export function SyncSettings() {
               type="password"
               className="pl-7"
               placeholder="Phrase secrète (8 caractères minimum)"
-              value={passphrase}
-              onChange={(e) => setPassphrase(e.target.value)}
-              onBlur={() =>
-                void saveSecrets(google ? { googlePassphrase: passphrase } : { passphrase })
+              value={google ? googlePassphrase : passphrase}
+              onChange={(e) =>
+                google ? setGooglePassphrase(e.target.value) : setPassphrase(e.target.value)
               }
+              onBlur={() => void saveSecrets(google ? { googlePassphrase } : { passphrase })}
               autoComplete="new-password"
               data-testid="sync-passphrase"
             />
@@ -278,7 +329,7 @@ export function SyncSettings() {
               <>
                 Connecté en tant que{' '}
                 <strong>{google ? status.account.login : `@${status.account.login}`}</strong> ·{' '}
-                {google ? 'Drive chiffré' : 'dépôt privé'}
+                {google ? (s.sync.encrypt ? 'Drive chiffré' : 'Drive standard') : 'dépôt privé'}
                 <a
                   className="inline-flex items-center gap-0.5 text-accent hover:underline"
                   href={status.account.repoUrl}
@@ -344,6 +395,56 @@ export function SyncSettings() {
             </Button>
           </div>
           <div className="border-t border-line/70 pt-1">{encryption}</div>
+          {google ? (
+            <div className="border-t border-line/70 py-3">
+              {!changingMode ? (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setChangingMode(s.sync.encrypt ? 'plain' : 'encrypted')}
+                >
+                  Modifier la protection Google Drive
+                </Button>
+              ) : (
+                <div className="space-y-2 rounded-lg border border-warning/30 bg-warning/[0.06] p-3">
+                  <p className="text-[12px] text-fg">
+                    {changingMode === 'encrypted'
+                      ? 'Activer le chiffrement renforcé ? Les anciennes sauvegardes en clair resteront accessibles sur Drive.'
+                      : 'Désactiver le chiffrement renforcé ? Les nouvelles sauvegardes seront lisibles sur Drive. Les anciennes versions restent conservées.'}
+                  </p>
+                  {changingMode === 'encrypted' ? (
+                    <label className="block text-[12px] text-muted">
+                      Nouvelle phrase secrète (8 caractères minimum)
+                      <Input
+                        type="password"
+                        className="mt-1"
+                        value={newGooglePassphrase}
+                        onChange={(e) => setNewGooglePassphrase(e.target.value)}
+                        autoComplete="new-password"
+                      />
+                    </label>
+                  ) : null}
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      loading={busy === 'migration'}
+                      disabled={
+                        busy !== null ||
+                        (changingMode === 'encrypted' && newGooglePassphrase.length < 8)
+                      }
+                      onClick={() => void changeGoogleMode()}
+                    >
+                      Confirmer le changement
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => setChangingMode(null)}>
+                      Annuler
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : null}
           <p className="pb-1 text-[12px] text-muted">
             Synchronisation automatique environ une minute après chaque modification, régulièrement,
             et au démarrage du navigateur.
@@ -353,33 +454,94 @@ export function SyncSettings() {
         <>
           <div className="mt-3 rounded-xl border border-line bg-subtle/40 px-4 py-4">
             <h3 className="text-[13px] font-semibold text-fg">
-              Google Drive — sauvegarde chiffrée
+              Google Drive — avec ou sans chiffrement renforcé
             </h3>
             <p className="mt-1 text-[12px] leading-relaxed text-muted">
               Une autre façon de synchroniser votre extension avec TheardX, sans dépôt GitHub.
-              Chaque appareil utilise la même phrase secrète, qui reste sur vos appareils.
+              Connectez votre compte Google. Le mode de protection de votre dossier TheardX sera
+              détecté automatiquement.
             </p>
-            <label className="mt-3 block text-[12px] text-muted">
-              Phrase secrète Google Drive (8 caractères minimum)
-              <Input
-                className="mt-1"
-                type="password"
-                minLength={8}
-                value={passphrase}
-                onChange={(e) => setPassphrase(e.target.value)}
-                autoComplete="new-password"
-                placeholder="Votre phrase secrète personnelle"
-              />
-            </label>
+            {googleSetup ? (
+              <div className="mt-3 space-y-3 rounded-lg border border-line bg-surface p-3">
+                <p className="text-[12px] text-fg">
+                  Compte : <strong>{googleSetup.email}</strong>
+                </p>
+                {googleSetup.mode ? (
+                  <p className="text-[12px] text-muted">
+                    {googleSetup.mode === 'encrypted'
+                      ? 'Cette bibliothèque est déjà chiffrée. Saisissez la même phrase secrète que sur le site Web.'
+                      : 'Cette bibliothèque est déjà en mode standard, sans phrase secrète. Son mode ne sera pas modifié.'}
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-[12px] font-medium text-fg">
+                      Voulez-vous chiffrer votre bibliothèque avec une phrase secrète ?
+                    </p>
+                    <p className="text-[12px] text-muted">
+                      Sans chiffrement renforcé, les sauvegardes sont lisibles sur Google Drive.
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        size="sm"
+                        variant={googleChoice === 'plain' ? 'primary' : 'ghost'}
+                        onClick={() => setGoogleChoice('plain')}
+                      >
+                        Non, sans phrase secrète
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant={googleChoice === 'encrypted' ? 'primary' : 'ghost'}
+                        onClick={() => setGoogleChoice('encrypted')}
+                      >
+                        Oui, chiffrer ma bibliothèque
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                {googleChoice === 'encrypted' ? (
+                  <label className="block text-[12px] text-muted">
+                    Phrase secrète (8 caractères minimum)
+                    <Input
+                      className="mt-1"
+                      type="password"
+                      minLength={8}
+                      value={googlePassphrase}
+                      onChange={(e) => setGooglePassphrase(e.target.value)}
+                      autoComplete="new-password"
+                      placeholder="Phrase secrète de votre bibliothèque"
+                    />
+                  </label>
+                ) : null}
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    disabled={
+                      !googleChoice ||
+                      busy !== null ||
+                      (googleChoice === 'encrypted' && googlePassphrase.length < 8)
+                    }
+                    loading={busy === 'google'}
+                    onClick={() => void finishGoogle()}
+                  >
+                    Synchroniser avec Google Drive
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setGoogleSetup(null)}>
+                    Annuler
+                  </Button>
+                </div>
+              </div>
+            ) : null}
             <div className="mt-3 flex flex-wrap items-center gap-3">
               <Button
                 size="sm"
                 variant="primary"
                 disabled={!hasGoogleOAuthClient() || busy !== null}
                 loading={busy === 'google'}
-                onClick={() => void signInGoogle()}
+                onClick={() => void startGoogle()}
               >
-                <CloudCog size={14} /> Se connecter avec Google
+                <CloudCog size={14} />{' '}
+                {googleSetup ? 'Changer de compte Google' : 'Se connecter avec Google'}
               </Button>
               {!hasGoogleOAuthClient() ? (
                 <span className="text-[11px] text-warning">

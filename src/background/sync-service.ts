@@ -20,7 +20,8 @@ import {
   GOOGLE_ORIGINS,
   hasGoogleOAuthClient,
 } from '@/sync/google-extension';
-import { syncGoogleDrive } from '@/web/google-sync';
+import type { GoogleEncryptionMode } from '@/sync/google-snapshot';
+import { changeGoogleDriveMode, inspectGoogleDrive, syncGoogleDrive } from '@/web/google-sync';
 
 /** Hosts used by the sync: sign-in (github.com) and the REST API (api.github.com). */
 export const GITHUB_ORIGINS = ['https://github.com/*', 'https://api.github.com/*'];
@@ -84,6 +85,7 @@ async function clientId(): Promise<string> {
 }
 
 let inFlight: Promise<SyncStatus> | null = null;
+let modeChangeInFlight: Promise<SyncStatus> | null = null;
 
 /** Current credentials; an expiring token (if the GitHub app issues them) is renewed first. */
 async function credentials() {
@@ -109,6 +111,7 @@ async function credentials() {
 
 /** Runs a sync (or joins the one in progress). Never throws: errors are stored in the status. */
 export function syncNow(): Promise<SyncStatus> {
+  if (modeChangeInFlight) return modeChangeInFlight;
   if (inFlight) return inFlight;
   inFlight = (async () => {
     const settings = await loadSettings();
@@ -134,8 +137,8 @@ export function syncNow(): Promise<SyncStatus> {
         const id = device && /^[a-f0-9-]{36}$/.test(device) ? device : crypto.randomUUID();
         if (id !== device) await chrome.storage.local.set({ [GOOGLE_DEVICE_KEY]: id });
         result = await syncGoogleDrive({
-          mode: 'encrypted',
-          passphrase: sec.googlePassphrase ?? '',
+          mode: settings.sync.encrypt ? 'encrypted' : 'plain',
+          passphrase: settings.sync.encrypt ? sec.googlePassphrase : undefined,
           appVersion: chrome.runtime.getManifest().version,
           store: googleExtensionStore,
           deviceId: id,
@@ -201,17 +204,43 @@ export async function syncDeviceStart(): Promise<DeviceStart> {
 }
 
 /** Google Chrome Identity manages access tokens; this extension never stores a refresh token. */
-export async function syncGoogleConnect(passphrase: string): Promise<SyncStatus> {
+export async function syncGoogleInspect(): Promise<{
+  email: string;
+  mode: GoogleEncryptionMode | null;
+}> {
   if (!hasGoogleOAuthClient())
     throw new Error(
       'Google n’est pas configuré dans ce build de l’extension. Renseignez GOOGLE_EXTENSION_CLIENT_ID.',
     );
   if (!(await hasPermission('google'))) throw new Error('Accès à Google Drive non autorisé.');
-  if (passphrase.length < 8)
-    throw new Error('La phrase secrète doit contenir au moins 8 caractères.');
   const { email, subject } = await connectGoogleExtension();
-  await saveSecrets({ googlePassphrase: passphrase });
-  await updateSettings({ sync: { provider: 'google', enabled: true, encrypt: true } });
+  const existing = (await loadSyncStatus()).account;
+  if (existing?.provider === 'google' && existing.googleSubject !== subject)
+    throw new Error('Un autre compte Google est déjà lié. Déconnectez-le avant de continuer.');
+  const { mode } = await inspectGoogleDrive(googleExtensionStore);
+  return { email, mode };
+}
+
+/** Never choose or weaken an existing Drive's encryption mode implicitly. */
+export async function syncGoogleConnect(input: {
+  mode: GoogleEncryptionMode;
+  passphrase?: string;
+}): Promise<SyncStatus> {
+  if (input.mode === 'encrypted' && (input.passphrase?.length ?? 0) < 8)
+    throw new Error('La phrase secrète doit contenir au moins 8 caractères.');
+  if (!hasGoogleOAuthClient() || !(await hasPermission('google')))
+    throw new Error('Google Drive n’est pas autorisé dans cette extension.');
+  const { email, subject } = await connectGoogleExtension(false);
+  const existing = (await loadSyncStatus()).account;
+  if (existing?.provider === 'google' && existing.googleSubject !== subject)
+    throw new Error('Le compte Google a changé. Déconnectez-vous avant de continuer.');
+  const remote = await inspectGoogleDrive(googleExtensionStore);
+  if (remote.mode && remote.mode !== input.mode)
+    throw new Error('Le mode de protection Google Drive a changé. Recommencez la connexion.');
+  await saveSecrets({ googlePassphrase: input.mode === 'encrypted' ? input.passphrase : '' });
+  await updateSettings({
+    sync: { provider: 'google', enabled: true, encrypt: input.mode === 'encrypted' },
+  });
   await saveStatus({
     account: {
       login: email,
@@ -224,6 +253,55 @@ export async function syncGoogleConnect(passphrase: string): Promise<SyncStatus>
   });
   await scheduleSync();
   return syncNow();
+}
+
+/** An explicit mode migration, preserving old backup generations for recovery. */
+export function syncGoogleChangeMode(input: {
+  mode: GoogleEncryptionMode;
+  passphrase?: string;
+}): Promise<SyncStatus> {
+  if (inFlight || modeChangeInFlight)
+    throw new Error('Une synchronisation est déjà en cours. Réessayez dans un instant.');
+  modeChangeInFlight = (async () => {
+    const settings = await loadSettings();
+    if (!settings.sync.enabled || settings.sync.provider !== 'google')
+      throw new Error('Connectez Google Drive avant de changer sa protection.');
+    if (input.mode === (settings.sync.encrypt ? 'encrypted' : 'plain')) return loadSyncStatus();
+    if (input.mode === 'encrypted' && (input.passphrase?.length ?? 0) < 8)
+      throw new Error('La nouvelle phrase secrète doit contenir au moins 8 caractères.');
+    if (!(await hasPermission('google'))) throw new Error('Accès à Google Drive non autorisé.');
+    const expected = (await loadSyncStatus()).account?.googleSubject;
+    const actual = await connectGoogleExtension(false);
+    if (!expected || actual.subject !== expected)
+      throw new Error('Le compte Google a changé. Reconnectez-le avant toute migration.');
+    await saveStatus({ running: true });
+    const sec = await loadSecrets();
+    await changeGoogleDriveMode({
+      to: input.mode,
+      currentPassphrase: settings.sync.encrypt ? sec.googlePassphrase : undefined,
+      newPassphrase: input.mode === 'encrypted' ? input.passphrase : undefined,
+      store: googleExtensionStore,
+    });
+    await saveSecrets({ googlePassphrase: input.mode === 'encrypted' ? input.passphrase : '' });
+    await updateSettings({ sync: { encrypt: input.mode === 'encrypted' } });
+    return saveStatus({
+      running: false,
+      lastSyncAt: Date.now(),
+      lastError: null,
+      lastResult: null,
+    });
+  })()
+    .catch(async (error: unknown) => {
+      await saveStatus({
+        running: false,
+        lastError: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    })
+    .finally(() => {
+      modeChangeInFlight = null;
+    });
+  return modeChangeInFlight;
 }
 
 export type DevicePoll =

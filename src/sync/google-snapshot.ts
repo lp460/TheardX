@@ -1,6 +1,7 @@
-import { ENCRYPTED_FORMAT } from './crypto';
-
 export const GOOGLE_SNAPSHOT_FORMAT = 'threadshelf.google.snapshot';
+// Keep this wire-format marker local: the Node ESM Vercel function imports this
+// decoder directly and must not pull in extension/browser-only module imports.
+const ENCRYPTED_FORMAT = 'threadshelf.encrypted';
 export type GoogleEncryptionMode = 'plain' | 'encrypted';
 
 export interface GoogleSnapshotPayload {
