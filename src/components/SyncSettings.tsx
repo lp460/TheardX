@@ -14,6 +14,14 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import type { DevicePoll, DeviceStart, SyncStatus } from '@/background/sync-service';
 import { send } from '@/messaging/client';
 import { GITHUB_OAUTH_CLIENT_ID } from '@/sync/github-app';
+import {
+  GOOGLE_ORIGINS,
+  GOOGLE_BROWSER_ORIGINS,
+  hasGoogleOAuthClient,
+  hasGoogleBrowserOAuthClient,
+  type GoogleAuthMode,
+} from '@/sync/google-extension';
+import type { GoogleEncryptionMode } from '@/sync/google-snapshot';
 import { loadSecrets, saveSecrets } from '@/sync/secrets';
 import { copyText } from '@/utils/clipboard';
 import { formatRelative } from '@/utils/format';
@@ -63,14 +71,26 @@ export function SyncSettings() {
   const [s, update, loaded] = useSettings();
   const [status, setStatus] = useState<SyncStatus | null>(null);
   const [passphrase, setPassphrase] = useState('');
+  const [googlePassphrase, setGooglePassphrase] = useState('');
+  const [googleSetup, setGoogleSetup] = useState<{
+    email: string;
+    mode: GoogleEncryptionMode | null;
+  } | null>(null);
+  const [googleChoice, setGoogleChoice] = useState<GoogleEncryptionMode | null>(null);
+  const [changingMode, setChangingMode] = useState<GoogleEncryptionMode | null>(null);
+  const [newGooglePassphrase, setNewGooglePassphrase] = useState('');
   const [clientId, setClientId] = useState('');
   const [device, setDevice] = useState<DeviceStart | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const pollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    void loadSecrets().then((sec) => setPassphrase(sec.passphrase));
-  }, []);
+    if (loaded)
+      void loadSecrets().then((sec) => {
+        setPassphrase(sec.passphrase);
+        setGooglePassphrase(sec.googlePassphrase ?? '');
+      });
+  }, [loaded]);
   useEffect(() => {
     if (loaded) setClientId(s.sync.oauthClientId);
   }, [loaded, s.sync.oauthClientId]);
@@ -154,10 +174,74 @@ export function SyncSettings() {
     }
   };
 
+  const startGoogle = async (authMode: GoogleAuthMode) => {
+    setBusy('google');
+    try {
+      // Permission request must start from the user gesture (Chrome/Arc/Brave).
+      const granted = await chrome.permissions.request({
+        origins: authMode === 'browser' ? GOOGLE_BROWSER_ORIGINS : GOOGLE_ORIGINS,
+      });
+      if (!granted) throw new Error('Autorisation de Google Drive refusée.');
+      const remote = (await send({ type: 'sync.googleInspect', authMode })) as unknown as {
+        email: string;
+        mode: GoogleEncryptionMode | null;
+      };
+      setGoogleSetup(remote);
+      // New Drive accounts use standard backups unless the person explicitly opts in.
+      setGoogleChoice(remote.mode ?? 'plain');
+    } catch (e) {
+      toast.error('Connexion Google', e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const finishGoogle = async () => {
+    if (!googleChoice) return;
+    setBusy('google');
+    try {
+      if (googleChoice === 'encrypted' && googlePassphrase.length < 8)
+        throw new Error('Choisissez une phrase secrète de 8 caractères minimum.');
+      const next = (await send({
+        type: 'sync.googleConnect',
+        mode: googleChoice,
+        passphrase: googleChoice === 'encrypted' ? googlePassphrase : undefined,
+      })) as unknown as SyncStatus;
+      setGoogleSetup(null);
+      report(next, 'Google Drive connecté — bibliothèque synchronisée');
+    } catch (e) {
+      toast.error('Connexion Google', e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const changeGoogleMode = async () => {
+    if (!changingMode) return;
+    setBusy('migration');
+    try {
+      const next = (await send({
+        type: 'sync.googleChangeMode',
+        mode: changingMode,
+        passphrase: changingMode === 'encrypted' ? newGooglePassphrase : undefined,
+      })) as unknown as SyncStatus;
+      if (changingMode === 'encrypted') setGooglePassphrase(newGooglePassphrase);
+      else setGooglePassphrase('');
+      setChangingMode(null);
+      setNewGooglePassphrase('');
+      report(next, 'Protection Google Drive modifiée');
+      toast.success('Mode de protection enregistré', 'Les anciennes sauvegardes sont conservées.');
+    } catch (e) {
+      toast.error('Protection Google Drive', e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const syncNow = async () => {
     setBusy('sync');
     try {
-      await saveSecrets({ passphrase });
+      await saveSecrets(s.sync.provider === 'google' ? { googlePassphrase } : { passphrase });
       report(
         (await send({ type: 'sync.now' })) as unknown as SyncStatus,
         'Bibliothèque synchronisée',
@@ -171,7 +255,7 @@ export function SyncSettings() {
     setBusy('out');
     try {
       setStatus((await send({ type: 'sync.disconnect' })) as unknown as SyncStatus);
-      toast.info('Déconnecté de GitHub', 'Votre bibliothèque locale est conservée.');
+      toast.info('Synchronisation déconnectée', 'Votre bibliothèque locale est conservée.');
     } finally {
       setBusy(null);
     }
@@ -180,16 +264,25 @@ export function SyncSettings() {
   if (!loaded) return <div className="skeleton h-40" />;
   const connected = s.sync.enabled;
   const needsApp = !(s.sync.oauthClientId.trim() || GITHUB_OAUTH_CLIENT_ID);
+  const google = s.sync.provider === 'google';
 
   const encryption: ReactNode = (
     <>
-      <Switch
-        id="sync-encrypt"
-        checked={s.sync.encrypt}
-        onChange={(v) => void update({ sync: { encrypt: v } })}
-        label="Chiffrer la bibliothèque"
-        description="GitHub ne stocke qu’un contenu illisible. Il faudra la même phrase secrète sur chaque PC."
-      />
+      {!google ? (
+        <Switch
+          id="sync-encrypt"
+          checked={s.sync.encrypt}
+          onChange={(v) => void update({ sync: { encrypt: v } })}
+          label="Chiffrer la bibliothèque"
+          description="GitHub ne stocke qu’un contenu illisible. Il faudra la même phrase secrète sur chaque PC."
+        />
+      ) : (
+        <p className="py-2 text-xs text-muted">
+          {s.sync.encrypt
+            ? 'Google Drive : chiffrement renforcé activé. La même phrase secrète est nécessaire sur tous vos appareils.'
+            : 'Google Drive : mode standard sans phrase secrète. Le contenu est lisible par Google ; vos échanges utilisent HTTPS.'}
+        </p>
+      )}
       {s.sync.encrypt ? (
         <label className="block pb-2">
           <span className="sr-only">Phrase secrète</span>
@@ -202,9 +295,11 @@ export function SyncSettings() {
               type="password"
               className="pl-7"
               placeholder="Phrase secrète (8 caractères minimum)"
-              value={passphrase}
-              onChange={(e) => setPassphrase(e.target.value)}
-              onBlur={() => void saveSecrets({ passphrase })}
+              value={google ? googlePassphrase : passphrase}
+              onChange={(e) =>
+                google ? setGooglePassphrase(e.target.value) : setPassphrase(e.target.value)
+              }
+              onBlur={() => void saveSecrets(google ? { googlePassphrase } : { passphrase })}
               autoComplete="new-password"
               data-testid="sync-passphrase"
             />
@@ -224,7 +319,7 @@ export function SyncSettings() {
         <span className="text-muted">
           <CloudCog size={15} />
         </span>
-        Synchronisation entre PC (GitHub)
+        Synchronisation entre PC ({google ? 'Google Drive' : 'GitHub'})
         {connected ? (
           <span className="ml-auto rounded-md bg-success/10 px-1.5 py-0.5 text-[11px] font-medium text-success">
             Activée
@@ -241,7 +336,9 @@ export function SyncSettings() {
             <CheckCircle2 size={14} className="text-success" />
             {status?.account ? (
               <>
-                Connecté en tant que <strong>@{status.account.login}</strong> · dépôt privé
+                Connecté en tant que{' '}
+                <strong>{google ? status.account.login : `@${status.account.login}`}</strong> ·{' '}
+                {google ? (s.sync.encrypt ? 'Drive chiffré' : 'Drive standard') : 'dépôt privé'}
                 <a
                   className="inline-flex items-center gap-0.5 text-accent hover:underline"
                   href={status.account.repoUrl}
@@ -252,7 +349,7 @@ export function SyncSettings() {
                 </a>
               </>
             ) : (
-              <>Dépôt {s.sync.repo}</>
+              <>{google ? 'Google Drive / TheardX' : `Dépôt ${s.sync.repo}`}</>
             )}
           </div>
           {status ? (
@@ -307,6 +404,61 @@ export function SyncSettings() {
             </Button>
           </div>
           <div className="border-t border-line/70 pt-1">{encryption}</div>
+          {google ? (
+            <details className="border-t border-line/70 py-3">
+              <summary className="ts-focus cursor-pointer text-[12px] font-semibold text-fg">
+                Sécurité avancée (facultative)
+              </summary>
+              <div className="mt-3">
+                {!changingMode ? (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setChangingMode(s.sync.encrypt ? 'plain' : 'encrypted')}
+                >
+                  Modifier la protection Google Drive
+                </Button>
+                ) : (
+                <div className="space-y-2 rounded-lg border border-warning/30 bg-warning/[0.06] p-3">
+                  <p className="text-[12px] text-fg">
+                    {changingMode === 'encrypted'
+                      ? 'Activer le chiffrement renforcé ? Les anciennes sauvegardes en clair resteront accessibles sur Drive.'
+                      : 'Désactiver le chiffrement renforcé ? Les nouvelles sauvegardes seront lisibles sur Drive. Les anciennes versions restent conservées.'}
+                  </p>
+                  {changingMode === 'encrypted' ? (
+                    <label className="block text-[12px] text-muted">
+                      Nouvelle phrase secrète (8 caractères minimum)
+                      <Input
+                        type="password"
+                        className="mt-1"
+                        value={newGooglePassphrase}
+                        onChange={(e) => setNewGooglePassphrase(e.target.value)}
+                        autoComplete="new-password"
+                      />
+                    </label>
+                  ) : null}
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      loading={busy === 'migration'}
+                      disabled={
+                        busy !== null ||
+                        (changingMode === 'encrypted' && newGooglePassphrase.length < 8)
+                      }
+                      onClick={() => void changeGoogleMode()}
+                    >
+                      Confirmer le changement
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => setChangingMode(null)}>
+                      Annuler
+                    </Button>
+                  </div>
+                </div>
+                )}
+              </div>
+            </details>
+          ) : null}
           <p className="pb-1 text-[12px] text-muted">
             Synchronisation automatique environ une minute après chaque modification, régulièrement,
             et au démarrage du navigateur.
@@ -314,150 +466,264 @@ export function SyncSettings() {
         </>
       ) : (
         <>
-          <p className="py-2 text-[12.5px] leading-relaxed text-muted">
-            Retrouvez votre bibliothèque sur tous vos PC. Elle est enregistrée dans un dépôt{' '}
-            <strong>privé</strong> de votre compte GitHub, créé automatiquement. Les images et les
-            préférences restent propres à chaque PC.
-          </p>
-
-          {needsApp ? (
-            <div
-              className="my-2 rounded-xl border border-warning/30 bg-warning/[0.06] px-4 py-3"
-              data-testid="sync-app-setup"
-            >
-              <p className="text-[12.5px] font-medium text-fg">
-                Configuration unique, valable pour tous vos PC
-              </p>
-              <p className="mt-1 text-[12px] leading-relaxed text-muted">
-                GitHub exige que l’application « ThreadShelf » soit déclarée une fois sur votre
-                compte (le code de connexion vient juste après). Sur la page « Register a new OAuth
-                app » :
-              </p>
-              <div className="mt-2">
-                <CopyValue label="Application name" value="ThreadShelf" />
-                <CopyValue label="Homepage URL" value="https://github.com" />
-              </div>
-              <ul className="mt-1.5 space-y-0.5 text-[12px] leading-relaxed text-muted">
-                <li>
-                  · <em>Redirect URI</em> : https://github.com (non utilisé, mais obligatoire) ; «
-                  Allow wildcard matching » décoché.
-                </li>
-                <li>
-                  · <strong className="text-fg">Enable Device Flow : cochez</strong>.
-                </li>
-                <li>
-                  · <strong className="text-fg">Expire user access tokens : décochez</strong>, sinon
-                  il faudrait se reconnecter toutes les 8 heures.
-                </li>
-                <li>
-                  · Cliquez <em>Register application</em>, puis collez le <em>Client ID</em>{' '}
-                  ci-dessous.
-                </li>
-              </ul>
-              <div className="mt-2 flex items-center gap-2">
-                <Button size="sm" onClick={() => window.open(NEW_APP_URL, '_blank', 'noopener')}>
-                  Ouvrir GitHub <ExternalLink size={12} />
-                </Button>
-                <Input
-                  value={clientId}
-                  onChange={(e) => setClientId(e.target.value)}
-                  onBlur={() => void update({ sync: { oauthClientId: clientId.trim() } })}
-                  placeholder="Client ID (ex. Ov23li…)"
-                  spellCheck={false}
-                  data-testid="sync-client-id"
-                  className="h-7"
-                />
-              </div>
-            </div>
-          ) : null}
-
-          {device ? (
-            <div
-              className="my-2 rounded-xl border border-accent/30 bg-accent-soft/50 px-4 py-3"
-              data-testid="sync-device"
-            >
-              <p className="text-[12.5px] text-fg">
-                Sur la page GitHub qui vient de s’ouvrir, collez ce code puis cliquez{' '}
-                <strong>Authorize</strong> :
-              </p>
-              <div className="mt-2 flex items-center gap-3">
-                <code
-                  className="rounded-lg bg-surface px-3 py-1.5 font-mono text-[22px] font-semibold tracking-[0.18em] text-fg shadow-sm"
-                  data-testid="sync-user-code"
-                >
-                  {device.userCode}
-                </code>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() =>
-                    void copyText(device.userCode).then(() => toast.success('Code copié'))
-                  }
-                >
-                  <Copy size={13} /> Copier
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => window.open(device.verificationUri, '_blank', 'noopener')}
-                >
-                  Rouvrir GitHub <ExternalLink size={12} />
-                </Button>
-              </div>
-              <p className="mt-2 flex items-center gap-1.5 text-[12px] text-muted">
-                <Loader2 size={12} className="animate-spin" /> En attente de votre autorisation…
-                (code déjà copié dans le presse-papiers)
-                <button
-                  type="button"
-                  className="ml-auto text-muted underline hover:text-fg"
-                  onClick={stopWaiting}
-                >
-                  Annuler
-                </button>
-              </p>
-            </div>
-          ) : (
-            <div className="flex items-center gap-3 py-3">
-              <Button
-                variant="primary"
-                size="lg"
-                onClick={() => void signIn()}
-                loading={busy === 'signin'}
-                disabled={needsApp}
-                data-testid="sync-signin"
-              >
-                <GitHubMark /> Se connecter avec GitHub
-              </Button>
-              <span className="text-[12px] text-muted">
-                Puis collez le code affiché et cliquez « Authorize ». C’est tout.
-              </span>
-            </div>
-          )}
-
-          <details className="py-2">
-            <summary className="cursor-pointer select-none text-[12.5px] font-medium text-muted hover:text-fg">
-              Options avancées
-            </summary>
-            <div className="mt-2 space-y-2 border-l-2 border-line pl-3">
-              {encryption}
-              <label className="block text-[12.5px] text-muted">
-                Client ID de l’application GitHub
-                <Input
-                  className="mt-1"
-                  value={clientId}
-                  onChange={(e) => setClientId(e.target.value)}
-                  onBlur={() => void update({ sync: { oauthClientId: clientId.trim() } })}
-                  placeholder={GITHUB_OAUTH_CLIENT_ID || 'Client ID'}
-                  spellCheck={false}
-                />
-              </label>
-            </div>
-          </details>
-          {status?.lastError ? (
-            <p className="text-[12.5px] text-danger" data-testid="sync-status">
-              {status.lastError}
+          <div className="mt-3 rounded-xl border border-line bg-subtle/40 px-4 py-4">
+            <h3 className="text-[13px] font-semibold text-fg">
+              Google Drive — avec ou sans chiffrement renforcé
+            </h3>
+            <p className="mt-1 text-[12px] leading-relaxed text-muted">
+              Une autre façon de synchroniser votre extension avec TheardX, sans dépôt GitHub.
+              Connectez votre compte Google. Le mode de protection de votre dossier TheardX sera
+              détecté automatiquement.
             </p>
-          ) : null}
+            {googleSetup ? (
+              <div className="mt-3 space-y-3 rounded-lg border border-line bg-surface p-3">
+                <p className="text-[12px] text-fg">
+                  Compte : <strong>{googleSetup.email}</strong>
+                </p>
+                {googleSetup.mode ? (
+                  <p className="text-[12px] text-muted">
+                    {googleSetup.mode === 'encrypted'
+                      ? 'Cette bibliothèque est déjà chiffrée. Saisissez la même phrase secrète que sur le site Web.'
+                      : 'Cette bibliothèque est déjà en mode standard, sans phrase secrète. Son mode ne sera pas modifié.'}
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-[12px] font-medium text-fg">
+                      Sauvegarde standard sans phrase secrète par défaut.
+                    </p>
+                    <p className="text-[12px] text-muted">
+                      Les sauvegardes sont lisibles sur Google Drive. Le chiffrement supplémentaire est facultatif.
+                    </p>
+                    <details className="rounded-lg border border-line p-3">
+                      <summary className="ts-focus cursor-pointer text-[12px] font-semibold">
+                        Sécurité avancée (facultative)
+                      </summary>
+                      <label className="mt-3 flex items-center gap-2 text-[12px]">
+                        <input type="checkbox" checked={googleChoice === 'encrypted'}
+                          onChange={(event) => setGoogleChoice(event.target.checked ? 'encrypted' : 'plain')} />
+                        Activer le chiffrement renforcé
+                      </label>
+                      {googleChoice === 'encrypted' ? (
+                        <label className="mt-3 block text-[12px] text-muted">
+                          Phrase secrète (8 caractères minimum)
+                          <Input className="mt-1" type="password" minLength={8}
+                            value={googlePassphrase}
+                            onChange={(e) => setGooglePassphrase(e.target.value)}
+                            autoComplete="new-password" placeholder="Phrase secrète de votre bibliothèque" />
+                        </label>
+                      ) : null}
+                    </details>
+                  </div>
+                )}
+                {googleChoice === 'encrypted' && googleSetup.mode === 'encrypted' ? (
+                  <label className="block text-[12px] text-muted">
+                    Phrase secrète (8 caractères minimum)
+                    <Input
+                      className="mt-1"
+                      type="password"
+                      minLength={8}
+                      value={googlePassphrase}
+                      onChange={(e) => setGooglePassphrase(e.target.value)}
+                      autoComplete="new-password"
+                      placeholder="Phrase secrète de votre bibliothèque"
+                    />
+                  </label>
+                ) : null}
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    disabled={
+                      !googleChoice ||
+                      busy !== null ||
+                      (googleChoice === 'encrypted' && googlePassphrase.length < 8)
+                    }
+                    loading={busy === 'google'}
+                    onClick={() => void finishGoogle()}
+                  >
+                    Synchroniser avec Google Drive
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setGoogleSetup(null)}>
+                    Annuler
+                  </Button>
+                </div>
+              </div>
+            ) : null}
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <Button
+                size="sm"
+                variant="primary"
+                disabled={!hasGoogleOAuthClient() || busy !== null}
+                loading={busy === 'google'}
+                onClick={() => void startGoogle('chrome')}
+              >
+                <CloudCog size={14} />{' '}
+                {googleSetup ? 'Changer de compte Google' : 'Google (Chrome)'}
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={!hasGoogleBrowserOAuthClient() || busy !== null}
+                loading={busy === 'google'}
+                onClick={() => void startGoogle('browser')}
+              >
+                <CloudCog size={14} /> Google (Arc / Brave)
+              </Button>
+              {!hasGoogleOAuthClient() ? (
+                <span className="text-[11px] text-warning">
+                  Google sera disponible après l’enregistrement de l’ID permanent de l’extension
+                  dans Google Cloud et la mise à jour du Client ID OAuth public.
+                </span>
+              ) : null}
+            </div>
+          </div>
+          <div className="mt-4 border-t border-line pt-3">
+            <h3 className="text-[12.5px] font-semibold text-fg">Ou continuer avec GitHub</h3>
+            <p className="py-2 text-[12.5px] leading-relaxed text-muted">
+              Retrouvez votre bibliothèque sur tous vos PC. Elle est enregistrée dans un dépôt{' '}
+              <strong>privé</strong> de votre compte GitHub, créé automatiquement. Les images et les
+              préférences restent propres à chaque PC.
+            </p>
+
+            {needsApp ? (
+              <div
+                className="my-2 rounded-xl border border-warning/30 bg-warning/[0.06] px-4 py-3"
+                data-testid="sync-app-setup"
+              >
+                <p className="text-[12.5px] font-medium text-fg">
+                  Configuration unique, valable pour tous vos PC
+                </p>
+                <p className="mt-1 text-[12px] leading-relaxed text-muted">
+                  GitHub exige que l’application « ThreadShelf » soit déclarée une fois sur votre
+                  compte (le code de connexion vient juste après). Sur la page « Register a new
+                  OAuth app » :
+                </p>
+                <div className="mt-2">
+                  <CopyValue label="Application name" value="ThreadShelf" />
+                  <CopyValue label="Homepage URL" value="https://github.com" />
+                </div>
+                <ul className="mt-1.5 space-y-0.5 text-[12px] leading-relaxed text-muted">
+                  <li>
+                    · <em>Redirect URI</em> : https://github.com (non utilisé, mais obligatoire) ; «
+                    Allow wildcard matching » décoché.
+                  </li>
+                  <li>
+                    · <strong className="text-fg">Enable Device Flow : cochez</strong>.
+                  </li>
+                  <li>
+                    · <strong className="text-fg">Expire user access tokens : décochez</strong>,
+                    sinon il faudrait se reconnecter toutes les 8 heures.
+                  </li>
+                  <li>
+                    · Cliquez <em>Register application</em>, puis collez le <em>Client ID</em>{' '}
+                    ci-dessous.
+                  </li>
+                </ul>
+                <div className="mt-2 flex items-center gap-2">
+                  <Button size="sm" onClick={() => window.open(NEW_APP_URL, '_blank', 'noopener')}>
+                    Ouvrir GitHub <ExternalLink size={12} />
+                  </Button>
+                  <Input
+                    value={clientId}
+                    onChange={(e) => setClientId(e.target.value)}
+                    onBlur={() => void update({ sync: { oauthClientId: clientId.trim() } })}
+                    placeholder="Client ID (ex. Ov23li…)"
+                    spellCheck={false}
+                    data-testid="sync-client-id"
+                    className="h-7"
+                  />
+                </div>
+              </div>
+            ) : null}
+
+            {device ? (
+              <div
+                className="my-2 rounded-xl border border-accent/30 bg-accent-soft/50 px-4 py-3"
+                data-testid="sync-device"
+              >
+                <p className="text-[12.5px] text-fg">
+                  Sur la page GitHub qui vient de s’ouvrir, collez ce code puis cliquez{' '}
+                  <strong>Authorize</strong> :
+                </p>
+                <div className="mt-2 flex items-center gap-3">
+                  <code
+                    className="rounded-lg bg-surface px-3 py-1.5 font-mono text-[22px] font-semibold tracking-[0.18em] text-fg shadow-sm"
+                    data-testid="sync-user-code"
+                  >
+                    {device.userCode}
+                  </code>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() =>
+                      void copyText(device.userCode).then(() => toast.success('Code copié'))
+                    }
+                  >
+                    <Copy size={13} /> Copier
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => window.open(device.verificationUri, '_blank', 'noopener')}
+                  >
+                    Rouvrir GitHub <ExternalLink size={12} />
+                  </Button>
+                </div>
+                <p className="mt-2 flex items-center gap-1.5 text-[12px] text-muted">
+                  <Loader2 size={12} className="animate-spin" /> En attente de votre autorisation…
+                  (code déjà copié dans le presse-papiers)
+                  <button
+                    type="button"
+                    className="ml-auto text-muted underline hover:text-fg"
+                    onClick={stopWaiting}
+                  >
+                    Annuler
+                  </button>
+                </p>
+              </div>
+            ) : (
+              <div className="flex items-center gap-3 py-3">
+                <Button
+                  variant="primary"
+                  size="lg"
+                  onClick={() => void signIn()}
+                  loading={busy === 'signin'}
+                  disabled={needsApp}
+                  data-testid="sync-signin"
+                >
+                  <GitHubMark /> Se connecter avec GitHub
+                </Button>
+                <span className="text-[12px] text-muted">
+                  Puis collez le code affiché et cliquez « Authorize ». C’est tout.
+                </span>
+              </div>
+            )}
+
+            <details className="py-2">
+              <summary className="cursor-pointer select-none text-[12.5px] font-medium text-muted hover:text-fg">
+                Options avancées
+              </summary>
+              <div className="mt-2 space-y-2 border-l-2 border-line pl-3">
+                {encryption}
+                <label className="block text-[12.5px] text-muted">
+                  Client ID de l’application GitHub
+                  <Input
+                    className="mt-1"
+                    value={clientId}
+                    onChange={(e) => setClientId(e.target.value)}
+                    onBlur={() => void update({ sync: { oauthClientId: clientId.trim() } })}
+                    placeholder={GITHUB_OAUTH_CLIENT_ID || 'Client ID'}
+                    spellCheck={false}
+                  />
+                </label>
+              </div>
+            </details>
+            {status?.lastError ? (
+              <p className="text-[12.5px] text-danger" data-testid="sync-status">
+                {status.lastError}
+              </p>
+            ) : null}
+          </div>
         </>
       )}
     </section>

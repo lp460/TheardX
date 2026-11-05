@@ -79,7 +79,9 @@ test('a public share renders full X and Reddit text without GitHub sign-in on iP
     'href',
     'https://x.com/test/status/123',
   );
-  expect(authRequests).toHaveLength(0);
+  // Authentication is checked in the background to display the optional
+  // 'save to my library' button, but guests must still read without signing in.
+  expect(authRequests).toHaveLength(1);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.getByRole('combobox', { name: 'Langue' }).selectOption('es');
   await expect(page.getByText('Colección compartida', { exact: false })).toBeVisible();
@@ -96,4 +98,32 @@ test('an expired or revoked share gives a helpful message without login', async 
   await page.goto(`/share/index.html?id=${data.id}`);
   await expect(page.getByRole('alert')).toContainText('Ce lien de partage a expiré.');
   await expect(page.getByTestId('shared-item')).toHaveCount(0);
+});
+
+test('a signed-in recipient saves a private copy and participates without changing source text', async ({ page }) => {
+  await page.route('**/api/auth/me', (route) => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ login: 'reader', provider: 'github', accountId: 'github:reader' }),
+  }));
+  await page.route('**/api/share?id=*', (route) => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ ...data, collaboration: true }),
+  }));
+  let sharedNotes: unknown[] = [];
+  await page.route('**/api/share-notes?id=*', async (route) => {
+    if (route.request().method() === 'POST') {
+      const input = route.request().postDataJSON() as Record<string, unknown>;
+      const note = { ...input, id: 'note1', author: 'reader', authorKey: 'abc', createdAt: Date.now() };
+      sharedNotes = [...sharedNotes, note];
+      return route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ note }) });
+    }
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ notes: sharedNotes }) });
+  });
+  await page.goto(`/share/index.html?id=${data.id}`);
+  await page.getByTestId('save-shared-copy').click();
+  await expect(page.getByTestId('save-shared-copy')).toContainText('Copie enregistrée');
+  await page.getByPlaceholder('Ajouter une idée, une remarque ou un commentaire…').first().fill('Un commentaire utile');
+  await page.getByRole('button', { name: 'Publier' }).first().click();
+  await expect(page.getByTestId('shared-note')).toContainText('Un commentaire utile');
+  await expect(page.getByText('The long article body is visible to guests.')).toBeVisible();
 });

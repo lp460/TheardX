@@ -210,6 +210,12 @@ test.describe('reader', () => {
     // Note autosave.
     await r.locator('[data-testid="reader-note"]').fill('À relire avant la conf');
     await expect(r.getByText('Enregistrée')).toBeVisible({ timeout: 4000 });
+    // The floating companion stays out of the way while the editor has focus.
+    await expect(r.getByTestId('reader-notes-dock')).toHaveCount(0);
+    await r.locator('[data-testid="reader-note"]').evaluate((element) => (element as HTMLTextAreaElement).blur());
+    await expect(r.getByTestId('reader-notes-preview')).toContainText('À relire avant la conf');
+    await r.getByTestId('reader-notes-preview').click();
+    await expect(r.getByTestId('reader-notes-expanded')).toContainText('À relire avant la conf');
     // Reading to the end marks it as read.
     await r.locator('[data-testid="reader-end"]').scrollIntoViewIfNeeded();
     await expect

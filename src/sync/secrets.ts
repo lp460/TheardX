@@ -8,6 +8,8 @@ export interface SyncSecrets {
   /** GitHub OAuth access token obtained with « Se connecter avec GitHub ». */
   token: string;
   passphrase: string;
+  /** Google Drive has an independent key; never silently reuse the GitHub key. */
+  googlePassphrase?: string;
   /** Set only when the GitHub app issues expiring tokens. */
   refreshToken?: string;
   tokenExpiresAt?: number;
@@ -26,6 +28,7 @@ export async function loadSecrets(): Promise<SyncSecrets> {
   return {
     token: typeof v?.token === 'string' ? v.token : '',
     passphrase: typeof v?.passphrase === 'string' ? v.passphrase : '',
+    ...(typeof v?.googlePassphrase === 'string' ? { googlePassphrase: v.googlePassphrase } : {}),
     ...(typeof v?.refreshToken === 'string' ? { refreshToken: v.refreshToken } : {}),
     ...(typeof v?.tokenExpiresAt === 'number' ? { tokenExpiresAt: v.tokenExpiresAt } : {}),
   };
@@ -40,9 +43,9 @@ export async function saveSecrets(patch: Partial<SyncSecrets>): Promise<void> {
 
 /** Forgets the GitHub connection (keeps the passphrase, which is not a GitHub credential). */
 export async function clearToken(): Promise<void> {
-  const { passphrase } = await loadSecrets();
+  const { passphrase, googlePassphrase } = await loadSecrets();
   const a = area();
-  const next: SyncSecrets = { token: '', passphrase };
+  const next: SyncSecrets = { token: '', passphrase, googlePassphrase };
   if (a) await a.set({ [KEY]: next });
   else memory = next;
 }

@@ -7,7 +7,9 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   reporter: 'list',
-  use: { baseURL: 'http://127.0.0.1:4173', serviceWorkers: 'allow' },
+  // Browser runners default to English; the UI assertions below intentionally
+  // exercise French, while dedicated tests switch to English and Spanish.
+  use: { baseURL: 'http://127.0.0.1:4173', serviceWorkers: 'allow', locale: 'fr-FR' },
   webServer: {
     command: 'npm run preview:web',
     url: 'http://127.0.0.1:4173',

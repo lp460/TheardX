@@ -12,6 +12,9 @@ test('personal passage comments survive a reader reload and can be resolved and 
   await reader.goto(h.ext(`reader/index.html?id=${entry!.id}`));
   const phrase = reader.getByTestId('article-view').getByText('Jev en commande shell');
   await expect(phrase).toBeVisible();
+  // A real user scrolls to the passage before selecting it; make the headless
+  // click exercise the same visible selection instead of an off-screen range.
+  await phrase.scrollIntoViewIfNeeded();
   await phrase.evaluate((element) => {
     const range = document.createRange();
     range.selectNodeContents(element);
@@ -19,18 +22,29 @@ test('personal passage comments survive a reader reload and can be resolved and 
     window.getSelection()?.addRange(range);
     element.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
   });
-  await reader.getByRole('button', { name: 'Commenter' }).click();
+  await expect(reader.getByRole('button', { name: 'Commenter' })).toBeVisible();
+  await reader.getByRole('button', { name: 'Commenter' }).click({ timeout: 10_000 });
   await reader.getByRole('textbox', { name: 'Commentaire personnel' }).fill('À examiner pour Hermes');
-  await reader.getByRole('button', { name: 'Enregistrer' }).click();
+  await reader.getByRole('button', { name: 'Enregistrer' }).click({ timeout: 10_000 });
   await expect(reader.getByTestId('reader-annotations-panel')).toContainText('À examiner pour Hermes');
   await expect(reader.getByTestId('reader-annotations-panel')).toContainText('Jev en commande shell');
   await reader.reload();
-  await reader.getByTestId('reader-annotations').click();
+  await reader.getByTestId('reader-annotations').click({ timeout: 10_000 });
   const panel = reader.getByTestId('reader-annotations-panel');
   await expect(panel).toContainText('À examiner pour Hermes');
-  await panel.getByTitle('Résoudre').click();
+  await expect(reader.getByTestId('reader-notes-dock')).toBeVisible();
+  await reader.getByRole('button', { name: 'Masquer mes notes' }).click();
+  await expect(reader.getByTestId('reader-notes-restore')).toBeVisible();
+  await reader.getByTestId('reader-notes-restore').click();
+  await expect(reader.getByTestId('reader-notes-annotations')).toBeVisible();
+  await reader.getByTestId('reader-notes-annotations').click();
+  await expect(panel).toBeVisible();
+  await panel.getByRole('button', { name: 'Masquer les surlignages' }).click();
+  await expect(panel.getByRole('button', { name: 'Afficher les surlignages' })).toBeVisible();
+  await panel.getByRole('button', { name: 'Afficher les surlignages' }).click();
+  await panel.getByTitle('Résoudre').click({ timeout: 10_000 });
   await expect(panel).toContainText('Résolu');
   reader.once('dialog', (dialog) => void dialog.accept());
-  await panel.getByTitle('Supprimer').click();
+  await panel.getByTitle('Supprimer').click({ timeout: 10_000 });
   await expect(panel).toContainText('Mes annotations (0)');
 });

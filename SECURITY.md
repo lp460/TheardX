@@ -1,6 +1,6 @@
 # Sécurité et confidentialité — extension Chromium
 
-Cette section décrit avant tout l'extension. La PWA ajoute une session GitHub côté serveur, un proxy d'images, des liens de partage publics et une traduction distante sur consentement. Le détail des transferts et des choix de l'utilisateur figure dans [PRIVACY.md](PRIVACY.md) et [docs/WEB-PWA.md](docs/WEB-PWA.md).
+Cette section décrit avant tout l'extension. La PWA ajoute une session Google ou GitHub côté serveur, un proxy d'images, des liens de partage publics et une traduction distante sur consentement. Pour Google Drive, les nouvelles sauvegardes sont standard (non chiffrées de bout en bout) par défaut, avec chiffrement facultatif. Le détail des transferts et des choix de l'utilisateur figure dans [PRIVACY.md](PRIVACY.md) et [docs/WEB-PWA.md](docs/WEB-PWA.md).
 
 ## Permissions (minimales)
 

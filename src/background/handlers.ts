@@ -84,6 +84,12 @@ async function dispatch(req: Request, deps: BackgroundDeps): Promise<unknown> {
       return (deps.sync?.now ?? (await import('./sync-service')).syncNow)();
     case 'sync.status':
       return (deps.sync?.status ?? (await import('./sync-service')).loadSyncStatus)();
+    case 'sync.googleInspect':
+      return (await import('./sync-service')).syncGoogleInspect(req);
+    case 'sync.googleConnect':
+      return (await import('./sync-service')).syncGoogleConnect(req);
+    case 'sync.googleChangeMode':
+      return (await import('./sync-service')).syncGoogleChangeMode(req);
     case 'sync.deviceStart':
       return (await import('./sync-service')).syncDeviceStart();
     case 'sync.devicePoll':
