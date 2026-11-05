@@ -16,7 +16,8 @@ test('user can import saved X and Reddit links from a file without duplicate rec
   await page.getByRole('button', { name: 'Importer les favoris', exact: true }).click();
   await expect(page.getByRole('status').last()).toContainText('1 ajoutés');
   await expect(page.getByText('Import terminé.')).toBeVisible();
-  await page.getByRole('button', { name: 'Fermer', exact: true }).click();
+  await page.getByRole('dialog', { name: 'Importer les favoris X et Reddit' })
+    .getByRole('button', { name: 'Fermer', exact: true }).click();
   await expect(page.getByTestId('entry-card')).toHaveCount(1);
   await expect(page.getByTestId('entry-card')).toContainText('Publication de @inconnu');
 });

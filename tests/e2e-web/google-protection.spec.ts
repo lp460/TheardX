@@ -74,6 +74,6 @@ test('the settings allow opting into encrypted Google Drive snapshots', async ({
   expect(files[1]!.text).not.toContain('"format":"threadshelf.backup"');
   await page.reload();
   await expect(
-    page.getByText('Bibliothèque chiffrée : saisissez votre phrase secrète', { exact: false }),
+    page.getByText('Bibliothèque chiffrée : saisissez votre phrase secrète', { exact: false }).first(),
   ).toBeVisible();
 });

@@ -29,7 +29,11 @@ test('the public home explains TheardX, signs in through GitHub and offers the r
     status: 401, contentType: 'application/json', body: '{"error":"Connexion requise"}',
   }));
   await page.goto('/');
-  await expect(page.getByRole('main').getByRole('link', { name: /Se connecter avec GitHub/ })).toBeVisible();
+  await page.getByRole('button', { name: 'Connexion' }).first().click();
+  const signIn = page.getByRole('dialog', { name: 'Connexion' });
+  await expect(signIn.getByRole('link', { name: /GitHub/ })).toHaveAttribute('href', '/api/auth/login');
+  await page.keyboard.press('Escape');
+  await expect(signIn).not.toBeVisible();
   await expect(page.getByRole('heading', { name: 'Sauvegardez l’essentiel. Lisez-le vraiment.' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'L’extension pour capturer. Le web pour lire.' })).toBeVisible();
   await expect(page.getByTestId('demo-library-panel')).toBeVisible();
@@ -251,7 +255,7 @@ test('the PWA reopens its local library with no network after first visit', asyn
   });
   // Precache completion can precede clients.claim() controlling the first page.
   await expect.poll(() => page.evaluate(() => !!navigator.serviceWorker.controller)).toBe(true);
-  expect(await page.evaluate(() => localStorage.getItem('threadshelf.web.account'))).toBe('lp460');
+  expect(await page.evaluate(() => localStorage.getItem('threadshelf.web.account'))).toBe('github:lp460');
   // Let the auth request fail naturally offline; the online mock must not hide that state.
   await page.unroute('**/api/auth/me');
   await context.setOffline(true);
