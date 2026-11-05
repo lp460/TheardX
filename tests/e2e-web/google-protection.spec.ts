@@ -35,7 +35,7 @@ async function mockGoogle(page: Page, files: RemoteFile[]) {
   });
 }
 
-test('first Google login offers yes/no, then plain sync works without a passphrase on return', async ({
+test('first Google login automatically syncs plain, without a protection dialog', async ({
   page,
 }) => {
   const files: RemoteFile[] = [];
@@ -43,9 +43,6 @@ test('first Google login offers yes/no, then plain sync works without a passphra
   await mockGoogle(page, files);
   await page.goto('/');
   const dialog = page.getByRole('dialog', { name: 'Protéger votre bibliothèque Google Drive ?' });
-  await expect(dialog).toBeVisible();
-  await expect(dialog.getByRole('button', { name: 'Non, continuer sans secret' })).toBeVisible();
-  await dialog.getByRole('button', { name: 'Non, continuer sans secret' }).click();
   await expect(dialog).toHaveCount(0);
   await expect.poll(() => files.length).toBe(1);
   expect(JSON.parse(files[0]!.text)).toMatchObject({ mode: 'plain', root: true });
@@ -56,6 +53,8 @@ test('first Google login offers yes/no, then plain sync works without a passphra
   ).toHaveCount(0);
   await page.getByRole('button', { name: 'Menu', exact: true }).click();
   await page.getByRole('button', { name: 'Paramètres', exact: true }).click();
+  await expect(page.getByText('Sécurité avancée (facultative)')).toBeVisible();
+  await page.getByText('Sécurité avancée (facultative)').click();
   await expect(page.getByText('Mode standard : aucune phrase secrète')).toBeVisible();
 });
 
@@ -63,9 +62,9 @@ test('the settings allow opting into encrypted Google Drive snapshots', async ({
   const files: RemoteFile[] = [];
   await mockGoogle(page, files);
   await page.goto('/');
-  await page.getByRole('button', { name: 'Non, continuer sans secret' }).click();
   await expect.poll(() => files.length).toBe(1);
   await page.getByRole('button', { name: 'Paramètres', exact: true }).click();
+  await page.getByText('Sécurité avancée (facultative)').click();
   await page.getByRole('button', { name: 'Modifier la protection' }).click();
   await page.getByLabel('Nouvelle phrase secrète').fill('test-encryption-key-2026');
   await page.getByRole('button', { name: 'Confirmer le changement' }).click();

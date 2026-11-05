@@ -13,7 +13,7 @@ import { repository } from '@/storage/repository';
 export type WebSyncState = (
   | { phase: 'idle' | 'running'; lastSyncAt: number | null; error: string | null }
   | {
-      phase: 'needs-passphrase' | 'choose-encryption' | 'error';
+      phase: 'needs-passphrase' | 'error';
       lastSyncAt: number | null;
       error: string;
     }
@@ -82,22 +82,6 @@ export function setWebPassphrase(value: string): void {
   if (currentIdentity) void syncWebNow();
 }
 
-/** Called only after the first-login choice has been displayed. */
-export function setWebGoogleMode(mode: GoogleEncryptionMode): void {
-  if (currentIdentity?.provider !== 'google' || !googleModeKnown || googleMode) return;
-  googleMode = mode;
-  if (mode === 'encrypted') {
-    emit({
-      phase: 'needs-passphrase',
-      lastSyncAt: state.lastSyncAt,
-      error:
-        'Vous avez choisi le chiffrement renforcé : définissez une phrase secrète de 8 caractères minimum.',
-    });
-  } else {
-    void syncWebNow();
-  }
-}
-
 /** Changing modes creates a new Drive generation. Existing backups are not deleted. */
 export async function changeWebGoogleMode(
   mode: GoogleEncryptionMode,
@@ -144,16 +128,10 @@ export function syncWebNow(): Promise<void> {
         if (!googleModeKnown) {
           const remote = await inspectGoogleDrive();
           if (currentIdentity?.accountId !== identity.accountId) return;
-          googleMode = remote.mode;
+          // A new Drive defaults to standard backups. Existing encrypted libraries
+          // always retain their protection and still require the owner's passphrase.
+          googleMode = remote.mode ?? 'plain';
           googleModeKnown = true;
-        }
-        if (!googleMode) {
-          emit({
-            phase: 'choose-encryption',
-            lastSyncAt: state.lastSyncAt,
-            error: 'Choisissez comment protéger votre bibliothèque sur Google Drive.',
-          });
-          return;
         }
         if (googleMode === 'encrypted' && passphrase.length < 8) {
           emit({

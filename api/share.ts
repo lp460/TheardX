@@ -14,10 +14,12 @@ const MAX_BODY_BYTES = 1_000_000;
 const MAX_SHARES_PER_USER = 50;
 const SHARE_ID = /^([a-f0-9]{20})\.([A-Za-z0-9_-]{24})$/;
 
-type StoredShare = {
+export type StoredShare = {
   owner: string;
   createdAt: number;
   expiresAt: number | null;
+  /** Missing on legacy links, which remain strictly read-only. */
+  collaboration?: boolean;
   snapshot: SharedSnapshot;
 };
 
@@ -30,16 +32,16 @@ function shareOwner(session: WebSession): string {
   return session.provider === 'google' ? `google:${session.subject}` : session.login;
 }
 
-function pathFor(id: string): string | null {
+export function pathFor(id: string): string | null {
   const match = SHARE_ID.exec(id);
   return match ? `shares/v1/${match[1]}/${match[2]}.json` : null;
 }
 
-function storageConfigured(): boolean {
+export function storageConfigured(): boolean {
   return !!(process.env.BLOB_STORE_ID || process.env.BLOB_READ_WRITE_TOKEN);
 }
 
-async function readStored(pathname: string): Promise<StoredShare | null> {
+export async function readStored(pathname: string): Promise<StoredShare | null> {
   const result = await get(pathname, { access: 'private', useCache: false });
   if (!result || result.statusCode !== 200) return null;
   const raw = await new Response(result.stream).text();
@@ -50,6 +52,7 @@ async function readStored(pathname: string): Promise<StoredShare | null> {
     typeof stored.owner !== 'string' ||
     !Number.isFinite(stored.createdAt) ||
     !(stored.expiresAt === null || Number.isFinite(stored.expiresAt)) ||
+    !(stored.collaboration === undefined || typeof stored.collaboration === 'boolean') ||
     !sharedSnapshot.safeParse(stored.snapshot).success
   )
     throw new Error('Invalid stored share');
@@ -95,6 +98,7 @@ export default {
                 title: stored.snapshot.title,
                 createdAt: stored.createdAt,
                 expiresAt: stored.expiresAt,
+                collaboration: stored.collaboration === true,
               };
             }),
           );
@@ -116,6 +120,7 @@ export default {
           id,
           createdAt: stored.createdAt,
           expiresAt: stored.expiresAt,
+          collaboration: stored.collaboration === true,
           snapshot: stored.snapshot,
         });
         response.headers.set('X-Robots-Tag', 'noindex, nofollow, noarchive');
@@ -139,7 +144,9 @@ export default {
         if (!stored) return json({ error: 'Ce partage n’existe plus.' }, 404);
         if (stored.owner.toLowerCase() !== shareOwner(session).toLowerCase())
           return json({ error: 'Vous ne pouvez pas supprimer ce partage.' }, 403);
-        await del(pathname);
+        // Revoke content and comments together. All notes are bounded to 200 per share.
+        const notes = await list({ prefix: `shares/notes/v1/${id}/`, limit: 250 });
+        await del([pathname, ...notes.blobs.map((blob) => blob.pathname)]);
         return new Response(null, { status: 204, headers: { 'Cache-Control': 'no-store' } });
       } catch (error) {
         console.error('Share deletion failed', error instanceof Error ? error.name : 'unknown');
@@ -153,9 +160,10 @@ export default {
       const raw = await request.text();
       if (Buffer.byteLength(raw, 'utf8') > MAX_BODY_BYTES)
         return json({ error: 'Cette sélection est trop grande pour être partagée.' }, 413);
-      const body = JSON.parse(raw) as { snapshot?: unknown; expiresInDays?: unknown };
+      const body = JSON.parse(raw) as { snapshot?: unknown; expiresInDays?: unknown; collaboration?: unknown };
       const result = sharedSnapshot.safeParse(body?.snapshot);
-      if (!result.success || ![null, 7, 30].includes(body?.expiresInDays as number | null))
+      if (!result.success || ![null, 7, 30].includes(body?.expiresInDays as number | null) ||
+        !(body.collaboration === undefined || typeof body.collaboration === 'boolean'))
         return json({ error: 'Contenu de partage invalide.' }, 400);
 
       const prefix = ownerPrefix(shareOwner(session));
@@ -174,6 +182,7 @@ export default {
         owner: shareOwner(session),
         createdAt,
         expiresAt,
+        collaboration: body.collaboration === true,
         snapshot: result.data,
       };
       await put(pathFor(shareId)!, JSON.stringify(stored), {
@@ -189,6 +198,7 @@ export default {
           url: `${webOrigin(request)}/s/${shareId}`,
           createdAt,
           expiresAt,
+          collaboration: stored.collaboration,
           type: result.data.type,
           title: result.data.title,
         },

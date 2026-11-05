@@ -206,8 +206,9 @@ const messages = {
     noTelemetry: 'aucune télémétrie',
     syncSettings: 'Synchronisation GitHub Web',
     googleSyncSettings: 'Synchronisation Google Drive',
+    googleAdvancedSecurity: 'Sécurité avancée (facultative)',
     googleSyncHint:
-      'Sauvegardes dans votre dossier TheardX sur Google Drive. Le chiffrement de bout en bout est facultatif ; sans lui, le contenu transite en clair par le serveur Vercel. Pour le moment, la synchronisation de l’extension reste sur GitHub.',
+      'Sauvegardes dans votre dossier TheardX sur Google Drive, sans phrase secrète par défaut. Le chiffrement de bout en bout est facultatif ; sans lui, le contenu transite en clair par le serveur Vercel.',
     googleChoiceTitle: 'Protéger votre bibliothèque Google Drive ?',
     googleChoiceBody:
       'Choisissez une fois lors de votre première connexion. Vous pourrez modifier ce réglage dans les options.',
@@ -473,8 +474,9 @@ const messages = {
     noTelemetry: 'no telemetry',
     syncSettings: 'GitHub web sync',
     googleSyncSettings: 'Google Drive sync',
+    googleAdvancedSecurity: 'Advanced security (optional)',
     googleSyncHint:
-      'Backups in the TheardX folder on your Google Drive. End-to-end encryption is optional; without it, content passes through the Vercel server in plaintext. Extension sync still uses GitHub for now.',
+      'Backups in your TheardX Google Drive folder, with no passphrase by default. End-to-end encryption is optional; without it, content passes through the Vercel server in plaintext.',
     googleChoiceTitle: 'Protect your Google Drive library?',
     googleChoiceBody: 'Choose when you first sign in. You can change this in Settings later.',
     googleStandardTitle: 'No extra passphrase',
@@ -741,8 +743,9 @@ const messages = {
     noTelemetry: 'sin telemetría',
     syncSettings: 'Sincronización web con GitHub',
     googleSyncSettings: 'Sincronización Google Drive',
+    googleAdvancedSecurity: 'Seguridad avanzada (opcional)',
     googleSyncHint:
-      'Copias en la carpeta TheardX de Google Drive. El cifrado de extremo a extremo es opcional; sin él, el contenido pasa sin cifrar por Vercel. La extensión sigue usando GitHub por ahora.',
+      'Copias en la carpeta TheardX de Google Drive, sin contraseña adicional de forma predeterminada. El cifrado de extremo a extremo es opcional; sin él, el contenido pasa sin cifrar por Vercel.',
     googleChoiceTitle: '¿Proteger tu biblioteca de Google Drive?',
     googleChoiceBody: 'Elige al iniciar sesión por primera vez. Podrás cambiarlo en Ajustes.',
     googleStandardTitle: 'Sin contraseña adicional',

@@ -16,9 +16,10 @@
   Toutes les révisions sont réconciliées avec les règles existantes de fusion
   (entrées, tweets, catégories, annotations, suppressions/tombstones). Aucune
   écriture ne remplace directement la dernière version d'un autre appareil.
-- Confidentialité : **au premier accès Google Drive, le Web demande si l'utilisateur
-  souhaite activer le chiffrement renforcé**. Par défaut, le mode standard ne
-  demande pas de phrase secrète et stocke les données sur son Drive au format JSON
+- Confidentialité : **au premier accès Google Drive, le Web synchronise en mode
+  standard, sans phrase secrète**. Une section « Sécurité avancée » repliée
+  permet d'activer explicitement le chiffrement renforcé ensuite. Le mode standard
+  stocke les données sur Drive au format JSON
   lisible. Google protège le compte et les échanges HTTPS, mais Google et les
   fonctions Vercel peuvent lire cette sauvegarde : **ce n'est pas du chiffrement
   de bout en bout**. En mode renforcé, les contenus sont chiffrés dans le navigateur
@@ -119,8 +120,9 @@ Pour autoriser ces fonctions :
    au domaine API de la Preview, puisque l'échange du code se fait côté
    serveur. Se connecter sur **le même compte Google** que le Web.
    L'extension inspecte le Drive avant toute sauvegarde.
-   Sur un Drive neuf, elle propose « Non, sans phrase secrète » ou « Oui,
-   chiffrer ma bibliothèque ». Sur un Drive déjà configuré, le mode existant
+   Sur un Drive neuf, le mode standard est présélectionné ; la section
+   « Sécurité avancée » permet d'opter pour le chiffrement avant la première
+   synchronisation. Sur un Drive déjà configuré, le mode existant
    est respecté : en mode standard, aucun secret supplémentaire ; en mode
    renforcé, la même phrase secrète (8 caractères min.) que sur le Web.
 6. Une fois connecté, le changement de protection est **explicite** dans les
@@ -151,9 +153,8 @@ Il n'y a **aucune migration automatique** ni suppression du dépôt GitHub.
 
 1. Dans le profil GitHub actuel, exporter une sauvegarde JSON complète.
 2. Dans un **profil navigateur distinct**, se connecter avec Google.
-3. Choisir le mode de protection au premier accès (aucune phrase secrète en mode
-   standard ; phrase secrète requise en mode renforcé) et attendre le premier
-   état de synchronisation.
+3. Attendre la première synchronisation standard (sans phrase secrète), ou activer
+   plus tard le chiffrement renforcé dans « Sécurité avancée ».
 4. Importer explicitement la sauvegarde JSON avec le mode **Fusionner**.
 5. Déclencher une nouvelle synchronisation, vérifier les comptes et comparer
    les nombres d'entrées, tags, notes, collections et suppressions.

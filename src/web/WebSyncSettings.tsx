@@ -80,14 +80,16 @@ export function WebSyncSettings() {
         </form>
       ) : null}
       {google && state.mode ? (
-        <div className="mt-4 rounded-xl border border-line bg-bg p-4">
-          <h3 className="flex items-center gap-2 text-sm font-semibold">
+        <details className="mt-4 rounded-xl border border-line bg-bg p-4">
+          <summary className="ts-focus flex min-h-9 cursor-pointer items-center gap-2 text-sm font-semibold">
             {state.mode === 'encrypted' ? <LockKeyhole size={16} /> : <ShieldCheck size={16} />}
-            {t('googleProtectionLabel')}
-          </h3>
-          <p className="mt-1 text-xs text-muted">
-            {t(state.mode === 'encrypted' ? 'googleCurrentEncrypted' : 'googleCurrentStandard')}
-          </p>
+            {t('googleAdvancedSecurity')}
+          </summary>
+          <div className="mt-3 border-t border-line pt-3">
+            <h3 className="text-sm font-semibold">{t('googleProtectionLabel')}</h3>
+            <p className="mt-1 text-xs text-muted">
+              {t(state.mode === 'encrypted' ? 'googleCurrentEncrypted' : 'googleCurrentStandard')}
+            </p>
           {!editProtection ? (
             <Button
               variant="outline"
@@ -169,12 +171,13 @@ export function WebSyncSettings() {
               </div>
             </form>
           )}
-          {protectionMessage ? (
-            <p role="status" className="mt-2 text-xs text-muted">
-              {protectionMessage}
-            </p>
-          ) : null}
-        </div>
+            {protectionMessage ? (
+              <p role="status" className="mt-2 text-xs text-muted">
+                {protectionMessage}
+              </p>
+            ) : null}
+          </div>
+        </details>
       ) : null}
       {!google || state.mode === 'encrypted' ? (
         <p className="mt-3 flex items-start gap-2 text-xs text-muted">

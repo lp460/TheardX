@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { setSessionCookie } from '../../server/session';
 import shareApi from '../../api/share';
+import shareNotesApi from '../../api/share-notes';
 import { sharedSnapshot } from '@/share/model';
 import { prepareSharedSnapshot } from '@/share/prepare';
 import type { EntryBundle, Tweet } from '@/types/model';
@@ -24,8 +25,8 @@ vi.mock('@vercel/blob', () => ({
       .map((pathname) => ({ pathname })),
     hasMore: false,
   })),
-  del: vi.fn(async (path: string) => {
-    blobs.delete(path);
+  del: vi.fn(async (paths: string | string[]) => {
+    for (const path of Array.isArray(paths) ? paths : [paths]) blobs.delete(path);
   }),
 }));
 
@@ -95,6 +96,19 @@ function signedCookie(login = 'lp460'): string {
   return setSessionCookie(request, {
     login,
     token: 'private-github-access-token',
+    expiresAt: Date.now() + 60_000,
+  }).split(';')[0]!;
+}
+
+function signedGoogleCookie(): string {
+  const request = new Request(ORIGIN);
+  return setSessionCookie(request, {
+    provider: 'google',
+    subject: 'stable-google-user-id',
+    login: 'reader@example.com',
+    token: 'secret-google-access',
+    refreshToken: 'secret-google-refresh',
+    accessExpiresAt: Date.now() + 60_000,
     expiresAt: Date.now() + 60_000,
   }).split(';')[0]!;
 }
@@ -196,6 +210,67 @@ describe('Public TheardX sharing', () => {
       (await shareApi.fetch(req(`/api/share?id=${id}`, 'DELETE', signedCookie()))).status,
     ).toBe(204);
     expect((await shareApi.fetch(req(`/api/share?id=${id}`))).status).toBe(404);
+  });
+
+  it('keeps legacy and read-only shares immutable and rejects collaborative posts', async () => {
+    const created = await shareApi.fetch(req('/api/share', 'POST', signedCookie(), ORIGIN, {
+      snapshot: snapshot(), expiresInDays: 7,
+    }));
+    const { id } = (await created.json()) as { id: string };
+    const read = await shareApi.fetch(req(`/api/share?id=${id}`));
+    expect(((await read.json()) as { collaboration: boolean }).collaboration).toBe(false);
+    expect((await shareNotesApi.fetch(req(`/api/share-notes?id=${id}`))).status).toBe(200);
+    expect((await shareNotesApi.fetch(req(`/api/share-notes?id=${id}`, 'POST', signedCookie(), ORIGIN, {
+      kind: 'comment', itemIndex: 0, text: 'Cannot change this share',
+    }))).status).toBe(403);
+  });
+
+  it('allows only authenticated same-origin contributions when collaboration is enabled', async () => {
+    const before = snapshot();
+    const created = await shareApi.fetch(req('/api/share', 'POST', signedCookie(), ORIGIN, {
+      snapshot: before, expiresInDays: 7, collaboration: true,
+    }));
+    expect(created.status).toBe(201);
+    const { id, collaboration } = (await created.json()) as { id: string; collaboration: boolean };
+    expect(collaboration).toBe(true);
+    const note = { kind: 'annotation', itemIndex: 0, postId: '123', quote: 'Complete body.', text: 'Interesting find' };
+    expect((await shareNotesApi.fetch(req(`/api/share-notes?id=${id}`, 'POST', '', ORIGIN, note))).status).toBe(401);
+    expect((await shareNotesApi.fetch(req(`/api/share-notes?id=${id}`, 'POST', signedCookie(), 'https://evil.example', note))).status).toBe(403);
+    expect((await shareNotesApi.fetch(req(`/api/share-notes?id=${id}`, 'POST', signedCookie(), ORIGIN, {
+      ...note, quote: 'A forged excerpt',
+    }))).status).toBe(400);
+    expect((await shareNotesApi.fetch(req(`/api/share-notes?id=${id}`, 'POST', signedCookie(), ORIGIN, {
+      ...note, snapshot: { title: 'overwrite source' },
+    }))).status).toBe(400);
+    const sent = await shareNotesApi.fetch(req(`/api/share-notes?id=${id}`, 'POST', signedCookie(), ORIGIN, note));
+    expect(sent.status).toBe(201);
+    const publicNotes = await shareNotesApi.fetch(req(`/api/share-notes?id=${id}`));
+    expect(publicNotes.status).toBe(200);
+    const { notes } = (await publicNotes.json()) as { notes: Array<{ text: string; quote: string; author: string }> };
+    expect(notes).toHaveLength(1);
+    expect(notes[0]).toMatchObject({ text: 'Interesting find', quote: 'Complete body.', author: 'lp460' });
+    const shared = await shareApi.fetch(req(`/api/share?id=${id}`));
+    expect((await shared.json()) as { snapshot: unknown }).toMatchObject({ snapshot: before });
+    const revoked = await shareApi.fetch(req(`/api/share?id=${id}`, 'DELETE', signedCookie()));
+    expect(revoked.status).toBe(204);
+    expect((await shareNotesApi.fetch(req(`/api/share-notes?id=${id}`))).status).toBe(404);
+    expect([...blobs.keys()].filter((path) => path.includes(id))).toHaveLength(0);
+  });
+
+  it('does not expose a Google commenter’s email address or tokens to visitors', async () => {
+    const created = await shareApi.fetch(req('/api/share', 'POST', signedCookie(), ORIGIN, {
+      snapshot: snapshot(), expiresInDays: null, collaboration: true,
+    }));
+    const { id } = (await created.json()) as { id: string };
+    const posted = await shareNotesApi.fetch(req(`/api/share-notes?id=${id}`, 'POST', signedGoogleCookie(), ORIGIN, {
+      kind: 'note', itemIndex: 0, text: 'A public contribution',
+    }));
+    expect(posted.status).toBe(201);
+    const publicResponse = await shareNotesApi.fetch(req(`/api/share-notes?id=${id}`));
+    const body = await publicResponse.text();
+    expect(body).toContain('reader');
+    expect(body).not.toContain('@example.com');
+    expect(body).not.toContain('secret-google');
   });
 
   it('returns a clear setup error when private Vercel Blob is not connected', async () => {

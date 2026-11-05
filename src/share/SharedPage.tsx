@@ -1,11 +1,15 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeft, Clock3, ExternalLink, Link2, Share2, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, BookmarkPlus, Check, Clock3, ExternalLink, Link2, Share2, ShieldCheck } from 'lucide-react';
 import { RichText } from '@/components/RichText';
 import { Logo } from '@/components/Logo';
 import { safeHref } from '@/utils/url';
 import type { ArticleBlock } from '@/types/model';
 import { LanguageSelector, useWebI18n, type WebLanguage } from '@/web/i18n';
 import type { PublishedShare, SharedItem, SharedPost } from './model';
+import type { SharedNote, SharedNoteInput } from './notes';
+import { useSharedNotes } from './SharedNotes';
+import { saveSharedCopy } from './save-copy';
+import { resolveWebAuth } from '@/web/auth';
 
 const copy = {
   fr: {
@@ -28,6 +32,10 @@ const copy = {
     source: 'Ouvrir la source',
     readOnly: 'Lecture seule',
     unavailableMedia: 'Média disponible sur la publication originale',
+    save: 'Enregistrer dans ma bibliothèque', saving: 'Enregistrement…',
+    saved: 'Copie enregistrée dans votre bibliothèque',
+    saveError: 'Impossible d’enregistrer cette copie.',
+    collaborate: 'Notes collaboratives',
   },
   en: {
     shared: 'Shared from TheardX',
@@ -48,6 +56,8 @@ const copy = {
     source: 'Open source',
     readOnly: 'Read only',
     unavailableMedia: 'Media available on the original post',
+    save: 'Save to my library', saving: 'Saving…', saved: 'Copy saved to your library',
+    saveError: 'Could not save this copy.', collaborate: 'Collaborative notes',
   },
   es: {
     shared: 'Compartido desde TheardX',
@@ -68,6 +78,9 @@ const copy = {
     source: 'Abrir fuente',
     readOnly: 'Solo lectura',
     unavailableMedia: 'Contenido multimedia en la publicación original',
+    save: 'Guardar en mi biblioteca', saving: 'Guardando…',
+    saved: 'Copia guardada en tu biblioteca', saveError: 'No se pudo guardar esta copia.',
+    collaborate: 'Notas colaborativas',
   },
 } as const;
 
@@ -129,10 +142,12 @@ function Post({
   post,
   index,
   language,
+  onSelection,
 }: {
   post: SharedPost;
   index: number;
   language: WebLanguage;
+  onSelection: (post: SharedPost) => void;
 }) {
   const t = copy[language];
   const title = post.article?.title;
@@ -140,6 +155,8 @@ function Post({
     <article
       className="rounded-2xl border border-line bg-surface px-4 py-5 shadow-sm sm:px-7 sm:py-7"
       data-testid="shared-post"
+      onMouseUp={() => onSelection(post)}
+      onTouchEnd={() => window.setTimeout(() => onSelection(post), 150)}
     >
       <div className="mb-5 flex min-w-0 items-center gap-3">
         {post.author.avatarUrl && safeHref(post.author.avatarUrl) ? (
@@ -206,12 +223,23 @@ function SharedArticle({
   item,
   index,
   language,
+  collaboration,
+  notes,
+  canContribute,
+  onSubmit,
 }: {
   item: SharedItem;
   index: number;
   language: WebLanguage;
+  collaboration: boolean;
+  notes: SharedNote[];
+  canContribute: boolean;
+  onSubmit: (input: SharedNoteInput) => Promise<void>;
 }) {
   const t = copy[language];
+  const { selectQuote, panel } = useSharedNotes({
+    language, itemIndex: index, notes, canContribute, onSubmit,
+  });
   return (
     <section className="space-y-4" data-testid="shared-item">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -236,9 +264,10 @@ function SharedArticle({
       </div>
       <div className="space-y-3">
         {item.posts.map((post, index) => (
-          <Post key={`${post.id}-${index}`} post={post} index={index} language={language} />
+          <Post key={`${post.id}-${index}`} post={post} index={index} language={language} onSelection={selectQuote} />
         ))}
       </div>
+      {collaboration ? panel : null}
     </section>
   );
 }
@@ -253,6 +282,19 @@ export function SharedPage() {
   const [share, setShare] = useState<PublishedShare | null>(null);
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
+  const [canSave, setCanSave] = useState(false);
+  const [saveBusy, setSaveBusy] = useState(false);
+  const [saveMessage, setSaveMessage] = useState('');
+  const [saved, setSaved] = useState(false);
+  const [notes, setNotes] = useState<SharedNote[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    void resolveWebAuth().then((auth) => {
+      if (active) setCanSave(auth.phase === 'online');
+    });
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -269,6 +311,50 @@ export function SharedPage() {
       active = false;
     };
   }, [id, t.unavailable]);
+
+  useEffect(() => {
+    if (!share?.collaboration) return;
+    let active = true;
+    setNotes([]);
+    const refresh = () => void fetch(`/api/share-notes?id=${encodeURIComponent(id)}`, { cache: 'no-store' })
+      .then(async (response) => {
+        if (!response.ok) throw new Error('Notes indisponibles');
+        return (await response.json()) as { notes: SharedNote[] };
+      })
+      .then((result) => { if (active) setNotes(result.notes); })
+      .catch(() => undefined);
+    refresh();
+    const interval = window.setInterval(refresh, 30_000);
+    return () => { active = false; window.clearInterval(interval); };
+  }, [id, share?.collaboration]);
+
+  const submitNote = async (input: SharedNoteInput): Promise<void> => {
+    const response = await fetch(`/api/share-notes?id=${encodeURIComponent(id)}`, {
+      method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    });
+    const data = (await response.json()) as { note?: SharedNote; error?: string };
+    if (!response.ok || !data.note) throw new Error(data.error || 'Contribution impossible.');
+    setNotes((previous) => [...previous, data.note!].sort((a, b) => a.createdAt - b.createdAt));
+  };
+
+  const saveCopy = async () => {
+    if (!share || !canSave || saveBusy) return;
+    setSaveBusy(true);
+    setSaveMessage('');
+    try {
+      // Do not mix an old tab's local library with a newly disconnected account.
+      const auth = await resolveWebAuth();
+      if (auth.phase !== 'online') throw new Error(t.saveError);
+      await saveSharedCopy(share);
+      setSaved(true);
+      setSaveMessage(t.saved);
+    } catch (reason) {
+      setSaveMessage(reason instanceof Error ? reason.message : t.saveError);
+    } finally {
+      setSaveBusy(false);
+    }
+  };
 
   const shareUrl = location.href;
   const nativeShare = typeof navigator.share === 'function';
@@ -294,7 +380,7 @@ export function SharedPage() {
         <div className="flex items-center gap-3">
           <span className="hidden items-center gap-1 text-xs text-muted sm:inline-flex">
             <ShieldCheck size={14} />
-            {t.readOnly}
+            {share?.collaboration ? t.collaborate : t.readOnly}
           </span>
           <LanguageSelector />
         </div>
@@ -339,14 +425,25 @@ export function SharedPage() {
                 </span>
               ) : null}
             </div>
-            <button
-              type="button"
-              onClick={() => void shareLink()}
-              className="ts-focus mt-5 inline-flex min-h-11 items-center gap-2 rounded-xl bg-accent px-4 text-sm font-semibold text-accent-fg hover:opacity-90"
-            >
-              {nativeShare ? <Share2 size={16} /> : <Link2 size={16} />}{' '}
-              {copied ? t.copied : nativeShare ? t.share : t.copy}
-            </button>
+            <div className="mt-5 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => void shareLink()}
+                className="ts-focus inline-flex min-h-11 items-center gap-2 rounded-xl bg-accent px-4 text-sm font-semibold text-accent-fg hover:opacity-90"
+              >
+                {nativeShare ? <Share2 size={16} /> : <Link2 size={16} />}{' '}
+                {copied ? t.copied : nativeShare ? t.share : t.copy}
+              </button>
+              {canSave ? (
+                <button type="button" disabled={saveBusy || saved} onClick={() => void saveCopy()}
+                  className="ts-focus inline-flex min-h-11 items-center gap-2 rounded-xl border border-line bg-surface px-4 text-sm font-semibold text-fg hover:bg-subtle disabled:opacity-60"
+                  data-testid="save-shared-copy">
+                  {saved ? <Check size={16} /> : <BookmarkPlus size={16} />}
+                  {saved ? t.saved : saveBusy ? t.saving : t.save}
+                </button>
+              ) : null}
+            </div>
+            {saveMessage ? <p role="status" className="mt-2 text-xs text-muted">{saveMessage}</p> : null}
             <div className="mt-10 space-y-12">
               {share.snapshot.items.map((item, index) => (
                 <SharedArticle
@@ -354,6 +451,10 @@ export function SharedPage() {
                   item={item}
                   index={index}
                   language={language}
+                  collaboration={share.collaboration === true}
+                  notes={notes}
+                  canContribute={canSave}
+                  onSubmit={submitNote}
                 />
               ))}
             </div>

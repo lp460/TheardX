@@ -187,7 +187,8 @@ export function SyncSettings() {
         mode: GoogleEncryptionMode | null;
       };
       setGoogleSetup(remote);
-      setGoogleChoice(remote.mode);
+      // New Drive accounts use standard backups unless the person explicitly opts in.
+      setGoogleChoice(remote.mode ?? 'plain');
     } catch (e) {
       toast.error('Connexion Google', e instanceof Error ? e.message : String(e));
     } finally {
@@ -404,8 +405,12 @@ export function SyncSettings() {
           </div>
           <div className="border-t border-line/70 pt-1">{encryption}</div>
           {google ? (
-            <div className="border-t border-line/70 py-3">
-              {!changingMode ? (
+            <details className="border-t border-line/70 py-3">
+              <summary className="ts-focus cursor-pointer text-[12px] font-semibold text-fg">
+                Sécurité avancée (facultative)
+              </summary>
+              <div className="mt-3">
+                {!changingMode ? (
                 <Button
                   size="sm"
                   variant="ghost"
@@ -413,7 +418,7 @@ export function SyncSettings() {
                 >
                   Modifier la protection Google Drive
                 </Button>
-              ) : (
+                ) : (
                 <div className="space-y-2 rounded-lg border border-warning/30 bg-warning/[0.06] p-3">
                   <p className="text-[12px] text-fg">
                     {changingMode === 'encrypted'
@@ -450,8 +455,9 @@ export function SyncSettings() {
                     </Button>
                   </div>
                 </div>
-              )}
-            </div>
+                )}
+              </div>
+            </details>
           ) : null}
           <p className="pb-1 text-[12px] text-muted">
             Synchronisation automatique environ une minute après chaque modification, régulièrement,
@@ -483,30 +489,33 @@ export function SyncSettings() {
                 ) : (
                   <div className="space-y-2">
                     <p className="text-[12px] font-medium text-fg">
-                      Voulez-vous chiffrer votre bibliothèque avec une phrase secrète ?
+                      Sauvegarde standard sans phrase secrète par défaut.
                     </p>
                     <p className="text-[12px] text-muted">
-                      Sans chiffrement renforcé, les sauvegardes sont lisibles sur Google Drive.
+                      Les sauvegardes sont lisibles sur Google Drive. Le chiffrement supplémentaire est facultatif.
                     </p>
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        size="sm"
-                        variant={googleChoice === 'plain' ? 'primary' : 'ghost'}
-                        onClick={() => setGoogleChoice('plain')}
-                      >
-                        Non, sans phrase secrète
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant={googleChoice === 'encrypted' ? 'primary' : 'ghost'}
-                        onClick={() => setGoogleChoice('encrypted')}
-                      >
-                        Oui, chiffrer ma bibliothèque
-                      </Button>
-                    </div>
+                    <details className="rounded-lg border border-line p-3">
+                      <summary className="ts-focus cursor-pointer text-[12px] font-semibold">
+                        Sécurité avancée (facultative)
+                      </summary>
+                      <label className="mt-3 flex items-center gap-2 text-[12px]">
+                        <input type="checkbox" checked={googleChoice === 'encrypted'}
+                          onChange={(event) => setGoogleChoice(event.target.checked ? 'encrypted' : 'plain')} />
+                        Activer le chiffrement renforcé
+                      </label>
+                      {googleChoice === 'encrypted' ? (
+                        <label className="mt-3 block text-[12px] text-muted">
+                          Phrase secrète (8 caractères minimum)
+                          <Input className="mt-1" type="password" minLength={8}
+                            value={googlePassphrase}
+                            onChange={(e) => setGooglePassphrase(e.target.value)}
+                            autoComplete="new-password" placeholder="Phrase secrète de votre bibliothèque" />
+                        </label>
+                      ) : null}
+                    </details>
                   </div>
                 )}
-                {googleChoice === 'encrypted' ? (
+                {googleChoice === 'encrypted' && googleSetup.mode === 'encrypted' ? (
                   <label className="block text-[12px] text-muted">
                     Phrase secrète (8 caractères minimum)
                     <Input
