@@ -50,7 +50,7 @@ export default {
       !/^[\w-]+\.apps\.googleusercontent\.com$/.test(process.env.GOOGLE_CLIENT_ID)
     )
       return result({ error: 'Client OAuth Web non configuré.' }, 503);
-    if (!request.headers.get('content-type')?.startsWith('application/json'))
+    if (!request.headers.get('content-type')?.startsWith('text/plain'))
       return result({ error: 'JSON requis.' }, 415);
 
     let input: ExchangeInput;

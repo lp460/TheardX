@@ -82,7 +82,9 @@ L'extension prend en charge deux connexions Google, avec le même périmètre
   jamais dans les sauvegardes. La déconnexion l'efface du navigateur.
   Le `POST /api/auth/google/login` réutilise la fonction Vercel de connexion
   existante (le `GET` du site reste inchangé), afin de respecter la limite de
-  fonctions du forfait Vercel Hobby.
+  fonctions du forfait Vercel Hobby. Le corps JSON est transmis avec le type
+  `text/plain` pour éviter un précontrôle OPTIONS que la protection Vercel
+  bloquerait ; l'API contrôle toujours l'origine exacte de l'extension.
 
 Pour autoriser ces fonctions :
 

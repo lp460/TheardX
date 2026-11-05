@@ -84,9 +84,10 @@ async function browserBackend(
     response = await fetch(`${GOOGLE_EXTENSION_TOKEN_ORIGIN}/api/auth/google/login`, {
       method: 'POST',
       credentials: 'include',
-      cache: 'no-store',
       redirect: 'error',
-      headers: { 'Content-Type': 'application/json' },
+      // A CORS-safelisted request avoids an unauthenticated OPTIONS preflight
+      // at Vercel's protected Preview. The server still strictly checks Origin.
+      headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify(body),
     });
   } catch {

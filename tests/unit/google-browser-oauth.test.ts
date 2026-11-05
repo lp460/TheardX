@@ -65,6 +65,11 @@ describe('Arc/Brave OAuth extension with PKCE', () => {
           url,
           body: typeof init.body === 'string' ? JSON.parse(init.body) : undefined,
         });
+        if (url.endsWith('/api/auth/google/login')) {
+          expect(init.headers).toEqual({ 'Content-Type': 'text/plain' });
+          expect(init.credentials).toBe('include');
+          expect(init.cache).toBeUndefined();
+        }
         if (url.endsWith('/api/auth/google/login'))
           return Response.json({
             accessToken: 'browser-access-token',
@@ -155,7 +160,7 @@ describe('Google Web confidential token bridge', () => {
   const request = (origin = ORIGIN, body: Record<string, unknown> = {}) =>
     new Request('https://preview.example/api/auth/google/login', {
       method: 'POST',
-      headers: { Origin: origin, 'Content-Type': 'application/json' },
+      headers: { Origin: origin, 'Content-Type': 'text/plain' },
       body: JSON.stringify(body),
     });
 
