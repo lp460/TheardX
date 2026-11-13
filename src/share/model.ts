@@ -138,5 +138,6 @@ export interface PublishedShare {
   id: string;
   createdAt: number;
   expiresAt: number | null;
+  collaboration?: boolean;
   snapshot: SharedSnapshot;
 }

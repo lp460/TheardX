@@ -29,7 +29,11 @@ test('the public home explains TheardX, signs in through GitHub and offers the r
     status: 401, contentType: 'application/json', body: '{"error":"Connexion requise"}',
   }));
   await page.goto('/');
-  await expect(page.getByRole('main').getByRole('link', { name: /Se connecter avec GitHub/ })).toBeVisible();
+  await page.getByRole('button', { name: 'Connexion' }).first().click();
+  const signIn = page.getByRole('dialog', { name: 'Connexion' });
+  await expect(signIn.getByRole('link', { name: /GitHub/ })).toHaveAttribute('href', '/api/auth/login');
+  await page.keyboard.press('Escape');
+  await expect(signIn).not.toBeVisible();
   await expect(page.getByRole('heading', { name: 'Sauvegardez l’essentiel. Lisez-le vraiment.' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'L’extension pour capturer. Le web pour lire.' })).toBeVisible();
   await expect(page.getByTestId('demo-library-panel')).toBeVisible();
@@ -251,13 +255,53 @@ test('the PWA reopens its local library with no network after first visit', asyn
   });
   // Precache completion can precede clients.claim() controlling the first page.
   await expect.poll(() => page.evaluate(() => !!navigator.serviceWorker.controller)).toBe(true);
-  expect(await page.evaluate(() => localStorage.getItem('threadshelf.web.account'))).toBe('lp460');
+  expect(await page.evaluate(() => localStorage.getItem('threadshelf.web.account'))).toBe('github:lp460');
+  // The offline shell must preserve the actual local library, not just its UI.
+  await page.evaluate(async () => {
+    const request = indexedDB.open('threadshelf');
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    const tx = db.transaction('entries', 'readwrite');
+    tx.objectStore('entries').put({
+      id: 'offline-persist-entry', kind: 'thread', title: 'Lecture conservée hors ligne',
+      authorHandle: 'offline', focalTweetId: 'offline-post', tweetIds: ['offline-post'],
+      contextTweetIds: [], referenceTweetIds: [], externalRefs: [],
+      completeness: { status: 'complete', startVerified: true, endVerified: true,
+        gaps: 0, issues: [], checkedAt: 1 },
+      sourceUrl: 'https://x.com/offline/status/123', savedAt: 1, updatedAt: 1,
+      readState: 'unread', readLater: false, favorite: false, readProgress: 0,
+      categoryId: null, tags: [], collectionIds: [], note: 'À relire dans le train',
+      offline: 'full', searchText: 'Lecture conservée hors ligne',
+    });
+    await new Promise<void>((resolve, reject) => {
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+    db.close();
+  });
   // Let the auth request fail naturally offline; the online mock must not hide that state.
   await page.unroute('**/api/auth/me');
   await context.setOffline(true);
   await page.reload();
   await expect(page.getByTestId('view-title')).toHaveText('Bibliothèque');
   await expect(page.getByText('Hors ligne')).toBeVisible();
+  expect(await page.evaluate(async () => {
+    const request = indexedDB.open('threadshelf');
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    const entry = await new Promise<{ note?: string } | undefined>((resolve, reject) => {
+      const transaction = db.transaction('entries', 'readonly');
+      const result = transaction.objectStore('entries').get('offline-persist-entry');
+      result.onsuccess = () => resolve(result.result);
+      result.onerror = () => reject(result.error);
+    });
+    db.close();
+    return entry?.note;
+  })).toBe('À relire dans le train');
 });
 
 test('Safari-style web reader auto-translates with consent and reuses cached text offline', async ({ page, context }) => {

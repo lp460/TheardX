@@ -23,6 +23,8 @@
     }
   ],
   "rewrites": [
+    { "source": "/api/auth/providers", "destination": "/api/auth/me?__theardx_auth=providers" },
+    { "source": "/api/auth/logout", "destination": "/api/auth/me?__theardx_auth=logout" },
     { "source": "/s/:id", "destination": "/share/index.html" },
     { "source": "/reader", "destination": "/reader/index.html" },
     { "source": "/reader/", "destination": "/reader/index.html" }

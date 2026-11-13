@@ -36,10 +36,12 @@ export const settingsSchema = z.object({
     .regex(/^[a-z]{2,3}$/)
     .default('fr'),
   /** Web-only cloud fallback: never enabled for the browser extension by default. */
-  webTranslation: z.object({
-    automatic: z.boolean().default(false),
-    consentAt: z.number().nullable().default(null),
-  }).default({ automatic: false, consentAt: null }),
+  webTranslation: z
+    .object({
+      automatic: z.boolean().default(false),
+      consentAt: z.number().nullable().default(null),
+    })
+    .default({ automatic: false, consentAt: null }),
   /** Download images of saved posts into IndexedDB for offline reading. */
   cacheMedia: z.boolean().default(true),
   maxMediaMB: z.number().min(1).max(50).default(8),
@@ -51,6 +53,7 @@ export const settingsSchema = z.object({
   sync: z
     .object({
       enabled: z.boolean().default(false),
+      provider: z.enum(['github', 'google']).default('github'),
       /** owner/name of the private repository, set automatically when signing in. */
       repo: z.string().max(200).default(''),
       filePath: z.string().max(200).default('threadshelf/library.json'),
@@ -61,6 +64,7 @@ export const settingsSchema = z.object({
     })
     .default({
       enabled: false,
+      provider: 'github',
       repo: '',
       filePath: 'threadshelf/library.json',
       encrypt: false,

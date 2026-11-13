@@ -18,6 +18,7 @@ type ShareRecord = {
   title: string;
   createdAt: number;
   expiresAt: number | null;
+  collaboration?: boolean;
 };
 
 const labels = {
@@ -43,6 +44,10 @@ const labels = {
     noEntries: 'Cette collection est vide.',
     error: 'Impossible de préparer le partage.',
     open: 'Ouvrir',
+    accessTitle: 'Mode de partage',
+    readOnly: 'Lecture seule (par défaut)',
+    collaboration: 'Autoriser la collaboration',
+    collaborationHint: 'Les personnes connectées pourront ajouter des notes, commentaires et annotations visibles sur ce lien. Le contenu original ne pourra jamais être modifié.',
   },
   en: {
     title: 'Share',
@@ -66,6 +71,10 @@ const labels = {
     noEntries: 'This collection is empty.',
     error: 'Unable to prepare this share.',
     open: 'Open',
+    accessTitle: 'Sharing mode',
+    readOnly: 'Read-only (default)',
+    collaboration: 'Allow collaboration',
+    collaborationHint: 'Signed-in visitors can add shared notes, comments and annotations. The original content can never be edited.',
   },
   es: {
     title: 'Compartir',
@@ -89,6 +98,10 @@ const labels = {
     noEntries: 'Esta colección está vacía.',
     error: 'No se puede preparar el contenido.',
     open: 'Abrir',
+    accessTitle: 'Modo de compartir',
+    readOnly: 'Solo lectura (predeterminado)',
+    collaboration: 'Permitir colaboración',
+    collaborationHint: 'Los usuarios conectados pueden añadir notas, comentarios y anotaciones visibles en este enlace. El contenido original nunca se modifica.',
   },
 } satisfies Record<WebLanguage, Record<string, string>>;
 
@@ -108,6 +121,7 @@ export function ShareDialog({
   const { language } = useWebI18n();
   const t = labels[language];
   const [expiresInDays, setExpiresInDays] = useState<'7' | '30' | 'never'>('30');
+  const [collaboration, setCollaboration] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [created, setCreated] = useState<ShareRecord | null>(null);
@@ -120,6 +134,7 @@ export function ShareDialog({
     setError('');
     setCreated(null);
     setCopied(false);
+    setCollaboration(false);
     void fetch('/api/share?mine=1', { credentials: 'same-origin' })
       .then((response) => parseResponse<{ shares: ShareRecord[] }>(response))
       .then((result) => {
@@ -156,6 +171,7 @@ export function ShareDialog({
       const body = JSON.stringify({
         snapshot,
         expiresInDays: expiresInDays === 'never' ? null : Number(expiresInDays),
+        collaboration,
       });
       if (new TextEncoder().encode(body).length > 1_000_000) throw new Error(t.huge);
       const record = await parseResponse<ShareRecord>(
@@ -232,6 +248,20 @@ export function ShareDialog({
             <option value="never">{t.never}</option>
           </select>
         </div>
+        <fieldset className="rounded-xl border border-line p-3">
+          <legend className="px-1 text-xs font-semibold text-muted">{t.accessTitle}</legend>
+          <label className="flex min-h-10 items-center gap-3 text-sm">
+            <input type="radio" name="share-access" checked={!collaboration}
+              onChange={() => setCollaboration(false)} />
+            {t.readOnly}
+          </label>
+          <label className="flex min-h-10 items-center gap-3 text-sm">
+            <input type="radio" name="share-access" checked={collaboration}
+              onChange={() => setCollaboration(true)} />
+            {t.collaboration}
+          </label>
+          {collaboration ? <p className="mt-1 text-xs leading-relaxed text-muted">{t.collaborationHint}</p> : null}
+        </fieldset>
         <Button
           variant="primary"
           disabled={busy}

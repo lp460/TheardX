@@ -9,6 +9,8 @@
 - [ ] Se déconnecter puis se reconnecter ; vérifier que le contenu local n'est pas perdu et qu'un deuxième compte GitHub n'ouvre pas la bibliothèque du premier.
 - [ ] Tester un dépôt GitHub privé chiffré et une mauvaise phrase secrète : aucune suppression, aucun envoi en clair.
 - [ ] Tester un dépôt GitHub non chiffré en montrant clairement à l'utilisateur ce que cela implique.
+- [ ] Se connecter avec Google sur le web et l'extension : confirmer le même compte, la création du dossier Drive `TheardX` et la synchronisation.
+- [ ] Vérifier que les nouvelles sauvegardes Google Drive utilisent le mode standard par défaut, que le chiffrement est disponible dans les options avancées et qu'une sauvegarde déjà chiffrée n'est jamais déchiffrée automatiquement.
 
 ## 2. Synchronisation entre deux appareils
 
@@ -32,6 +34,8 @@
 
 - [ ] Surligner sur plusieurs paragraphes et langues ; vérifier les annotations quand la mise en page ou le texte extrait change.
 - [ ] Partager volontairement un article : ouvrir le lien sans compte ; vérifier l'absence de notes, annotations, tags privés et jetons.
+- [ ] Activer la collaboration sur un lien : vérifier que seul un compte connecté peut ajouter une note publique, que le texte source reste immuable et qu'aucun e-mail complet n'est exposé.
+- [ ] Depuis un compte destinataire, enregistrer une copie personnelle puis vérifier qu'elle est indépendante du partage et apparaît dans sa bibliothèque.
 - [ ] Révoquer un lien et vérifier l'accès refusé ; tester un lien expiré.
 - [ ] Safari iPhone (375 px), petit écran (320 px), tablette (768 px), desktop : menus, actions, traductions et lisibilité.
 - [ ] Installer la PWA, ouvrir un article hors ligne après une première visite, revenir en ligne et vérifier la synchronisation.

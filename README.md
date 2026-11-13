@@ -1,17 +1,17 @@
 # TheardX (extension ThreadShelf + Web/PWA)
 
-> **Essayer TheardX :** https://theard-x.vercel.app — démonstration publique, lecture et bibliothèque web sur connexion GitHub. Voir [docs/WEB-PWA.md](docs/WEB-PWA.md). Le build web est indépendant de celui de l'extension.
+> **Essayer TheardX :** https://theard-x.vercel.app — démonstration publique, lecture et bibliothèque web sur connexion Google ou GitHub. Voir [docs/WEB-PWA.md](docs/WEB-PWA.md). Le build web est indépendant de celui de l'extension.
 
 Enregistrez, lisez, copiez et organisez les publications et threads de X.com, et les discussions Reddit (facultatif). Extension Manifest V3 conçue pour **Arc sur macOS**, compatible Chrome, Brave, Edge et autres navigateurs Chromium.
 
-Pocket + mode lecture + gestionnaire de favoris, spécialisé pour X. **L'extension fonctionne localement sans compte** ; sa synchronisation GitHub est facultative. **La PWA nécessite GitHub pour accéder à une bibliothèque personnelle synchronisée** et peut utiliser Vercel pour les partages et la traduction distante sur consentement. Consultez [la politique de confidentialité](PRIVACY.md).
+Pocket + mode lecture + gestionnaire de favoris, spécialisé pour X. **L'extension fonctionne localement sans compte** ; sa synchronisation Google Drive ou GitHub est facultative. **La PWA accepte Google ou GitHub pour une bibliothèque personnelle synchronisée** et peut utiliser Vercel pour les partages et la traduction distante sur consentement. Sur Google Drive, le mode de sauvegarde standard sans chiffrement de bout en bout est proposé par défaut ; le chiffrement reste activable dans les options de sécurité. Consultez [la politique de confidentialité](PRIVACY.md).
 
 ## Démarrer en 2 minutes
 
 1. Sur ordinateur, ouvrez [le guide d'installation](https://theard-x.vercel.app/#installation), téléchargez le ZIP et décompressez-le dans un **dossier permanent**.
 2. Dans Arc, Chrome, Brave ou Edge, activez le mode développeur dans le gestionnaire d'extensions et chargez le dossier contenant `manifest.json`.
 3. Sur X ou Reddit, ouvrez une publication, utilisez le bouton de l'extension puis retrouvez l'article dans la bibliothèque.
-4. Pour retrouver la même bibliothèque sur plusieurs appareils, connectez votre compte GitHub dans l'extension et la PWA. Pensez à conserver une sauvegarde JSON avant de changer d'installation.
+4. Pour retrouver la même bibliothèque sur plusieurs appareils, connectez le même fournisseur (Google Drive ou GitHub) dans l'extension et la PWA. Pensez à conserver une sauvegarde JSON avant de changer d'installation.
 
 **Mises à jour du ZIP :** remplacez le contenu du **même dossier d'extension** puis rechargez-la dans le gestionnaire et rafraîchissez les onglets X/Reddit. Une installation ZIP **ne se met pas à jour automatiquement**. Le Chrome Web Store est un chantier de distribution distinct, pas une publication déjà annoncée.
 
