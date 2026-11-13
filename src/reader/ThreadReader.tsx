@@ -852,20 +852,6 @@ export function ThreadReader() {
                 </Button>
               </Tooltip>
             ) : null}
-            {isWeb ? <div className="sm:hidden"><Menu>
-              <MenuTrigger asChild>
-                <Button variant="ghost" size="icon" aria-label={t('readerMore')}><MoreHorizontal size={20} /></Button>
-              </MenuTrigger>
-              <MenuContent align="end">
-                <MenuItem icon={<Copy size={14} />} onSelect={() => copyEntry(entry.id, 'markdown')}>{t('readerCopyThreadMarkdown')}</MenuItem>
-                <MenuItem icon={<Copy size={14} />} onSelect={() => copyEntry(entry.id, 'text')}>{t('readerCopyThreadText')}</MenuItem>
-                {showTranslation ? <MenuItem icon={<Languages size={14} />} onSelect={() => void copyTranslation()}>{t('readerCopyTranslation')}</MenuItem> : null}
-                <MenuItem icon={<CheckSquare size={14} />} onSelect={() => { setSelecting(true); setSelection(new Set()); }}>{t('readerCopySelection')}</MenuItem>
-                <MenuItem icon={<Download size={14} />} onSelect={() => setExportOpen(true)}>{t('readerExport')}</MenuItem>
-                <MenuItem icon={<Printer size={14} />} onSelect={() => window.print()}>{t('readerPrint')} / PDF</MenuItem>
-                <MenuItem icon={<Keyboard size={14} />} onSelect={() => setHelpOpen(true)}>{t('readerShortcuts')}</MenuItem>
-              </MenuContent>
-            </Menu></div> : null}
             <ReaderSettings isWeb={isWeb} />
             <div><Tooltip label={`${t('readerShortcuts')} (?)`}>
               <Button
@@ -887,6 +873,20 @@ export function ThreadReader() {
                 </div>
               ) : null}
             </div>
+            {isWeb ? <div className="shrink-0 sm:hidden"><Menu>
+              <MenuTrigger asChild>
+                <Button variant="ghost" size="icon" aria-label={t('readerMore')} data-testid="reader-mobile-more"><MoreHorizontal size={20} /></Button>
+              </MenuTrigger>
+              <MenuContent align="end">
+                <MenuItem icon={<Copy size={14} />} onSelect={() => copyEntry(entry.id, 'markdown')}>{t('readerCopyThreadMarkdown')}</MenuItem>
+                <MenuItem icon={<Copy size={14} />} onSelect={() => copyEntry(entry.id, 'text')}>{t('readerCopyThreadText')}</MenuItem>
+                {showTranslation ? <MenuItem icon={<Languages size={14} />} onSelect={() => void copyTranslation()}>{t('readerCopyTranslation')}</MenuItem> : null}
+                <MenuItem icon={<CheckSquare size={14} />} onSelect={() => { setSelecting(true); setSelection(new Set()); }}>{t('readerCopySelection')}</MenuItem>
+                <MenuItem icon={<Download size={14} />} onSelect={() => setExportOpen(true)}>{t('readerExport')}</MenuItem>
+                <MenuItem icon={<Printer size={14} />} onSelect={() => window.print()}>{t('readerPrint')} / PDF</MenuItem>
+                <MenuItem icon={<Keyboard size={14} />} onSelect={() => setHelpOpen(true)}>{t('readerShortcuts')}</MenuItem>
+              </MenuContent>
+            </Menu></div> : null}
           </div>
         </header>
 
