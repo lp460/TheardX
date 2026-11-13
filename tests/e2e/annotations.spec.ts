@@ -41,10 +41,16 @@ test('personal passage comments survive a reader reload and can be resolved and 
   await expect(panel).toBeVisible();
   await panel.getByRole('button', { name: 'Masquer les surlignages' }).click();
   await expect(panel.getByRole('button', { name: 'Afficher les surlignages' })).toBeVisible();
-  await panel.getByRole('button', { name: 'Afficher les surlignages' }).click();
-  await panel.getByTitle('Résoudre').click({ timeout: 10_000 });
-  await expect(panel).toContainText('Résolu');
+  // Display preference survives navigation, while annotations remain intact.
+  await reader.reload();
+  await reader.getByTestId('reader-annotations').click();
+  const restoredPanel = reader.getByTestId('reader-annotations-panel');
+  await expect(restoredPanel).toContainText('À examiner pour Hermes');
+  await expect(restoredPanel.getByRole('button', { name: 'Afficher les surlignages' })).toBeVisible();
+  await restoredPanel.getByRole('button', { name: 'Afficher les surlignages' }).click();
+  await restoredPanel.getByTitle('Résoudre').click({ timeout: 10_000 });
+  await expect(restoredPanel).toContainText('Résolu');
   reader.once('dialog', (dialog) => void dialog.accept());
-  await panel.getByTitle('Supprimer').click({ timeout: 10_000 });
-  await expect(panel).toContainText('Mes annotations (0)');
+  await restoredPanel.getByTitle('Supprimer').click({ timeout: 10_000 });
+  await expect(restoredPanel).toContainText('Mes annotations (0)');
 });
