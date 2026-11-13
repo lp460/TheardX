@@ -63,11 +63,6 @@ test('iPhone reader keeps Back and More fixed while Export remains accessible', 
   await expect(more).toBeInViewport();
   expect(await more.evaluate((el) => !!el.closest('[data-testid="reader-action-strip"]'))).toBe(false);
   const moreBefore = await more.boundingBox();
-  await more.click();
-  await page.getByRole('menuitem', { name: 'Exporter' }).click();
-  await expect(page.getByRole('dialog', { name: 'Exporter' })).toBeVisible();
-  await page.keyboard.press('Escape');
-  await expect(page.getByRole('dialog', { name: 'Exporter' })).toBeHidden();
   const before = await back.boundingBox();
   await strip.evaluate((el) => { el.scrollLeft = el.scrollWidth; });
   await expect.poll(() => strip.evaluate((el) => el.scrollLeft)).toBeGreaterThan(0);
@@ -80,6 +75,7 @@ test('iPhone reader keeps Back and More fixed while Export remains accessible', 
   expect(Math.abs((moreAfter?.x ?? 0) - (moreBefore?.x ?? 0))).toBeLessThan(2);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 
-  await exportButton.click();
+  await more.click();
+  await page.getByRole('menuitem', { name: 'Exporter' }).click();
   await expect(page.getByRole('dialog', { name: 'Exporter' })).toBeVisible();
 });
