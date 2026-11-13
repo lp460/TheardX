@@ -127,3 +127,26 @@ test('a signed-in recipient saves a private copy and participates without changi
   await expect(page.getByTestId('shared-note')).toContainText('Un commentaire utile');
   await expect(page.getByText('The long article body is visible to guests.')).toBeVisible();
 });
+
+test('read-only sharing never exposes collaboration or writes shared notes', async ({ page }) => {
+  await page.route('**/api/auth/me', (route) => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ login: 'reader', provider: 'github', accountId: 'github:reader' }),
+  }));
+  let sharedNotesCalls = 0;
+  await page.route('**/api/share-notes?*', (route) => {
+    sharedNotesCalls++;
+    return route.fulfill({ status: 403, contentType: 'application/json', body: '{"error":"Collaboration désactivée"}' });
+  });
+  await page.route('**/api/share?id=*', (route) => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ ...data, collaboration: false }),
+  }));
+  await page.goto(`/share/index.html?id=${data.id}`);
+  await expect(page.getByTestId('shared-post')).toHaveCount(2);
+  await expect(page.getByTestId('shared-note')).toHaveCount(0);
+  await expect(page.getByTestId('shared-notes-0')).toHaveCount(0);
+  await expect(page.getByPlaceholder('Ajouter une idée, une remarque ou un commentaire…')).toHaveCount(0);
+  await expect(page.getByText('The long article body is visible to guests.')).toBeVisible();
+  expect(sharedNotesCalls).toBe(0);
+});
