@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-test('iPhone reader keeps Back fixed and reveals Export by swiping the actions', async ({ page }) => {
+test('iPhone reader keeps Back and More fixed while Export remains accessible', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   await page.route('**/api/auth/me', (route) => route.fulfill({
     status: 200, contentType: 'application/json', body: '{"login":"lp460"}',
@@ -58,6 +58,16 @@ test('iPhone reader keeps Back fixed and reveals Export by swiping the actions',
   await expect(strip).toBeVisible();
   await expect(exportButton).toBeAttached();
   expect(await strip.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true);
+  // The mobile overflow menu must remain reachable without swiping the actions.
+  const more = page.getByTestId('reader-mobile-more');
+  await expect(more).toBeInViewport();
+  expect(await more.evaluate((el) => !!el.closest('[data-testid="reader-action-strip"]'))).toBe(false);
+  const moreBefore = await more.boundingBox();
+  await more.click();
+  await page.getByRole('menuitem', { name: 'Exporter' }).click();
+  await expect(page.getByRole('dialog', { name: 'Exporter' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog', { name: 'Exporter' })).toBeHidden();
   const before = await back.boundingBox();
   await strip.evaluate((el) => { el.scrollLeft = el.scrollWidth; });
   await expect.poll(() => strip.evaluate((el) => el.scrollLeft)).toBeGreaterThan(0);
@@ -66,6 +76,8 @@ test('iPhone reader keeps Back fixed and reveals Export by swiping the actions',
   const after = await back.boundingBox();
   expect(Math.abs((after?.x ?? 0) - (before?.x ?? 0))).toBeLessThan(2);
   await expect(back).toBeInViewport();
+  const moreAfter = await more.boundingBox();
+  expect(Math.abs((moreAfter?.x ?? 0) - (moreBefore?.x ?? 0))).toBeLessThan(2);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 
   await exportButton.click();
