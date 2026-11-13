@@ -34,6 +34,16 @@ interface HighlightRect {
 }
 
 const EMPTY_ANNOTATIONS: Annotation[] = [];
+const HIGHLIGHTS_VISIBILITY_KEY = 'threadshelf.reader.highlightsVisible';
+
+function initialHighlightsVisible(): boolean {
+  try {
+    return localStorage.getItem(HIGHLIGHTS_VISIBILITY_KEY) !== 'false';
+  } catch {
+    // Storage can be unavailable in restricted/private browser contexts.
+    return true;
+  }
+}
 
 /** The same personal annotation UI runs in the PWA and the MV3 extension reader. */
 export function useReaderAnnotations(
@@ -56,7 +66,15 @@ export function useReaderAnnotations(
   const [editText, setEditText] = useState('');
   const [rects, setRects] = useState<HighlightRect[]>([]);
   const [orphaned, setOrphaned] = useState<Set<string>>(new Set());
-  const [highlightsVisible, setHighlightsVisible] = useState(true);
+  const [highlightsVisible, setHighlightsVisible] = useState(initialHighlightsVisible);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(HIGHLIGHTS_VISIBILITY_KEY, String(highlightsVisible));
+    } catch {
+      // Keep the in-memory preference if local storage is blocked.
+    }
+  }, [highlightsVisible]);
 
   const refresh = useCallback(() => {
     const article = articleRef.current;
